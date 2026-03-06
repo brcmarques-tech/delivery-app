@@ -5,14 +5,14 @@ App mobile (React Native/Expo) para clientes do delivery.
 ## Pré-requisitos
 
 - Node.js 18+
-- Expo CLI (`npm install -g expo-cli`)
+- Yarn (`npm install -g yarn`)
 - Expo Go no celular ou emulador Android/iOS
 - [delivery-api](https://gitlab.com/bcm-tech/delivery-api) rodando
 
 ## Instalação
 
 ```bash
-npm install
+yarn
 ```
 
 ## Variáveis de ambiente
@@ -26,10 +26,10 @@ cp .env.example .env
 ## Rodando
 
 ```bash
-npm start        # Abre o Expo Dev Server (escanear QR code com Expo Go)
-npm run android  # Roda no emulador Android
-npm run ios      # Roda no simulador iOS
-npm run web      # Roda no navegador
+yarn start        # Abre o Expo Dev Server (escanear QR code com Expo Go)
+yarn android      # Roda no emulador Android
+yarn ios          # Roda no simulador iOS
+yarn web          # Roda no navegador
 ```
 
 ## Estrutura
