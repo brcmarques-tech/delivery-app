@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Alert, Platform } from 'react-native';
 import { useQuery } from '@apollo/client';
 import { GET_MY_ORDERS, GET_ME } from '../lib/graphql/queries';
 import { useAuth } from '../contexts/AuthContext';
+import { useAlert } from '../contexts/AlertContext';
 
 const statusLabels: Record<string, string> = {
   PENDING: 'Pendente',
@@ -14,11 +14,6 @@ const statusLabels: Record<string, string> = {
   CANCELLED: 'Cancelado',
 };
 
-function notify(title: string, body: string) {
-  if (Platform.OS === 'web') return;
-  Alert.alert(title, body);
-}
-
 interface Order {
   id: string;
   orderNumber: string;
@@ -27,6 +22,7 @@ interface Order {
 
 export function useOrderNotifications() {
   const { user, updateUser } = useAuth();
+  const { alert } = useAlert();
   const prevStatusesRef = useRef<Record<string, string>>({});
   const initializedRef = useRef(false);
 
@@ -51,7 +47,7 @@ export function useOrderNotifications() {
     orders.forEach((order) => {
       if (!isFirstLoad && prevStatuses[order.id] && prevStatuses[order.id] !== order.status) {
         const statusLabel = statusLabels[order.status] || order.status;
-        notify(`Pedido #${order.orderNumber}`, `Status atualizado: ${statusLabel}`);
+        alert(`Pedido #${order.orderNumber}`, `Status atualizado: ${statusLabel}`);
       }
       prevStatuses[order.id] = order.status;
     });
@@ -98,14 +94,14 @@ export function useOrderNotifications() {
 
     // Approved as deliverer
     if (user.pendingRole === 'DELIVERER' && !me.pendingRole && me.isDeliverer) {
-      notify(
+      alert(
         'Cadastro aprovado!',
-        'Seu cadastro como entregador foi aprovado! A aba "Entregas" já está disponível.',
+        'Seu cadastro como entregador foi aprovado! A aba "Entregas" ja esta disponivel.',
       );
     }
     // Rejected
     else if (user.pendingRole === 'DELIVERER' && !me.pendingRole && me.rejectedAt) {
-      notify(
+      alert(
         'Cadastro rejeitado',
         me.rejectionReason
           ? `Seu cadastro como entregador foi rejeitado. Motivo: ${me.rejectionReason}`
@@ -119,7 +115,7 @@ export function useOrderNotifications() {
         DELIVERER: 'Entregador',
         VENDOR: 'Vendedor',
       };
-      notify(
+      alert(
         'Cargo atualizado',
         `Seu cargo foi alterado para: ${roleLabels[me.role] || me.role}`,
       );

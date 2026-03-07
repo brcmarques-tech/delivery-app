@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Image } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,6 +33,7 @@ export default function OrderDetailScreen() {
     );
   }
 
+  const isAwaitingPayment = order.status === 'AWAITING_PAYMENT';
   const currentStepIndex = statusSteps.findIndex((s) => s.key === order.status);
 
   return (
@@ -44,6 +45,38 @@ export default function OrderDetailScreen() {
         <Text style={styles.title}>Pedido #{order.orderNumber}</Text>
         <View style={{ width: 24 }} />
       </View>
+
+      {isAwaitingPayment && (
+        <View style={styles.paymentBanner}>
+          <Ionicons name="alert-circle" size={24} color={colors.warning} />
+          <Text style={styles.paymentBannerText}>Aguardando pagamento</Text>
+        </View>
+      )}
+
+      {isAwaitingPayment && order.paymentMethod === 'PIX' && order.pixQrCode && (
+        <View style={styles.pixSection}>
+          <Text style={styles.pixTitle}>Pague com PIX</Text>
+          {order.pixQrCodeBase64 ? (
+            <Image
+              source={{ uri: `data:image/png;base64,${order.pixQrCodeBase64}` }}
+              style={styles.pixQrImage}
+              resizeMode="contain"
+            />
+          ) : null}
+          <Text style={styles.pixCode} selectable>{order.pixQrCode}</Text>
+          <Text style={styles.pixHint}>Copie o codigo acima e cole no app do seu banco</Text>
+        </View>
+      )}
+
+      {isAwaitingPayment && order.paymentMethod === 'MERCADO_PAGO' && order.checkoutUrl && (
+        <TouchableOpacity
+          style={styles.payButton}
+          onPress={() => Linking.openURL(order.checkoutUrl)}
+        >
+          <Ionicons name="card-outline" size={20} color={colors.white} />
+          <Text style={styles.payButtonText}>Ir para pagamento</Text>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.statusContainer}>
         {statusSteps.map((step, idx) => {
@@ -184,4 +217,48 @@ const styles = StyleSheet.create({
   grandTotal: { borderTopWidth: 1, borderTopColor: colors.grayLight, paddingTop: 12, marginTop: 8 },
   grandTotalLabel: { fontSize: fonts.large, fontWeight: 'bold', color: colors.text },
   grandTotalValue: { fontSize: fonts.large, fontWeight: 'bold', color: colors.primary },
+  paymentBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFF3CD',
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    padding: 14,
+  },
+  paymentBannerText: { fontSize: fonts.regular, fontWeight: '600', color: '#856404' },
+  pixSection: {
+    backgroundColor: colors.white,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    gap: 12,
+  },
+  pixTitle: { fontSize: fonts.large, fontWeight: 'bold', color: colors.text },
+  pixQrImage: { width: 200, height: 200 },
+  pixCode: {
+    fontSize: fonts.small,
+    color: colors.textLight,
+    backgroundColor: colors.background,
+    padding: 12,
+    borderRadius: 8,
+    textAlign: 'center',
+    width: '100%',
+  },
+  pixHint: { fontSize: fonts.small, color: colors.textLight, textAlign: 'center' },
+  payButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.primary,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    padding: 16,
+  },
+  payButtonText: { color: colors.white, fontSize: fonts.regular, fontWeight: 'bold' },
 });

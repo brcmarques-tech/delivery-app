@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ScrollView,
   Image,
 } from 'react-native';
@@ -14,8 +13,8 @@ import { useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { REGISTER_AS_DELIVERER, UPLOAD_IMAGE } from '../src/lib/graphql/mutations';
-import { Platform } from 'react-native';
 import { useAuth } from '../src/contexts/AuthContext';
+import { useAlert } from '../src/contexts/AlertContext';
 import { colors, fonts } from '../src/theme';
 
 const vehicleTypes = [
@@ -48,6 +47,7 @@ Ao prosseguir com o cadastro, você declara ter lido, compreendido e concordado 
 
 export default function DelivererRegisterScreen() {
   const { updateUser } = useAuth();
+  const { alert } = useAlert();
   const [cpf, setCpf] = useState('');
   const [vehicleType, setVehicleType] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
@@ -71,7 +71,7 @@ export default function DelivererRegisterScreen() {
   async function pickIdentityPhoto() {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permissao necessaria', 'Precisamos de acesso a camera para tirar a foto.');
+      alert('Permissao necessaria', 'Precisamos de acesso a camera para tirar a foto.');
       return;
     }
 
@@ -92,7 +92,7 @@ export default function DelivererRegisterScreen() {
   async function pickFromGallery() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permissao necessaria', 'Precisamos de acesso a galeria.');
+      alert('Permissao necessaria', 'Precisamos de acesso a galeria.');
       return;
     }
 
@@ -113,24 +113,24 @@ export default function DelivererRegisterScreen() {
   async function handleSubmit() {
     const cleanCpf = cpf.replace(/\D/g, '');
     if (cleanCpf.length !== 11) {
-      Alert.alert('Erro', 'CPF deve ter 11 digitos');
+      alert('Erro', 'CPF deve ter 11 digitos');
       return;
     }
     if (!vehicleType) {
-      Alert.alert('Erro', 'Selecione o tipo de veiculo');
+      alert('Erro', 'Selecione o tipo de veiculo');
       return;
     }
     if (!identityPhoto) {
-      Alert.alert('Erro', 'Tire uma foto segurando seu documento de identidade');
+      alert('Erro', 'Tire uma foto segurando seu documento de identidade');
       return;
     }
     if (!acceptedContract) {
-      Alert.alert('Erro', 'Voce precisa aceitar o termo de compromisso');
+      alert('Erro', 'Voce precisa aceitar o termo de compromisso');
       return;
     }
 
     if (!identityPhotoBase64) {
-      Alert.alert('Erro', 'Não foi possível processar a foto. Tente tirar novamente.');
+      alert('Erro', 'Não foi possível processar a foto. Tente tirar novamente.');
       return;
     }
 
@@ -158,7 +158,7 @@ export default function DelivererRegisterScreen() {
     } catch (err: any) {
       setUploading(false);
       const msg = err?.message || 'Erro desconhecido';
-      Alert.alert('Erro', `Não foi possível completar o cadastro: ${msg}`);
+      alert('Erro', `Não foi possível completar o cadastro: ${msg}`);
     }
   }
 

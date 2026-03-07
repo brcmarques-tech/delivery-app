@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useAlert } from '../../src/contexts/AlertContext';
 import { colors, fonts } from '../../src/theme';
 
 const roleLabels: Record<string, string> = {
@@ -15,8 +16,8 @@ const roleLabels: Record<string, string> = {
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
+  const { alert } = useAlert();
   const isDeliverer = user?.isDeliverer || user?.role === 'DELIVERER';
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [retryCountdown, setRetryCountdown] = useState(0);
 
   const RETRY_DELAY_MS = 30 * 60 * 1000; // 30 minutos
@@ -41,20 +42,15 @@ export default function ProfileScreen() {
   const retrySeconds = Math.floor((retryCountdown % 60000) / 1000);
 
   async function confirmLogout() {
-    setShowLogoutModal(false);
     await logout();
     router.replace('/auth/login');
   }
 
   function handleLogout() {
-    if (Platform.OS === 'web') {
-      setShowLogoutModal(true);
-    } else {
-      Alert.alert('Sair', 'Tem certeza que deseja sair?', [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Sair', style: 'destructive', onPress: confirmLogout },
-      ]);
-    }
+    alert('Sair', 'Tem certeza que deseja sair?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Sair', style: 'destructive', onPress: confirmLogout },
+    ]);
   }
 
   const menuItems = [
@@ -158,34 +154,6 @@ export default function ProfileScreen() {
         <Ionicons name="log-out-outline" size={22} color={colors.danger} />
         <Text style={styles.logoutText}>Sair da conta</Text>
       </TouchableOpacity>
-
-      <Modal
-        visible={showLogoutModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowLogoutModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalIconWrapper}>
-              <Ionicons name="log-out-outline" size={32} color={colors.danger} />
-            </View>
-            <Text style={styles.modalTitle}>Sair da conta</Text>
-            <Text style={styles.modalMessage}>Tem certeza que deseja sair?</Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => setShowLogoutModal(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirmButton} onPress={confirmLogout}>
-                <Text style={styles.modalConfirmText}>Sair</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -335,66 +303,4 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   logoutText: { fontSize: fonts.regular, color: colors.danger, fontWeight: '600' },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalCard: {
-    backgroundColor: colors.white,
-    borderRadius: 20,
-    padding: 28,
-    width: 320,
-    alignItems: 'center',
-  },
-  modalIconWrapper: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.danger + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: fonts.xlarge,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  modalMessage: {
-    fontSize: fonts.regular,
-    color: colors.textLight,
-    marginBottom: 24,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
-  modalCancelButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: colors.grayLight,
-    alignItems: 'center',
-  },
-  modalCancelText: {
-    fontSize: fonts.regular,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  modalConfirmButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: colors.danger,
-    alignItems: 'center',
-  },
-  modalConfirmText: {
-    fontSize: fonts.regular,
-    fontWeight: '600',
-    color: colors.white,
-  },
 });

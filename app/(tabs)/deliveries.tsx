@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  Alert,
   Linking,
 } from 'react-native';
 import { useQuery, useMutation } from '@apollo/client';
@@ -14,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GET_AVAILABLE_DELIVERIES, GET_MY_DELIVERIES } from '../../src/lib/graphql/queries';
 import { ACCEPT_DELIVERY, CONFIRM_PICKUP, CONFIRM_DELIVERY } from '../../src/lib/graphql/mutations';
 import { useDeliveryTracking } from '../../src/hooks/useDeliveryTracking';
+import { useAlert } from '../../src/contexts/AlertContext';
 import { colors, fonts } from '../../src/theme';
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -25,6 +25,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 type Tab = 'available' | 'my';
 
 export default function DeliveriesScreen() {
+  const { alert } = useAlert();
   const [tab, setTab] = useState<Tab>('available');
 
   const {
@@ -58,7 +59,7 @@ export default function DeliveriesScreen() {
   useDeliveryTracking(activeDeliveryForTracking);
 
   async function handleAccept(orderId: string, orderNumber: string) {
-    Alert.alert('Aceitar entrega', `Aceitar pedido #${orderNumber}?`, [
+    alert('Aceitar entrega', `Aceitar pedido #${orderNumber}?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Aceitar',
@@ -68,9 +69,9 @@ export default function DeliveriesScreen() {
             refetchAvailable();
             refetchMy();
             setTab('my');
-            Alert.alert('Sucesso', 'Entrega aceita! Va ate a loja para coletar.');
+            alert('Sucesso', 'Entrega aceita! Va ate a loja para coletar.');
           } catch {
-            Alert.alert('Erro', 'Nao foi possivel aceitar a entrega.');
+            alert('Erro', 'Nao foi possivel aceitar a entrega.');
           }
         },
       },
@@ -78,7 +79,7 @@ export default function DeliveriesScreen() {
   }
 
   async function handleConfirmPickup(deliveryId: string) {
-    Alert.alert('Confirmar coleta', 'Voce ja retirou o pedido na loja?', [
+    alert('Confirmar coleta', 'Voce ja retirou o pedido na loja?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Sim, coletei',
@@ -87,7 +88,7 @@ export default function DeliveriesScreen() {
             await confirmPickup({ variables: { deliveryId } });
             refetchMy();
           } catch {
-            Alert.alert('Erro', 'Nao foi possivel confirmar a coleta.');
+            alert('Erro', 'Nao foi possivel confirmar a coleta.');
           }
         },
       },
@@ -95,7 +96,7 @@ export default function DeliveriesScreen() {
   }
 
   async function handleConfirmDelivery(deliveryId: string) {
-    Alert.alert('Confirmar entrega', 'O pedido foi entregue ao cliente?', [
+    alert('Confirmar entrega', 'O pedido foi entregue ao cliente?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Sim, entreguei',
@@ -105,7 +106,7 @@ export default function DeliveriesScreen() {
             refetchMy();
             refetchAvailable();
           } catch {
-            Alert.alert('Erro', 'Nao foi possivel confirmar a entrega.');
+            alert('Erro', 'Nao foi possivel confirmar a entrega.');
           }
         },
       },

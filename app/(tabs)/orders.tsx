@@ -14,6 +14,7 @@ import { GET_MY_ORDERS } from '../../src/lib/graphql/queries';
 import { colors, fonts } from '../../src/theme';
 
 const statusLabels: Record<string, { label: string; color: string }> = {
+  AWAITING_PAYMENT: { label: 'Aguardando pagamento', color: colors.warning },
   PENDING: { label: 'Pendente', color: colors.warning },
   ACCEPTED: { label: 'Aceito', color: colors.primary },
   PREPARING: { label: 'Preparando', color: colors.primary },

@@ -98,6 +98,10 @@ export const GET_ORDER = gql`
       subtotal
       deliveryFee
       total
+      paymentMethod
+      checkoutUrl
+      pixQrCode
+      pixQrCodeBase64
       notes
       deliveryAddress
       createdAt

@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { apolloClient } from '../src/lib/apollo';
 import { AuthProvider } from '../src/contexts/AuthContext';
 import { CartProvider } from '../src/contexts/CartContext';
+import { AlertProvider } from '../src/contexts/AlertContext';
 import { useOrderNotifications } from '../src/hooks/useOrderNotifications';
 
 function NotificationListener() {
@@ -15,11 +16,13 @@ export default function RootLayout() {
   return (
     <ApolloProvider client={apolloClient}>
       <AuthProvider>
-        <CartProvider>
-          <NotificationListener />
-          <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false }} />
-        </CartProvider>
+        <AlertProvider>
+          <CartProvider>
+            <NotificationListener />
+            <StatusBar style="dark" />
+            <Stack screenOptions={{ headerShown: false }} />
+          </CartProvider>
+        </AlertProvider>
       </AuthProvider>
     </ApolloProvider>
   );

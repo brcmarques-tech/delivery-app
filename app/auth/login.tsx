@@ -5,23 +5,24 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useAlert } from '../../src/contexts/AlertContext';
 import { colors, fonts } from '../../src/theme';
 
 export default function LoginScreen() {
   const { login } = useAuth();
+  const { alert } = useAlert();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
     if (!email || !password) {
-      Alert.alert('Erro', 'Preencha todos os campos');
+      alert('Erro', 'Preencha todos os campos');
       return;
     }
     setLoading(true);
@@ -29,7 +30,7 @@ export default function LoginScreen() {
       await login(email, password);
       router.replace('/(tabs)/home');
     } catch {
-      Alert.alert('Erro', 'Email ou senha invalidos');
+      alert('Erro', 'Email ou senha invalidos');
     } finally {
       setLoading(false);
     }

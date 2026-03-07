@@ -43,6 +43,10 @@ export const CREATE_ORDER = gql`
       orderNumber
       status
       total
+      paymentMethod
+      checkoutUrl
+      pixQrCode
+      pixQrCodeBase64
       createdAt
     }
   }

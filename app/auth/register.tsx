@@ -5,15 +5,16 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useAlert } from '../../src/contexts/AlertContext';
 import { colors, fonts } from '../../src/theme';
 
 export default function RegisterScreen() {
   const { register } = useAuth();
+  const { alert } = useAlert();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -22,7 +23,7 @@ export default function RegisterScreen() {
 
   async function handleRegister() {
     if (!name || !email || !phone || !password) {
-      Alert.alert('Erro', 'Preencha todos os campos');
+      alert('Erro', 'Preencha todos os campos');
       return;
     }
     setLoading(true);
@@ -30,7 +31,7 @@ export default function RegisterScreen() {
       await register(name, email, password, phone);
       router.replace('/(tabs)/home');
     } catch {
-      Alert.alert('Erro', 'Nao foi possivel criar a conta. Tente novamente.');
+      alert('Erro', 'Nao foi possivel criar a conta. Tente novamente.');
     } finally {
       setLoading(false);
     }

@@ -6,20 +6,31 @@ import {
   TouchableOpacity,
   StyleSheet,
   TextInput,
-  Alert,
+  Linking,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../src/contexts/CartContext';
+import { useAlert } from '../src/contexts/AlertContext';
 import { CREATE_ORDER } from '../src/lib/graphql/mutations';
 import { colors, fonts } from '../src/theme';
 
+type PaymentMethod = 'ON_DELIVERY' | 'MERCADO_PAGO' | 'PIX';
+
+const PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string; description: string }[] = [
+  { key: 'ON_DELIVERY', label: 'Na entrega', icon: 'cash-outline', description: 'Pague ao receber' },
+  { key: 'MERCADO_PAGO', label: 'Mercado Pago', icon: 'card-outline', description: 'Cartao, boleto ou debito' },
+  { key: 'PIX', label: 'PIX', icon: 'qr-code-outline', description: 'Pagamento instantaneo' },
+];
+
 export default function CartScreen() {
   const { items, storeId, storeName, total, updateQuantity, removeItem, clearCart } = useCart();
+  const { alert } = useAlert();
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ON_DELIVERY');
   const [createOrder] = useMutation(CREATE_ORDER);
 
   const deliveryFee = 5.99; // TODO: pegar da loja
@@ -27,7 +38,7 @@ export default function CartScreen() {
 
   async function handleCheckout() {
     if (!address.trim()) {
-      Alert.alert('Erro', 'Informe o endereco de entrega');
+      alert('Erro', 'Informe o endereco de entrega');
       return;
     }
     setLoading(true);
@@ -45,15 +56,37 @@ export default function CartScreen() {
             deliveryLatitude: -23.5505, // TODO: geocoding real
             deliveryLongitude: -46.6333,
             notes,
+            paymentMethod,
           },
         },
       });
+
+      const order = data.createOrder;
       clearCart();
-      Alert.alert('Pedido realizado!', `Numero: ${data.createOrder.orderNumber}`, [
-        { text: 'Ver pedido', onPress: () => router.replace(`/order/${data.createOrder.id}`) },
-      ]);
+
+      if (paymentMethod === 'MERCADO_PAGO' && order.checkoutUrl) {
+        alert(
+          'Pedido criado!',
+          'Voce sera redirecionado para o pagamento.',
+          [
+            {
+              text: 'Pagar agora',
+              onPress: () => {
+                Linking.openURL(order.checkoutUrl);
+                router.replace(`/order/${order.id}`);
+              },
+            },
+          ],
+        );
+      } else if (paymentMethod === 'PIX' && order.pixQrCode) {
+        router.replace({ pathname: `/order/${order.id}`, params: { showPix: '1' } });
+      } else {
+        alert('Pedido realizado!', `Numero: ${order.orderNumber}`, [
+          { text: 'Ver pedido', onPress: () => router.replace(`/order/${order.id}`) },
+        ]);
+      }
     } catch (err: any) {
-      Alert.alert('Erro', err.message || 'Nao foi possivel fazer o pedido');
+      alert('Erro', err.message || 'Nao foi possivel fazer o pedido');
     } finally {
       setLoading(false);
     }
@@ -129,6 +162,41 @@ export default function CartScreen() {
               onChangeText={setNotes}
               multiline
             />
+
+            <View style={styles.paymentSection}>
+              <Text style={styles.paymentTitle}>Forma de pagamento</Text>
+              {PAYMENT_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option.key}
+                  style={[
+                    styles.paymentOption,
+                    paymentMethod === option.key && styles.paymentOptionSelected,
+                  ]}
+                  onPress={() => setPaymentMethod(option.key)}
+                >
+                  <Ionicons
+                    name={option.icon as any}
+                    size={24}
+                    color={paymentMethod === option.key ? colors.primary : colors.gray}
+                  />
+                  <View style={styles.paymentOptionText}>
+                    <Text
+                      style={[
+                        styles.paymentOptionLabel,
+                        paymentMethod === option.key && styles.paymentOptionLabelSelected,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                    <Text style={styles.paymentOptionDesc}>{option.description}</Text>
+                  </View>
+                  {paymentMethod === option.key && (
+                    <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <View style={styles.summary}>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Subtotal</Text>
@@ -226,6 +294,45 @@ const styles = StyleSheet.create({
     fontSize: fonts.regular,
     color: colors.text,
     minHeight: 60,
+  },
+  paymentSection: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+  },
+  paymentTitle: {
+    fontSize: fonts.regular,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  paymentOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.grayLight,
+    gap: 12,
+  },
+  paymentOptionSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '08',
+  },
+  paymentOptionText: { flex: 1 },
+  paymentOptionLabel: {
+    fontSize: fonts.regular,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  paymentOptionLabelSelected: {
+    color: colors.primary,
+  },
+  paymentOptionDesc: {
+    fontSize: fonts.small,
+    color: colors.textLight,
+    marginTop: 2,
   },
   summary: {
     backgroundColor: colors.white,
