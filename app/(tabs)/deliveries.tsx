@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { useQuery, useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { GET_AVAILABLE_DELIVERIES, GET_MY_DELIVERIES } from '../../src/lib/graphql/queries';
 import { ACCEPT_DELIVERY, CONFIRM_PICKUP, CONFIRM_DELIVERY } from '../../src/lib/graphql/mutations';
+import { useDeliveryTracking } from '../../src/hooks/useDeliveryTracking';
 import { colors, fonts } from '../../src/theme';
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -46,6 +47,15 @@ export default function DeliveriesScreen() {
   const myDeliveries = myData?.myDeliveries || [];
   const activeDeliveries = myDeliveries.filter((d: any) => !d.deliveredAt);
   const completedDeliveries = myDeliveries.filter((d: any) => d.deliveredAt);
+
+  // Background location tracking for active delivery
+  const activeDeliveryForTracking = useMemo(() => {
+    const active = activeDeliveries[0];
+    if (!active) return null;
+    return { deliveryId: active.id, orderId: active.order.id };
+  }, [activeDeliveries]);
+
+  useDeliveryTracking(activeDeliveryForTracking);
 
   async function handleAccept(orderId: string, orderNumber: string) {
     Alert.alert('Aceitar entrega', `Aceitar pedido #${orderNumber}?`, [
@@ -254,7 +264,15 @@ export default function DeliveriesScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Entregas</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Entregas</Text>
+          {activeDeliveryForTracking && (
+            <View style={styles.trackingBadge}>
+              <View style={styles.trackingDot} />
+              <Text style={styles.trackingText}>Rastreando</Text>
+            </View>
+          )}
+        </View>
         <View style={styles.tabBar}>
           <TouchableOpacity
             style={[styles.tabButton, isAvailableTab && styles.tabButtonActive]}
@@ -321,7 +339,28 @@ export default function DeliveriesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { padding: 24, paddingTop: 56, backgroundColor: colors.white },
-  title: { fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text, marginBottom: 16 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  title: { fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text },
+  trackingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.success + '15',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  trackingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.success,
+  },
+  trackingText: {
+    fontSize: fonts.tiny,
+    color: colors.success,
+    fontWeight: '600',
+  },
   tabBar: { flexDirection: 'row', gap: 8 },
   tabButton: {
     flex: 1,

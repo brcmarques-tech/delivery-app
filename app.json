@@ -23,7 +23,14 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.bcmtech.deliveryapp"
+      "package": "com.bcmtech.deliveryapp",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -31,7 +38,10 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Precisamos da sua localizacao para encontrar lojas perto de voce."
+          "locationWhenInUsePermission": "Precisamos da sua localização para encontrar lojas perto de você.",
+          "locationAlwaysAndWhenInUsePermission": "Precisamos da sua localização em segundo plano para rastrear entregas ativas.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ]
     ]
