@@ -9,6 +9,10 @@ export const REGISTER = gql`
         name
         email
         role
+        isDeliverer
+        pendingRole
+        rejectedAt
+        rejectionReason
       }
     }
   }
@@ -23,6 +27,10 @@ export const LOGIN = gql`
         name
         email
         role
+        isDeliverer
+        pendingRole
+        rejectedAt
+        rejectionReason
       }
     }
   }
@@ -36,6 +44,62 @@ export const CREATE_ORDER = gql`
       status
       total
       createdAt
+    }
+  }
+`;
+
+export const REGISTER_AS_DELIVERER = gql`
+  mutation RegisterAsDeliverer($input: RegisterDelivererInput!) {
+    registerAsDeliverer(input: $input) {
+      id
+      name
+      email
+      role
+      isDeliverer
+      pendingRole
+      cpf
+      vehicleType
+      vehiclePlate
+      identityPhotoUrl
+    }
+  }
+`;
+
+export const ACCEPT_DELIVERY = gql`
+  mutation AcceptDelivery($orderId: String!) {
+    acceptDelivery(orderId: $orderId) {
+      id
+      order {
+        id
+        orderNumber
+        status
+      }
+    }
+  }
+`;
+
+export const CONFIRM_PICKUP = gql`
+  mutation ConfirmPickup($deliveryId: String!) {
+    confirmPickup(deliveryId: $deliveryId) {
+      id
+      pickedUpAt
+      order {
+        id
+        status
+      }
+    }
+  }
+`;
+
+export const CONFIRM_DELIVERY = gql`
+  mutation ConfirmDelivery($deliveryId: String!) {
+    confirmDelivery(deliveryId: $deliveryId) {
+      id
+      deliveredAt
+      order {
+        id
+        status
+      }
     }
   }
 `;

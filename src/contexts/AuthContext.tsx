@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useMutation } from '@apollo/client';
+import { useApolloClient, useMutation } from '@apollo/client';
 import { LOGIN, REGISTER } from '../lib/graphql/mutations';
 
 interface User {
@@ -8,6 +8,10 @@ interface User {
   name: string;
   email: string;
   role: string;
+  isDeliverer?: boolean;
+  pendingRole?: string | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
 }
 
 interface AuthContextData {
@@ -17,6 +21,7 @@ interface AuthContextData {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string, phone: string, role?: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (user: User) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -26,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const apolloClient = useApolloClient();
   const [loginMutation] = useMutation(LOGIN);
   const [registerMutation] = useMutation(REGISTER);
 
@@ -65,15 +71,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(userData);
   }
 
+  async function updateUser(updatedUser: User) {
+    await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+    setUser(updatedUser);
+  }
+
   async function logout() {
     await AsyncStorage.removeItem('token');
     await AsyncStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    await apolloClient.resetStore();
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

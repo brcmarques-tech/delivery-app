@@ -1,8 +1,12 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function TabsLayout() {
+  const { user } = useAuth();
+  const isDeliverer = user?.isDeliverer === true || user?.role === 'DELIVERER';
+
   return (
     <Tabs
       screenOptions={{
@@ -46,6 +50,27 @@ export default function TabsLayout() {
           ),
         }}
       />
+
+      {/* Tab de entregas - so aparece para entregadores */}
+      <Tabs.Screen
+        name="deliveries"
+        options={{
+          title: 'Entregas',
+          href: isDeliverer ? '/(tabs)/deliveries' : null,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bicycle-outline" size={size} color={color} />
+          ),
+        }}
+      />
+
+      {/* Tab escondida - usada internamente pelo deliveries */}
+      <Tabs.Screen
+        name="my-deliveries"
+        options={{
+          href: null,
+        }}
+      />
+
       <Tabs.Screen
         name="profile"
         options={{

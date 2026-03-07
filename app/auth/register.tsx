@@ -18,7 +18,6 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'CUSTOMER' | 'VENDOR' | 'DELIVERER'>('CUSTOMER');
   const [loading, setLoading] = useState(false);
 
   async function handleRegister() {
@@ -28,7 +27,7 @@ export default function RegisterScreen() {
     }
     setLoading(true);
     try {
-      await register(name, email, password, phone, role);
+      await register(name, email, password, phone);
       router.replace('/(tabs)/home');
     } catch {
       Alert.alert('Erro', 'Nao foi possivel criar a conta. Tente novamente.');
@@ -37,30 +36,10 @@ export default function RegisterScreen() {
     }
   }
 
-  const roles = [
-    { key: 'CUSTOMER' as const, label: 'Comprar' },
-    { key: 'VENDOR' as const, label: 'Vender' },
-    { key: 'DELIVERER' as const, label: 'Entregar' },
-  ];
-
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Criar conta</Text>
-      <Text style={styles.subtitle}>O que voce quer fazer?</Text>
-
-      <View style={styles.roleContainer}>
-        {roles.map((r) => (
-          <TouchableOpacity
-            key={r.key}
-            style={[styles.roleButton, role === r.key && styles.roleButtonActive]}
-            onPress={() => setRole(r.key)}
-          >
-            <Text style={[styles.roleText, role === r.key && styles.roleTextActive]}>
-              {r.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <Text style={styles.subtitle}>Cadastre-se para comecar a pedir</Text>
 
       <View style={styles.form}>
         <TextInput
@@ -119,18 +98,6 @@ const styles = StyleSheet.create({
   content: { padding: 24, paddingTop: 60 },
   title: { fontSize: fonts.title, fontWeight: 'bold', color: colors.text },
   subtitle: { fontSize: fonts.regular, color: colors.textLight, marginTop: 8, marginBottom: 24 },
-  roleContainer: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  roleButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: colors.grayLight,
-    alignItems: 'center',
-  },
-  roleButtonActive: { borderColor: colors.primary, backgroundColor: '#FFF3EE' },
-  roleText: { fontSize: fonts.regular, color: colors.textLight, fontWeight: '600' },
-  roleTextActive: { color: colors.primary },
   form: { gap: 16 },
   input: {
     backgroundColor: colors.grayLight,

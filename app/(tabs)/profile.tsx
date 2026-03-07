@@ -1,25 +1,38 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { colors, fonts } from '../../src/theme';
 
+const roleLabels: Record<string, string> = {
+  CUSTOMER: 'Cliente',
+  DELIVERER: 'Cliente & Entregador',
+  VENDOR: 'Vendedor',
+  ADMIN: 'Admin',
+  SUPERADMIN: 'Super Admin',
+};
+
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
+  const isDeliverer = user?.isDeliverer || user?.role === 'DELIVERER';
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  async function confirmLogout() {
+    setShowLogoutModal(false);
+    await logout();
+    router.replace('/auth/login');
+  }
 
   function handleLogout() {
-    Alert.alert('Sair', 'Tem certeza que deseja sair?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Sair',
-        style: 'destructive',
-        onPress: async () => {
-          await logout();
-          router.replace('/auth/login');
-        },
-      },
-    ]);
+    if (Platform.OS === 'web') {
+      setShowLogoutModal(true);
+    } else {
+      Alert.alert('Sair', 'Tem certeza que deseja sair?', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Sair', style: 'destructive', onPress: confirmLogout },
+      ]);
+    }
   }
 
   const menuItems = [
@@ -32,17 +45,68 @@ export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.avatar}>
+        <View style={[styles.avatar, isDeliverer && { backgroundColor: colors.success }]}>
           <Text style={styles.avatarText}>
             {user?.name?.charAt(0).toUpperCase()}
           </Text>
         </View>
         <Text style={styles.name}>{user?.name}</Text>
         <Text style={styles.email}>{user?.email}</Text>
-        <View style={styles.roleBadge}>
-          <Text style={styles.roleText}>{user?.role}</Text>
+        <View style={[styles.roleBadge, isDeliverer && { backgroundColor: colors.success + '15' }]}>
+          <Text style={[styles.roleText, isDeliverer && { color: colors.success }]}>
+            {roleLabels[user?.role || ''] || user?.role}
+          </Text>
         </View>
       </View>
+
+      {/* Banner de entregador */}
+      {!isDeliverer && !user?.pendingRole && !user?.rejectedAt && (
+        <TouchableOpacity
+          style={styles.delivererBanner}
+          onPress={() => router.push('/deliverer-register')}
+        >
+          <View style={styles.delivererBannerIcon}>
+            <Ionicons name="bicycle" size={28} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.delivererBannerTitle}>Quero ser entregador</Text>
+            <Text style={styles.delivererBannerSubtitle}>
+              Faca entregas e ganhe dinheiro extra
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color={colors.primary} />
+        </TouchableOpacity>
+      )}
+
+      {user?.pendingRole === 'DELIVERER' && (
+        <View style={styles.pendingBanner}>
+          <Ionicons name="time-outline" size={20} color={colors.warning} />
+          <Text style={styles.pendingText}>
+            Cadastro de entregador aguardando aprovacao
+          </Text>
+        </View>
+      )}
+
+      {user?.rejectedAt && !isDeliverer && (
+        <View style={styles.rejectedBanner}>
+          <Ionicons name="close-circle" size={20} color={colors.danger} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rejectedText}>Cadastro de entregador rejeitado</Text>
+            {user?.rejectionReason && (
+              <Text style={styles.rejectedReason}>Motivo: {user.rejectionReason}</Text>
+            )}
+          </View>
+        </View>
+      )}
+
+      {isDeliverer && (
+        <View style={styles.delivererActiveBanner}>
+          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+          <Text style={styles.delivererActiveText}>
+            Entregador ativo - veja a aba "Entregas"
+          </Text>
+        </View>
+      )}
 
       <View style={styles.menu}>
         {menuItems.map((item, idx) => (
@@ -58,6 +122,34 @@ export default function ProfileScreen() {
         <Ionicons name="log-out-outline" size={22} color={colors.danger} />
         <Text style={styles.logoutText}>Sair da conta</Text>
       </TouchableOpacity>
+
+      <Modal
+        visible={showLogoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIconWrapper}>
+              <Ionicons name="log-out-outline" size={32} color={colors.danger} />
+            </View>
+            <Text style={styles.modalTitle}>Sair da conta</Text>
+            <Text style={styles.modalMessage}>Tem certeza que deseja sair?</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowLogoutModal(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirmButton} onPress={confirmLogout}>
+                <Text style={styles.modalConfirmText}>Sair</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -89,6 +181,88 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   roleText: { color: colors.primary, fontSize: fonts.tiny, fontWeight: '600' },
+  delivererBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: colors.primary + '30',
+    borderStyle: 'dashed',
+    gap: 12,
+  },
+  delivererBannerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  delivererBannerTitle: {
+    fontSize: fonts.regular,
+    fontWeight: 'bold',
+    color: colors.primary,
+  },
+  delivererBannerSubtitle: {
+    fontSize: fonts.small,
+    color: colors.textLight,
+    marginTop: 2,
+  },
+  delivererActiveBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.success + '15',
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 12,
+  },
+  delivererActiveText: {
+    fontSize: fonts.small,
+    color: colors.success,
+    fontWeight: '600',
+  },
+  pendingBanner: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    backgroundColor: colors.warning + '15',
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 12,
+  },
+  pendingText: {
+    fontSize: fonts.small,
+    color: colors.warning,
+    fontWeight: '600',
+  },
+  rejectedBanner: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    backgroundColor: colors.danger + '15',
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 12,
+  },
+  rejectedText: {
+    fontSize: fonts.small,
+    color: colors.danger,
+    fontWeight: '600',
+  },
+  rejectedReason: {
+    fontSize: fonts.tiny,
+    color: colors.danger,
+    marginTop: 4,
+    opacity: 0.8,
+  },
   menu: { backgroundColor: colors.white, marginTop: 16, borderRadius: 16, marginHorizontal: 16 },
   menuItem: {
     flexDirection: 'row',
@@ -108,4 +282,66 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   logoutText: { fontSize: fonts.regular, color: colors.danger, fontWeight: '600' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCard: {
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    padding: 28,
+    width: 320,
+    alignItems: 'center',
+  },
+  modalIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.danger + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: fonts.xlarge,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: fonts.regular,
+    color: colors.textLight,
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  modalCancelButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: colors.grayLight,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: fonts.regular,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  modalConfirmButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+  },
+  modalConfirmText: {
+    fontSize: fonts.regular,
+    fontWeight: '600',
+    color: colors.white,
+  },
 });

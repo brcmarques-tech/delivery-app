@@ -136,6 +136,82 @@ export const GET_ME = gql`
       email
       phone
       role
+      isDeliverer
+      pendingRole
+      rejectedAt
+      rejectionReason
+    }
+  }
+`;
+
+export const GET_AVAILABLE_DELIVERIES = gql`
+  query AvailableDeliveries {
+    availableDeliveries {
+      id
+      orderNumber
+      status
+      total
+      deliveryFee
+      deliveryAddress
+      createdAt
+      store {
+        id
+        name
+        street
+        number
+        neighborhood
+        city
+      }
+      customer {
+        name
+        phone
+      }
+      items {
+        id
+        quantity
+        product {
+          name
+        }
+      }
+    }
+  }
+`;
+
+export const GET_MY_DELIVERIES = gql`
+  query MyDeliveries {
+    myDeliveries {
+      id
+      pickedUpAt
+      deliveredAt
+      createdAt
+      order {
+        id
+        orderNumber
+        status
+        total
+        deliveryFee
+        deliveryAddress
+        notes
+        store {
+          name
+          street
+          number
+          neighborhood
+          city
+          phone
+        }
+        customer {
+          name
+          phone
+        }
+        items {
+          id
+          quantity
+          product {
+            name
+          }
+        }
+      }
     }
   }
 `;
