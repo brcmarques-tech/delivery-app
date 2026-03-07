@@ -7,11 +7,13 @@ import {
   StyleSheet,
   Image,
   RefreshControl,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
 import { useQuery } from '@apollo/client';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { GET_STORES } from '../../src/lib/graphql/queries';
+import { GET_STORES, GET_ACTIVE_PROMOTIONS } from '../../src/lib/graphql/queries';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useCart } from '../../src/contexts/CartContext';
 import { colors, fonts } from '../../src/theme';
@@ -20,8 +22,10 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const { itemCount } = useCart();
   const { data, loading, refetch } = useQuery(GET_STORES);
+  const { data: promosData } = useQuery(GET_ACTIVE_PROMOTIONS);
 
   const stores = data?.stores || [];
+  const promotions = promosData?.activePromotions || [];
 
   function renderStore({ item }: { item: any }) {
     return (
@@ -85,6 +89,34 @@ export default function HomeScreen() {
         renderItem={renderStore}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} />}
+        ListHeaderComponent={
+          promotions.length > 0 ? (
+            <View style={styles.promosSection}>
+              <Text style={styles.promosTitle}>Destaques</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.promosScroll}>
+                {promotions.map((promo: any) => (
+                  <TouchableOpacity
+                    key={promo.id}
+                    style={styles.promoCard}
+                    onPress={() => promo.store?.id && router.push(`/store/${promo.store.id}`)}
+                  >
+                    {promo.imageUrl ? (
+                      <Image source={{ uri: promo.imageUrl }} style={styles.promoImage} />
+                    ) : (
+                      <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                        <Ionicons name="megaphone-outline" size={32} color={colors.white} />
+                      </View>
+                    )}
+                    <View style={styles.promoInfo}>
+                      <Text style={styles.promoName} numberOfLines={1}>{promo.title}</Text>
+                      <Text style={styles.promoStore} numberOfLines={1}>{promo.store?.name}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           !loading ? (
             <Text style={styles.empty}>Nenhuma loja encontrada</Text>
@@ -151,4 +183,18 @@ const styles = StyleSheet.create({
   minOrder: { fontSize: fonts.tiny, color: colors.gray },
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   empty: { textAlign: 'center', color: colors.textLight, marginTop: 48, fontSize: fonts.regular },
+  promosSection: { marginBottom: 16 },
+  promosTitle: { fontSize: fonts.large, fontWeight: '600', color: colors.text, marginBottom: 12 },
+  promosScroll: { marginHorizontal: -16 },
+  promoCard: {
+    width: 200,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    marginLeft: 16,
+    overflow: 'hidden',
+  },
+  promoImage: { width: 200, height: 100, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
+  promoInfo: { padding: 10 },
+  promoName: { fontSize: fonts.regular, fontWeight: '600', color: colors.text },
+  promoStore: { fontSize: fonts.tiny, color: colors.textLight, marginTop: 2 },
 });

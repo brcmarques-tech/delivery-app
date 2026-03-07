@@ -128,6 +128,21 @@ export const GET_ORDER = gql`
   }
 `;
 
+export const GET_ACTIVE_PROMOTIONS = gql`
+  query ActivePromotions {
+    activePromotions {
+      id
+      title
+      description
+      imageUrl
+      store {
+        id
+        name
+      }
+    }
+  }
+`;
+
 export const GET_ME = gql`
   query Me {
     me {
