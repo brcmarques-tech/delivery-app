@@ -91,6 +91,12 @@ export const CONFIRM_PICKUP = gql`
   }
 `;
 
+export const UPLOAD_IMAGE = gql`
+  mutation UploadImage($base64: String!, $folder: String) {
+    uploadImage(base64: $base64, folder: $folder)
+  }
+`;
+
 export const CONFIRM_DELIVERY = gql`
   mutation ConfirmDelivery($deliveryId: String!) {
     confirmDelivery(deliveryId: $deliveryId) {

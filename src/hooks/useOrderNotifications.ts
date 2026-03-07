@@ -1,19 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import { Alert, Platform } from 'react-native';
 import { useQuery } from '@apollo/client';
 import { GET_MY_ORDERS, GET_ME } from '../lib/graphql/queries';
 import { useAuth } from '../contexts/AuthContext';
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
 
 const statusLabels: Record<string, string> = {
   PENDING: 'Pendente',
@@ -25,19 +14,9 @@ const statusLabels: Record<string, string> = {
   CANCELLED: 'Cancelado',
 };
 
-async function requestPermissions() {
+function notify(title: string, body: string) {
   if (Platform.OS === 'web') return;
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status !== 'granted') {
-    await Notifications.requestPermissionsAsync();
-  }
-}
-
-async function sendLocalNotification(title: string, body: string) {
-  await Notifications.scheduleNotificationAsync({
-    content: { title, body },
-    trigger: null,
-  });
+  Alert.alert(title, body);
 }
 
 interface Order {
@@ -49,7 +28,7 @@ interface Order {
 export function useOrderNotifications() {
   const { user, updateUser } = useAuth();
   const prevStatusesRef = useRef<Record<string, string>>({});
-  const prevPendingRef = useRef<string | null | undefined>(undefined);
+  const initializedRef = useRef(false);
 
   const { data: ordersData } = useQuery(GET_MY_ORDERS, {
     pollInterval: 30000,
@@ -58,12 +37,8 @@ export function useOrderNotifications() {
 
   const { data: meData } = useQuery(GET_ME, {
     pollInterval: 30000,
-    skip: !user || !user.pendingRole,
+    skip: !user,
   });
-
-  useEffect(() => {
-    requestPermissions();
-  }, []);
 
   // Monitor order status changes
   useEffect(() => {
@@ -76,10 +51,7 @@ export function useOrderNotifications() {
     orders.forEach((order) => {
       if (!isFirstLoad && prevStatuses[order.id] && prevStatuses[order.id] !== order.status) {
         const statusLabel = statusLabels[order.status] || order.status;
-        sendLocalNotification(
-          `Pedido #${order.orderNumber}`,
-          `Status atualizado: ${statusLabel}`,
-        );
+        notify(`Pedido #${order.orderNumber}`, `Status atualizado: ${statusLabel}`);
       }
       prevStatuses[order.id] = order.status;
     });
@@ -87,56 +59,81 @@ export function useOrderNotifications() {
     prevStatusesRef.current = prevStatuses;
   }, [ordersData]);
 
-  // Monitor deliverer approval status
+  // Sync user data from server (role changes, approval, rejection, etc)
   useEffect(() => {
-    if (!meData?.me) return;
+    if (!meData?.me || !user) return;
 
     const me = meData.me;
-    const prevPending = prevPendingRef.current;
 
-    if (prevPending === undefined) {
-      prevPendingRef.current = me.pendingRole;
+    // Skip first load to avoid false notifications
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      // Still sync data silently on first load
+      if (
+        me.role !== user.role ||
+        me.isDeliverer !== user.isDeliverer ||
+        me.pendingRole !== user.pendingRole
+      ) {
+        updateUser({
+          id: me.id,
+          name: me.name,
+          email: me.email,
+          role: me.role,
+          isDeliverer: me.isDeliverer,
+          pendingRole: me.pendingRole,
+          rejectedAt: me.rejectedAt,
+          rejectionReason: me.rejectionReason,
+        });
+      }
       return;
     }
 
-    // Was pending, now approved (pendingRole cleared, isDeliverer true)
-    if (prevPending === 'DELIVERER' && !me.pendingRole && me.isDeliverer) {
-      sendLocalNotification(
-        'Cadastro aprovado!',
-        'Seu cadastro como entregador foi aprovado! A aba "Entregas" ja esta disponivel.',
-      );
-      updateUser({
-        id: me.id,
-        name: me.name,
-        email: me.email,
-        role: me.role,
-        isDeliverer: me.isDeliverer,
-        pendingRole: me.pendingRole,
-        rejectedAt: me.rejectedAt,
-        rejectionReason: me.rejectionReason,
-      });
-    }
+    // Detect role change
+    const roleChanged = me.role !== user.role;
+    const delivererChanged = me.isDeliverer !== user.isDeliverer;
+    const pendingChanged = me.pendingRole !== user.pendingRole;
+    const rejectionChanged = me.rejectedAt !== user.rejectedAt;
 
-    // Was pending, now rejected
-    if (prevPending === 'DELIVERER' && !me.pendingRole && me.rejectedAt) {
-      sendLocalNotification(
+    if (!roleChanged && !delivererChanged && !pendingChanged && !rejectionChanged) return;
+
+    // Approved as deliverer
+    if (user.pendingRole === 'DELIVERER' && !me.pendingRole && me.isDeliverer) {
+      notify(
+        'Cadastro aprovado!',
+        'Seu cadastro como entregador foi aprovado! A aba "Entregas" já está disponível.',
+      );
+    }
+    // Rejected
+    else if (user.pendingRole === 'DELIVERER' && !me.pendingRole && me.rejectedAt) {
+      notify(
         'Cadastro rejeitado',
         me.rejectionReason
           ? `Seu cadastro como entregador foi rejeitado. Motivo: ${me.rejectionReason}`
           : 'Seu cadastro como entregador foi rejeitado.',
       );
-      updateUser({
-        id: me.id,
-        name: me.name,
-        email: me.email,
-        role: me.role,
-        isDeliverer: me.isDeliverer,
-        pendingRole: me.pendingRole,
-        rejectedAt: me.rejectedAt,
-        rejectionReason: me.rejectionReason,
-      });
+    }
+    // Role changed by admin (e.g. deliverer -> customer)
+    else if (roleChanged) {
+      const roleLabels: Record<string, string> = {
+        CUSTOMER: 'Cliente',
+        DELIVERER: 'Entregador',
+        VENDOR: 'Vendedor',
+      };
+      notify(
+        'Cargo atualizado',
+        `Seu cargo foi alterado para: ${roleLabels[me.role] || me.role}`,
+      );
     }
 
-    prevPendingRef.current = me.pendingRole;
+    updateUser({
+      id: me.id,
+      name: me.name,
+      email: me.email,
+      role: me.role,
+      isDeliverer: me.isDeliverer,
+      pendingRole: me.pendingRole,
+      rejectedAt: me.rejectedAt,
+      rejectionReason: me.rejectionReason,
+    });
   }, [meData]);
 }

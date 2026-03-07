@@ -3,7 +3,7 @@ import { setContext } from '@apollo/client/link/context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-const API_HOST = Platform.OS === 'web' ? 'localhost' : '10.0.2.2';
+const API_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
 
 const httpLink = createHttpLink({
   uri: `http://${API_HOST}:3000/graphql`,

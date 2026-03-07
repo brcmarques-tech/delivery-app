@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -17,6 +17,28 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const isDeliverer = user?.isDeliverer || user?.role === 'DELIVERER';
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(0);
+
+  const RETRY_DELAY_MS = 30 * 60 * 1000; // 30 minutos
+
+  useEffect(() => {
+    if (!user?.rejectedAt) return;
+    const rejectedTime = new Date(user.rejectedAt).getTime();
+    const unlockTime = rejectedTime + RETRY_DELAY_MS;
+
+    const tick = () => {
+      const remaining = unlockTime - Date.now();
+      setRetryCountdown(remaining > 0 ? remaining : 0);
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [user?.rejectedAt]);
+
+  const canRetry = user?.rejectedAt && retryCountdown === 0;
+  const retryMinutes = Math.floor(retryCountdown / 60000);
+  const retrySeconds = Math.floor((retryCountdown % 60000) / 1000);
 
   async function confirmLogout() {
     setShowLogoutModal(false);
@@ -95,7 +117,21 @@ export default function ProfileScreen() {
             {user?.rejectionReason && (
               <Text style={styles.rejectedReason}>Motivo: {user.rejectionReason}</Text>
             )}
+            {!canRetry && (
+              <Text style={styles.retryTimerText}>
+                Tente novamente em {retryMinutes}min {retrySeconds}s
+              </Text>
+            )}
           </View>
+          {canRetry && (
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => router.push('/deliverer-register')}
+            >
+              <Ionicons name="refresh" size={20} color={colors.primary} />
+              <Text style={styles.retryButtonText}>Tentar{'\n'}novamente</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -262,6 +298,23 @@ const styles = StyleSheet.create({
     color: colors.danger,
     marginTop: 4,
     opacity: 0.8,
+  },
+  retryButton: {
+    alignItems: 'center',
+    gap: 4,
+    paddingLeft: 12,
+  },
+  retryButtonText: {
+    fontSize: fonts.tiny,
+    color: colors.primary,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  retryTimerText: {
+    fontSize: fonts.tiny,
+    color: colors.danger,
+    marginTop: 8,
+    opacity: 0.7,
   },
   menu: { backgroundColor: colors.white, marginTop: 16, borderRadius: 16, marginHorizontal: 16 },
   menuItem: {

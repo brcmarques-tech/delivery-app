@@ -13,7 +13,8 @@ import { router } from 'expo-router';
 import { useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { REGISTER_AS_DELIVERER } from '../src/lib/graphql/mutations';
+import { REGISTER_AS_DELIVERER, UPLOAD_IMAGE } from '../src/lib/graphql/mutations';
+import { Platform } from 'react-native';
 import { useAuth } from '../src/contexts/AuthContext';
 import { colors, fonts } from '../src/theme';
 
@@ -26,24 +27,24 @@ const vehicleTypes = [
 
 const CONTRACT_TEXT = `TERMO DE COMPROMISSO DO ENTREGADOR
 
-Ao se cadastrar como entregador na plataforma bcmTech Delivery, voce declara estar ciente e de acordo com os seguintes termos:
+Ao se cadastrar como entregador na plataforma bcmTech Delivery, você declara estar ciente e de acordo com os seguintes termos:
 
-1. OBRIGACAO DE ENTREGA: O entregador que aceitar um pedido se compromete a realizar a entrega no endereco indicado, dentro do prazo estimado pela plataforma.
+1. OBRIGAÇÃO DE ENTREGA: O entregador que aceitar um pedido se compromete a realizar a entrega no endereço indicado, dentro do prazo estimado pela plataforma.
 
-2. RESPONSABILIDADE SOBRE O PRODUTO: O entregador e responsavel pela integridade do produto desde o momento da coleta no estabelecimento ate a entrega ao destinatario, conforme Art. 14 do Codigo de Defesa do Consumidor (Lei 8.078/90).
+2. RESPONSABILIDADE SOBRE O PRODUTO: O entregador é responsável pela integridade do produto desde o momento da coleta no estabelecimento até a entrega ao destinatário, conforme Art. 14 do Código de Defesa do Consumidor (Lei 8.078/90).
 
-3. PENALIDADES POR NAO ENTREGA: O entregador que aceitar um pedido e nao realizar a entrega sem justificativa valida estara sujeito a:
-   a) Suspensao temporaria da plataforma;
-   b) Bloqueio permanente em caso de reincidencia;
-   c) Responsabilizacao civil pelos prejuizos causados, conforme Arts. 186 e 927 do Codigo Civil (Lei 10.406/02).
+3. PENALIDADES POR NÃO ENTREGA: O entregador que aceitar um pedido e não realizar a entrega sem justificativa válida estará sujeito a:
+   a) Suspensão temporária da plataforma;
+   b) Bloqueio permanente em caso de reincidência;
+   c) Responsabilização civil pelos prejuízos causados, conforme Arts. 186 e 927 do Código Civil (Lei 10.406/02).
 
-4. EXTRAVIO OU DANO AO PRODUTO: Em caso de extravio, perda ou dano ao produto sob custodia do entregador, este podera ser responsabilizado civil e criminalmente, nos termos dos Arts. 155 e 163 do Codigo Penal.
+4. EXTRAVIO OU DANO AO PRODUTO: Em caso de extravio, perda ou dano ao produto sob custódia do entregador, este poderá ser responsabilizado civil e criminalmente, nos termos dos Arts. 155 e 163 do Código Penal.
 
-5. RELACAO JURIDICA: O cadastro como entregador nao configura vinculo empregaticio com a plataforma, nos termos do Art. 442-B da CLT, sendo o entregador profissional autonomo.
+5. RELAÇÃO JURÍDICA: O cadastro como entregador não configura vínculo empregatício com a plataforma, nos termos do Art. 442-B da CLT, sendo o entregador profissional autônomo.
 
-6. PROTECAO DE DADOS: As informacoes pessoais fornecidas serao tratadas em conformidade com a Lei Geral de Protecao de Dados (Lei 13.709/18 - LGPD).
+6. PROTEÇÃO DE DADOS: As informações pessoais fornecidas serão tratadas em conformidade com a Lei Geral de Proteção de Dados (Lei 13.709/18 - LGPD).
 
-Ao prosseguir com o cadastro, voce declara ter lido, compreendido e concordado com todos os termos acima.`;
+Ao prosseguir com o cadastro, você declara ter lido, compreendido e concordado com todos os termos acima.`;
 
 export default function DelivererRegisterScreen() {
   const { updateUser } = useAuth();
@@ -51,9 +52,13 @@ export default function DelivererRegisterScreen() {
   const [vehicleType, setVehicleType] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [identityPhoto, setIdentityPhoto] = useState<string | null>(null);
+  const [identityPhotoBase64, setIdentityPhotoBase64] = useState<string | null>(null);
   const [acceptedContract, setAcceptedContract] = useState(false);
   const [showContract, setShowContract] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [registerAsDeliverer, { loading }] = useMutation(REGISTER_AS_DELIVERER);
+  const [uploadImage] = useMutation(UPLOAD_IMAGE);
+  const [uploading, setUploading] = useState(false);
 
   function formatCpf(value: string) {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -75,10 +80,12 @@ export default function DelivererRegisterScreen() {
       quality: 0.7,
       allowsEditing: true,
       aspect: [4, 3],
+      base64: true,
     });
 
     if (!result.canceled && result.assets[0]) {
       setIdentityPhoto(result.assets[0].uri);
+      setIdentityPhotoBase64(result.assets[0].base64 || null);
     }
   }
 
@@ -94,10 +101,12 @@ export default function DelivererRegisterScreen() {
       quality: 0.7,
       allowsEditing: true,
       aspect: [4, 3],
+      base64: true,
     });
 
     if (!result.canceled && result.assets[0]) {
       setIdentityPhoto(result.assets[0].uri);
+      setIdentityPhotoBase64(result.assets[0].base64 || null);
     }
   }
 
@@ -120,32 +129,63 @@ export default function DelivererRegisterScreen() {
       return;
     }
 
+    if (!identityPhotoBase64) {
+      Alert.alert('Erro', 'Não foi possível processar a foto. Tente tirar novamente.');
+      return;
+    }
+
     try {
+      setUploading(true);
+      const { data: uploadData } = await uploadImage({
+        variables: { base64: identityPhotoBase64, folder: 'identity-photos' },
+      });
+      const photoUrl = uploadData.uploadImage;
+      setUploading(false);
+
       const { data } = await registerAsDeliverer({
         variables: {
           input: {
             cpf: cleanCpf,
             vehicleType,
             vehiclePlate: vehiclePlate || undefined,
-            identityPhotoUrl: identityPhoto,
+            identityPhotoUrl: photoUrl,
           },
         },
       });
 
       await updateUser(data.registerAsDeliverer);
-      Alert.alert(
-        'Cadastro enviado!',
-        'Seu cadastro como entregador foi enviado e esta aguardando aprovacao do administrador. Voce sera notificado quando for aprovado.',
-        [{ text: 'OK', onPress: () => router.replace('/') }],
-      );
-    } catch {
-      Alert.alert('Erro', 'Nao foi possivel completar o cadastro. Tente novamente.');
+      setSubmitted(true);
+    } catch (err: any) {
+      setUploading(false);
+      const msg = err?.message || 'Erro desconhecido';
+      Alert.alert('Erro', `Não foi possível completar o cadastro: ${msg}`);
     }
+  }
+
+  if (submitted) {
+    return (
+      <View style={styles.successContainer}>
+        <View style={styles.successIconContainer}>
+          <Ionicons name="checkmark-circle" size={80} color={colors.success} />
+        </View>
+        <Text style={styles.successTitle}>Cadastro enviado!</Text>
+        <Text style={styles.successSubtitle}>
+          Seu cadastro como entregador foi enviado e está aguardando aprovação do administrador.
+          Você será notificado quando for aprovado.
+        </Text>
+        <TouchableOpacity
+          style={styles.successButton}
+          onPress={() => router.replace('/')}
+        >
+          <Text style={styles.successButtonText}>Voltar para o início</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+      <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/')}>
         <Ionicons name="arrow-back" size={24} color={colors.text} />
       </TouchableOpacity>
 
@@ -224,7 +264,7 @@ export default function DelivererRegisterScreen() {
             <Image source={{ uri: identityPhoto }} style={styles.photoPreview} />
             <TouchableOpacity
               style={styles.removePhotoButton}
-              onPress={() => setIdentityPhoto(null)}
+              onPress={() => { setIdentityPhoto(null); setIdentityPhotoBase64(null); }}
             >
               <Ionicons name="close-circle" size={28} color={colors.danger} />
             </TouchableOpacity>
@@ -283,12 +323,12 @@ export default function DelivererRegisterScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.submitButton, (loading || !acceptedContract) && styles.buttonDisabled]}
+          style={[styles.submitButton, (loading || uploading || !acceptedContract) && styles.buttonDisabled]}
           onPress={handleSubmit}
-          disabled={loading || !acceptedContract}
+          disabled={loading || uploading || !acceptedContract}
         >
           <Text style={styles.submitButtonText}>
-            {loading ? 'Enviando cadastro...' : 'Enviar cadastro'}
+            {uploading ? 'Enviando foto...' : loading ? 'Enviando cadastro...' : 'Enviar cadastro'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -297,6 +337,47 @@ export default function DelivererRegisterScreen() {
 }
 
 const styles = StyleSheet.create({
+  successContainer: {
+    flex: 1,
+    backgroundColor: colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  successIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.success + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  successSubtitle: {
+    fontSize: fonts.regular,
+    color: colors.textLight,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  successButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+  },
+  successButtonText: {
+    color: colors.white,
+    fontSize: fonts.large,
+    fontWeight: 'bold',
+  },
   container: { flex: 1, backgroundColor: colors.white },
   content: { padding: 24, paddingTop: 56, paddingBottom: 40 },
   backButton: { marginBottom: 16 },
