@@ -139,6 +139,13 @@ export const GET_ACTIVE_PROMOTIONS = gql`
       title
       description
       imageUrl
+      promotionalPrice
+      product {
+        id
+        name
+        imageUrl
+        price
+      }
       store {
         id
         name

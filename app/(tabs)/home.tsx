@@ -70,6 +70,13 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
+          <View style={styles.logoWrapper}>
+            <Text style={styles.logoBcm}>BCM TECH</Text>
+            <View style={styles.logoCenter}>
+              <Text style={styles.logoDelivery}>Delivery</Text>
+              <Text style={styles.logoApp}>App</Text>
+            </View>
+          </View>
           <Text style={styles.greeting}>Ola, {user?.name?.split(' ')[0]}!</Text>
           <Text style={styles.headerSub}>O que vai pedir hoje?</Text>
         </View>
@@ -94,25 +101,48 @@ export default function HomeScreen() {
             <View style={styles.promosSection}>
               <Text style={styles.promosTitle}>Destaques</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.promosScroll}>
-                {promotions.map((promo: any) => (
-                  <TouchableOpacity
-                    key={promo.id}
-                    style={styles.promoCard}
-                    onPress={() => promo.store?.id && router.push(`/store/${promo.store.id}`)}
-                  >
-                    {promo.imageUrl ? (
-                      <Image source={{ uri: promo.imageUrl }} style={styles.promoImage} />
-                    ) : (
-                      <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
-                        <Ionicons name="megaphone-outline" size={32} color={colors.white} />
+                {promotions.map((promo: any) => {
+                  const originalPrice = promo.product?.price;
+                  const promoPrice = promo.promotionalPrice;
+                  const discount = originalPrice && promoPrice
+                    ? Math.round((1 - promoPrice / originalPrice) * 100)
+                    : 0;
+
+                  return (
+                    <TouchableOpacity
+                      key={promo.id}
+                      style={styles.promoCard}
+                      onPress={() => promo.store?.id && router.push(`/store/${promo.store.id}`)}
+                    >
+                      <View>
+                        {(promo.product?.imageUrl || promo.imageUrl) ? (
+                          <Image source={{ uri: promo.product?.imageUrl || promo.imageUrl }} style={styles.promoImage} />
+                        ) : (
+                          <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                            <Ionicons name="megaphone-outline" size={32} color={colors.white} />
+                          </View>
+                        )}
+                        {discount > 0 && (
+                          <View style={styles.promoBadge}>
+                            <Text style={styles.promoBadgeText}>-{discount}%</Text>
+                          </View>
+                        )}
                       </View>
-                    )}
-                    <View style={styles.promoInfo}>
-                      <Text style={styles.promoName} numberOfLines={1}>{promo.title}</Text>
-                      <Text style={styles.promoStore} numberOfLines={1}>{promo.store?.name}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                      <View style={styles.promoInfo}>
+                        <Text style={styles.promoName} numberOfLines={1}>{promo.title}</Text>
+                        <Text style={styles.promoStore} numberOfLines={1}>{promo.store?.name}</Text>
+                        {promoPrice && originalPrice ? (
+                          <View style={styles.promoPriceRow}>
+                            <Text style={styles.promoPriceOld}>R$ {Number(originalPrice).toFixed(2)}</Text>
+                            <Text style={styles.promoPrice}>R$ {Number(promoPrice).toFixed(2)}</Text>
+                          </View>
+                        ) : promoPrice ? (
+                          <Text style={styles.promoPrice}>R$ {Number(promoPrice).toFixed(2)}</Text>
+                        ) : null}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             </View>
           ) : null
@@ -137,6 +167,11 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     backgroundColor: colors.white,
   },
+  logoWrapper: { marginBottom: 8, position: 'relative', paddingTop: 6, paddingBottom: 4 },
+  logoBcm: { fontSize: 6, fontWeight: '500', color: '#d4d4d4', letterSpacing: 2, position: 'absolute', top: 0, left: -2, zIndex: 1 },
+  logoCenter: { flexDirection: 'row', alignItems: 'baseline' },
+  logoDelivery: { fontSize: 22, fontWeight: '800', color: colors.primary },
+  logoApp: { fontSize: 14, fontWeight: '600', color: colors.textLight, marginLeft: 4 },
   greeting: { fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text },
   headerSub: { fontSize: fonts.regular, color: colors.textLight, marginTop: 4 },
   cartButton: {
@@ -197,4 +232,17 @@ const styles = StyleSheet.create({
   promoInfo: { padding: 10 },
   promoName: { fontSize: fonts.regular, fontWeight: '600', color: colors.text },
   promoStore: { fontSize: fonts.tiny, color: colors.textLight, marginTop: 2 },
+  promoPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  promoPriceOld: { fontSize: fonts.tiny, color: colors.gray, textDecorationLine: 'line-through' },
+  promoPrice: { fontSize: fonts.regular, fontWeight: '700', color: colors.primary, marginTop: 2 },
+  promoBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: colors.danger,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  promoBadgeText: { color: colors.white, fontSize: 11, fontWeight: 'bold' },
 });

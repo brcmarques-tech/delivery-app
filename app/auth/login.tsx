@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
@@ -42,7 +43,13 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.header}>
-        <Text style={styles.logo}>Delivery</Text>
+        <View style={styles.logoWrapper}>
+          <Text style={styles.logoBcm}>BCM TECH</Text>
+          <View style={styles.logoTextRow}>
+            <Text style={styles.logo}>Delivery</Text>
+            <Text style={styles.logoApp}>App</Text>
+          </View>
+        </View>
         <Text style={styles.subtitle}>Tudo perto de voce</Text>
       </View>
 
@@ -96,10 +103,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 48,
   },
+  logoWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 10,
+    paddingRight: 30,
+  },
+  logoBcm: {
+    fontSize: 7,
+    fontWeight: '500',
+    color: '#e0e0e0',
+    letterSpacing: 2,
+    position: 'absolute',
+    top: 2,
+    left: -8,
+    zIndex: 1,
+  },
+  logoTextRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
   logo: {
     fontSize: 40,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: colors.primary,
+  },
+  logoApp: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: colors.textLight,
+    marginLeft: 6,
   },
   subtitle: {
     fontSize: fonts.large,
