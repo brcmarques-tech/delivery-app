@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,54 +7,213 @@ import {
   StyleSheet,
   TextInput,
   Linking,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useMutation } from '@apollo/client';
+import { useMutation, useLazyQuery, useQuery } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { useCart } from '../src/contexts/CartContext';
 import { useAlert } from '../src/contexts/AlertContext';
+import { useLocation } from '../src/contexts/LocationContext';
 import { CREATE_ORDER } from '../src/lib/graphql/mutations';
+import { CALCULATE_DELIVERY_FEE, GET_MY_ADDRESSES, GET_STORE, ESTIMATE_DELIVERY_TIME } from '../src/lib/graphql/queries';
 import { colors, fonts } from '../src/theme';
 
 type PaymentMethod = 'ON_DELIVERY' | 'MERCADO_PAGO' | 'PIX';
+type DeliveryType = 'DELIVERY' | 'PICKUP';
 
-const PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string; description: string }[] = [
-  { key: 'ON_DELIVERY', label: 'Na entrega', icon: 'cash-outline', description: 'Pague ao receber' },
-  { key: 'MERCADO_PAGO', label: 'Mercado Pago', icon: 'card-outline', description: 'Cartao, boleto ou debito' },
+const ALL_PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string; description: string; requiresOwnDelivery?: boolean }[] = [
+  { key: 'ON_DELIVERY', label: 'Na entrega', icon: 'cash-outline', description: 'Pague ao receber', requiresOwnDelivery: true },
+  { key: 'MERCADO_PAGO', label: 'Mercado Pago', icon: 'card-outline', description: 'Cartao ou debito' },
   { key: 'PIX', label: 'PIX', icon: 'qr-code-outline', description: 'Pagamento instantaneo' },
 ];
 
 export default function CartScreen() {
   const { items, storeId, storeName, total, updateQuantity, removeItem, clearCart } = useCart();
   const { alert } = useAlert();
+  const { location: gpsLocation } = useLocation();
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>('DELIVERY');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ON_DELIVERY');
   const [createOrder] = useMutation(CREATE_ORDER);
+  const [calcFee, { data: feeData, loading: feeLoading }] = useLazyQuery(CALCULATE_DELIVERY_FEE);
+  const [calcTime, { data: timeData, loading: timeLoading }] = useLazyQuery(ESTIMATE_DELIVERY_TIME);
+  const { data: addressesData } = useQuery(GET_MY_ADDRESSES);
+  const { data: storeData } = useQuery(GET_STORE, { variables: { id: storeId }, skip: !storeId });
 
-  const deliveryFee = 5.99; // TODO: pegar da loja
+  const storeHasOwnDelivery = storeData?.store?.hasOwnDelivery || false;
+  const ownerMpConnected = storeData?.store?.ownerMpConnected ?? true;
+
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locatingGps, setLocatingGps] = useState(false);
+  const [showAddressPicker, setShowAddressPicker] = useState(false);
+  const [addressLoaded, setAddressLoaded] = useState(false);
+
+  // Pre-fill from default saved address
+  const savedAddresses = addressesData?.myAddresses || [];
+  React.useEffect(() => {
+    if (addressLoaded || savedAddresses.length === 0) return;
+    const defaultAddr = savedAddresses.find((a: any) => a.isDefault) || savedAddresses[0];
+    if (defaultAddr) {
+      const parts = [defaultAddr.street, defaultAddr.number];
+      if (defaultAddr.complement) parts.push(defaultAddr.complement);
+      parts.push(defaultAddr.neighborhood);
+      parts.push(`${defaultAddr.city}/${defaultAddr.state}`);
+      setAddress(parts.join(', '));
+      setCoords({ latitude: defaultAddr.latitude, longitude: defaultAddr.longitude });
+      if (storeId) {
+        const vars = { storeId, customerLatitude: defaultAddr.latitude, customerLongitude: defaultAddr.longitude };
+        calcFee({ variables: vars });
+        calcTime({ variables: vars });
+      }
+      setAddressLoaded(true);
+    }
+  }, [savedAddresses, addressLoaded, storeId]);
+
+  const isPickup = deliveryType === 'PICKUP';
+  const deliveryFee = isPickup ? 0 : (feeData?.calculateDeliveryFee ?? 0);
   const finalTotal = total + deliveryFee;
 
+  // If no MP and no own delivery, force PICKUP
+  const pickupOnly = !ownerMpConnected && !storeHasOwnDelivery;
+  React.useEffect(() => {
+    if (pickupOnly && deliveryType !== 'PICKUP') {
+      setDeliveryType('PICKUP');
+    }
+  }, [pickupOnly]);
+
+  // Filter payment options based on store delivery type and MP connection
+  const paymentOptions = ALL_PAYMENT_OPTIONS.filter((opt) => {
+    // When MP is not connected, only allow ON_DELIVERY
+    if (!ownerMpConnected) {
+      return opt.key === 'ON_DELIVERY';
+    }
+    // Otherwise, filter ON_DELIVERY based on own delivery / pickup
+    if (opt.requiresOwnDelivery && !storeHasOwnDelivery && !isPickup) {
+      return false;
+    }
+    return true;
+  });
+
+  // Reset payment method if current one is no longer available
+  React.useEffect(() => {
+    if (!paymentOptions.find((o) => o.key === paymentMethod)) {
+      setPaymentMethod(paymentOptions[0]?.key || 'ON_DELIVERY');
+    }
+  }, [storeHasOwnDelivery, isPickup, ownerMpConnected]);
+
+  // Geocode address text to coordinates when address changes (debounced)
+  useEffect(() => {
+    if (!address.trim() || !storeId) return;
+    const timer = setTimeout(async () => {
+      try {
+        const results = await Location.geocodeAsync(address);
+        if (results.length > 0) {
+          const { latitude, longitude } = results[0];
+          setCoords({ latitude, longitude });
+          const vars = { storeId, customerLatitude: latitude, customerLongitude: longitude };
+          calcFee({ variables: vars });
+          calcTime({ variables: vars });
+        }
+      } catch {
+        // geocoding failed, keep previous coords
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [address, storeId]);
+
+  // Button: get GPS location and fill address
+  async function handleGetLocation() {
+    setLocatingGps(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Erro', 'Permissao de localizacao negada');
+        return;
+      }
+      const current = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest,
+      });
+      const { latitude, longitude } = current.coords;
+      setCoords({ latitude, longitude });
+
+      // Reverse geocode to fill address
+      try {
+        const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+        if (results.length > 0) {
+          const r = results[0];
+          const parts = [
+            r.street,
+            r.streetNumber,
+            r.district || r.subregion,
+            r.city,
+            r.region,
+          ].filter(Boolean);
+          setAddress(parts.join(', '));
+        }
+      } catch {
+        // reverse geocoding failed
+      }
+
+      if (storeId) {
+        const vars = { storeId, customerLatitude: latitude, customerLongitude: longitude };
+        calcFee({ variables: vars });
+        calcTime({ variables: vars });
+      }
+    } catch (err: any) {
+      alert('Erro', err.message || 'Nao foi possivel obter a localizacao');
+    } finally {
+      setLocatingGps(false);
+    }
+  }
+
   async function handleCheckout() {
-    if (!address.trim()) {
+    if (!isPickup && !address.trim()) {
       alert('Erro', 'Informe o endereco de entrega');
       return;
     }
+
+    let finalCoords = coords;
+    if (!isPickup) {
+      // If no coords yet, geocode from address text
+      if (!finalCoords) {
+        try {
+          const results = await Location.geocodeAsync(address);
+          if (results.length > 0) {
+            finalCoords = { latitude: results[0].latitude, longitude: results[0].longitude };
+            setCoords(finalCoords);
+          }
+        } catch {}
+      }
+      if (!finalCoords) {
+        alert('Erro', 'Nao foi possivel localizar o endereco. Tente usar o botao de GPS.');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const { data } = await createOrder({
         variables: {
           input: {
             storeId,
+            isPickup,
             items: items.map((i) => ({
               productId: i.productId,
               quantity: i.quantity,
               notes: i.notes,
             })),
-            deliveryAddress: address,
-            deliveryLatitude: -23.5505, // TODO: geocoding real
-            deliveryLongitude: -46.6333,
+            ...(isPickup
+              ? {}
+              : {
+                  deliveryAddress: address,
+                  deliveryLatitude: finalCoords!.latitude,
+                  deliveryLongitude: finalCoords!.longitude,
+                }),
             notes,
             paymentMethod,
           },
@@ -147,13 +306,144 @@ export default function CartScreen() {
         )}
         ListFooterComponent={
           <View style={styles.footer}>
-            <TextInput
-              style={styles.addressInput}
-              placeholder="Endereco de entrega"
-              placeholderTextColor={colors.gray}
-              value={address}
-              onChangeText={setAddress}
-            />
+            {/* Warning banner when MP is not connected */}
+            {!ownerMpConnected && (
+              <View style={styles.warningBanner}>
+                <Ionicons name="alert-circle-outline" size={20} color={colors.warning} />
+                <Text style={styles.warningBannerText}>
+                  {pickupOnly
+                    ? 'Esta loja aceita apenas retirada no local no momento'
+                    : 'Esta loja aceita apenas pagamento na entrega'}
+                </Text>
+              </View>
+            )}
+
+            {/* Delivery Type Selector */}
+            <View style={styles.deliveryTypeSection}>
+              <Text style={styles.deliveryTypeTitle}>Como deseja receber?</Text>
+              <View style={styles.deliveryTypeRow}>
+                {!pickupOnly && (
+                <TouchableOpacity
+                  style={[
+                    styles.deliveryTypeOption,
+                    deliveryType === 'DELIVERY' && styles.deliveryTypeSelected,
+                  ]}
+                  onPress={() => setDeliveryType('DELIVERY')}
+                >
+                  <Ionicons
+                    name="bicycle-outline"
+                    size={24}
+                    color={deliveryType === 'DELIVERY' ? colors.primary : colors.gray}
+                  />
+                  <Text
+                    style={[
+                      styles.deliveryTypeLabel,
+                      deliveryType === 'DELIVERY' && styles.deliveryTypeLabelSelected,
+                    ]}
+                  >
+                    Entrega
+                  </Text>
+                </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={[
+                    styles.deliveryTypeOption,
+                    deliveryType === 'PICKUP' && styles.deliveryTypeSelected,
+                  ]}
+                  onPress={() => setDeliveryType('PICKUP')}
+                >
+                  <Ionicons
+                    name="storefront-outline"
+                    size={24}
+                    color={deliveryType === 'PICKUP' ? colors.primary : colors.gray}
+                  />
+                  <Text
+                    style={[
+                      styles.deliveryTypeLabel,
+                      deliveryType === 'PICKUP' && styles.deliveryTypeLabelSelected,
+                    ]}
+                  >
+                    Retirar no local
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Location + Address Section (only for delivery) */}
+            {!isPickup && (
+            <View style={styles.mapSection}>
+              <View style={styles.addressHeaderRow}>
+                <Text style={styles.mapLabel}>Local de entrega</Text>
+                {savedAddresses.length > 0 && (
+                  <TouchableOpacity onPress={() => setShowAddressPicker(!showAddressPicker)}>
+                    <Text style={styles.savedAddressesLink}>
+                      {showAddressPicker ? 'Fechar' : 'Meus enderecos'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {showAddressPicker && (
+                <View style={styles.addressPickerList}>
+                  {savedAddresses.map((addr: any) => {
+                    const label = [addr.street, addr.number, addr.neighborhood, `${addr.city}/${addr.state}`]
+                      .filter(Boolean).join(', ');
+                    return (
+                      <TouchableOpacity
+                        key={addr.id}
+                        style={styles.addressPickerItem}
+                        onPress={() => {
+                          const parts = [addr.street, addr.number];
+                          if (addr.complement) parts.push(addr.complement);
+                          parts.push(addr.neighborhood);
+                          parts.push(`${addr.city}/${addr.state}`);
+                          setAddress(parts.join(', '));
+                          setCoords({ latitude: addr.latitude, longitude: addr.longitude });
+                          if (storeId) {
+                            const vars = { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude };
+                            calcFee({ variables: vars });
+                            calcTime({ variables: vars });
+                          }
+                          setShowAddressPicker(false);
+                        }}
+                      >
+                        <Ionicons name="location" size={16} color={addr.isDefault ? colors.primary : colors.gray} />
+                        <Text style={styles.addressPickerText} numberOfLines={2}>{label}</Text>
+                        {addr.isDefault && (
+                          <View style={styles.addressPickerBadge}>
+                            <Text style={styles.addressPickerBadgeText}>Principal</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              <View style={styles.locationRow}>
+                <TouchableOpacity
+                  style={styles.locationButton}
+                  onPress={handleGetLocation}
+                  disabled={locatingGps}
+                >
+                  {locatingGps ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Ionicons name="navigate" size={22} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+                <TextInput
+                  style={styles.addressInput}
+                  placeholder="Digite o endereco ou use o GPS"
+                  placeholderTextColor={colors.gray}
+                  value={address}
+                  onChangeText={setAddress}
+                  multiline
+                />
+              </View>
+            </View>
+            )}
+
             <TextInput
               style={styles.notesInput}
               placeholder="Observacoes (opcional)"
@@ -165,7 +455,7 @@ export default function CartScreen() {
 
             <View style={styles.paymentSection}>
               <Text style={styles.paymentTitle}>Forma de pagamento</Text>
-              {PAYMENT_OPTIONS.map((option) => (
+              {paymentOptions.map((option) => (
                 <TouchableOpacity
                   key={option.key}
                   style={[
@@ -203,9 +493,36 @@ export default function CartScreen() {
                 <Text style={styles.summaryValue}>R$ {total.toFixed(2)}</Text>
               </View>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Taxa de entrega</Text>
-                <Text style={styles.summaryValue}>R$ {deliveryFee.toFixed(2)}</Text>
+                <Text style={styles.summaryLabel}>
+                  {isPickup ? 'Retirada' : 'Taxa de entrega'}
+                </Text>
+                {isPickup ? (
+                  <Text style={[styles.summaryValue, { color: colors.success || '#22c55e' }]}>Gratis</Text>
+                ) : feeLoading ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Text style={styles.summaryValue}>
+                    {deliveryFee > 0 ? `R$ ${deliveryFee.toFixed(2)}` : 'Calculando...'}
+                  </Text>
+                )}
               </View>
+              {!isPickup && timeData?.estimatedDeliveryTime && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Tempo estimado</Text>
+                  <View style={styles.estimateRow}>
+                    <Ionicons name="time-outline" size={16} color={colors.primary} />
+                    <Text style={[styles.summaryValue, { color: colors.primary, fontWeight: '600' }]}>
+                      ~{Math.ceil(timeData.estimatedDeliveryTime)} min
+                    </Text>
+                  </View>
+                </View>
+              )}
+              {!isPickup && timeLoading && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Tempo estimado</Text>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              )}
               <View style={[styles.summaryRow, styles.totalRow]}>
                 <Text style={styles.totalLabel}>Total</Text>
                 <Text style={styles.totalValue}>R$ {finalTotal.toFixed(2)}</Text>
@@ -216,9 +533,9 @@ export default function CartScreen() {
       />
 
       <TouchableOpacity
-        style={[styles.checkoutButton, loading && styles.checkoutDisabled]}
+        style={[styles.checkoutButton, (loading || (!isPickup && !coords)) && styles.checkoutDisabled]}
         onPress={handleCheckout}
-        disabled={loading}
+        disabled={loading || (!isPickup && !coords)}
       >
         <Text style={styles.checkoutText}>
           {loading ? 'Finalizando...' : `Finalizar pedido - R$ ${finalTotal.toFixed(2)}`}
@@ -280,12 +597,132 @@ const styles = StyleSheet.create({
   },
   qtyText: { fontSize: fonts.regular, fontWeight: 'bold', color: colors.text },
   footer: { marginTop: 16, gap: 12 },
-  addressInput: {
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.warning + '18',
+    borderWidth: 1,
+    borderColor: colors.warning + '40',
+    borderRadius: 12,
+    padding: 14,
+  },
+  warningBannerText: {
+    flex: 1,
+    fontSize: fonts.small,
+    color: colors.warning,
+    fontWeight: '600',
+  },
+  // Delivery type styles
+  deliveryTypeSection: {
     backgroundColor: colors.white,
     borderRadius: 12,
     padding: 16,
+  },
+  deliveryTypeTitle: {
     fontSize: fonts.regular,
+    fontWeight: 'bold',
     color: colors.text,
+    marginBottom: 12,
+  },
+  deliveryTypeRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  deliveryTypeOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.grayLight,
+  },
+  deliveryTypeSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '10',
+  },
+  deliveryTypeLabel: {
+    fontSize: fonts.regular,
+    fontWeight: '600',
+    color: colors.gray,
+  },
+  deliveryTypeLabelSelected: {
+    color: colors.primary,
+  },
+  // Location styles
+  mapSection: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 16,
+  },
+  addressHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  mapLabel: {
+    fontSize: fonts.regular,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  savedAddressesLink: {
+    fontSize: fonts.small,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  addressPickerList: {
+    marginBottom: 12,
+    gap: 6,
+  },
+  addressPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    padding: 10,
+  },
+  addressPickerText: {
+    flex: 1,
+    fontSize: fonts.small,
+    color: colors.text,
+  },
+  addressPickerBadge: {
+    backgroundColor: colors.primary + '15',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  addressPickerBadgeText: {
+    fontSize: 10,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  locationRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  locationButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addressInput: {
+    flex: 1,
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    padding: 12,
+    fontSize: fonts.small,
+    color: colors.text,
+    minHeight: 44,
   },
   notesInput: {
     backgroundColor: colors.white,
@@ -340,9 +777,10 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
   },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   summaryLabel: { fontSize: fonts.regular, color: colors.textLight },
   summaryValue: { fontSize: fonts.regular, color: colors.text },
+  estimateRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   totalRow: { borderTopWidth: 1, borderTopColor: colors.grayLight, paddingTop: 12, marginTop: 4 },
   totalLabel: { fontSize: fonts.large, fontWeight: 'bold', color: colors.text },
   totalValue: { fontSize: fonts.large, fontWeight: 'bold', color: colors.primary },

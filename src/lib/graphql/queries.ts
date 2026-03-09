@@ -23,9 +23,11 @@ export const GET_NEARBY_STORES = gql`
       name
       description
       logoUrl
+      bannerUrl
       isOpen
       deliveryFee
       estimatedDeliveryMinutes
+      minimumOrder
     }
   }
 `;
@@ -39,6 +41,10 @@ export const GET_STORE = gql`
       logoUrl
       bannerUrl
       isOpen
+      hasOwnDelivery
+      ownerMpConnected
+      freeDelivery
+      freeDeliveryAbove
       deliveryFee
       estimatedDeliveryMinutes
       minimumOrder
@@ -104,6 +110,7 @@ export const GET_ORDER = gql`
       pixQrCodeBase64
       notes
       deliveryAddress
+      customerConfirmedAt
       createdAt
       store {
         name
@@ -123,6 +130,7 @@ export const GET_ORDER = gql`
         id
         currentLatitude
         currentLongitude
+        deliveredAt
         deliverer {
           name
           phone
@@ -154,6 +162,18 @@ export const GET_ACTIVE_PROMOTIONS = gql`
   }
 `;
 
+export const CALCULATE_DELIVERY_FEE = gql`
+  query CalculateDeliveryFee($storeId: String!, $customerLatitude: Float!, $customerLongitude: Float!) {
+    calculateDeliveryFee(storeId: $storeId, customerLatitude: $customerLatitude, customerLongitude: $customerLongitude)
+  }
+`;
+
+export const ESTIMATE_DELIVERY_TIME = gql`
+  query EstimateDeliveryTime($storeId: String!, $customerLatitude: Float!, $customerLongitude: Float!) {
+    estimatedDeliveryTime(storeId: $storeId, customerLatitude: $customerLatitude, customerLongitude: $customerLongitude)
+  }
+`;
+
 export const GET_ME = gql`
   query Me {
     me {
@@ -166,6 +186,31 @@ export const GET_ME = gql`
       pendingRole
       rejectedAt
       rejectionReason
+      mpConnected
+    }
+  }
+`;
+
+export const GET_MP_CONNECT_URL = gql`
+  query MpConnectUrl {
+    mpConnectUrl(source: "app")
+  }
+`;
+
+export const GET_MY_ADDRESSES = gql`
+  query MyAddresses {
+    myAddresses {
+      id
+      street
+      number
+      complement
+      neighborhood
+      city
+      state
+      zipCode
+      latitude
+      longitude
+      isDefault
     }
   }
 `;
@@ -218,6 +263,8 @@ export const GET_MY_DELIVERIES = gql`
         deliveryFee
         deliveryAddress
         notes
+        deliveryLatitude
+        deliveryLongitude
         store {
           name
           street
@@ -225,6 +272,8 @@ export const GET_MY_DELIVERIES = gql`
           neighborhood
           city
           phone
+          latitude
+          longitude
         }
         customer {
           name

@@ -5,6 +5,7 @@ import { apolloClient } from '../src/lib/apollo';
 import { AuthProvider } from '../src/contexts/AuthContext';
 import { CartProvider } from '../src/contexts/CartContext';
 import { AlertProvider } from '../src/contexts/AlertContext';
+import { LocationProvider } from '../src/contexts/LocationContext';
 import { useOrderNotifications } from '../src/hooks/useOrderNotifications';
 
 function NotificationListener() {
@@ -17,11 +18,13 @@ export default function RootLayout() {
     <ApolloProvider client={apolloClient}>
       <AuthProvider>
         <AlertProvider>
-          <CartProvider>
-            <NotificationListener />
-            <StatusBar style="dark" />
-            <Stack screenOptions={{ headerShown: false }} />
-          </CartProvider>
+          <LocationProvider>
+            <CartProvider>
+              <NotificationListener />
+              <StatusBar style="dark" />
+              <Stack screenOptions={{ headerShown: false }} />
+            </CartProvider>
+          </LocationProvider>
         </AlertProvider>
       </AuthProvider>
     </ApolloProvider>

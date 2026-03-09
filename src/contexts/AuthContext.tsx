@@ -12,6 +12,7 @@ interface User {
   pendingRole?: string | null;
   rejectedAt?: string | null;
   rejectionReason?: string | null;
+  mpConnected?: boolean;
 }
 
 interface AuthContextData {
@@ -81,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.removeItem('user');
     setToken(null);
     setUser(null);
-    await apolloClient.resetStore();
+    await apolloClient.clearStore();
   }
 
   return (

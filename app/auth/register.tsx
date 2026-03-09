@@ -29,7 +29,7 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await register(name, email, password, phone);
-      router.replace('/(tabs)/home');
+      router.replace('/onboarding-address');
     } catch {
       alert('Erro', 'Nao foi possivel criar a conta. Tente novamente.');
     } finally {

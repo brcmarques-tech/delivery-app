@@ -1,9 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Image, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { useQuery } from '@apollo/client';
+import { useQuery, useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { GET_ORDER } from '../../src/lib/graphql/queries';
+import { CONFIRM_RECEIPT } from '../../src/lib/graphql/mutations';
 import { colors, fonts } from '../../src/theme';
 
 const statusSteps = [
@@ -18,12 +19,45 @@ const statusSteps = [
 
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data, loading } = useQuery(GET_ORDER, {
+  const { data, loading, refetch } = useQuery(GET_ORDER, {
     variables: { id },
     pollInterval: 5000,
   });
+  const [confirmReceipt, { loading: confirming }] = useMutation(CONFIRM_RECEIPT);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
   const order = data?.order;
+
+  // Countdown timer for delivery confirmation
+  const needsConfirmation = order?.status === 'DELIVERED' && !order?.customerConfirmedAt;
+  const deliveredAt = order?.delivery?.deliveredAt;
+
+  useEffect(() => {
+    if (!needsConfirmation || !deliveredAt) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const calcRemaining = () => {
+      const elapsed = Date.now() - new Date(deliveredAt).getTime();
+      const remaining = Math.max(0, 10 * 60 * 1000 - elapsed);
+      setTimeLeft(Math.ceil(remaining / 1000));
+    };
+
+    calcRemaining();
+    const interval = setInterval(calcRemaining, 1000);
+    return () => clearInterval(interval);
+  }, [needsConfirmation, deliveredAt]);
+
+  const handleConfirmReceipt = async () => {
+    try {
+      await confirmReceipt({ variables: { orderId: id } });
+      Alert.alert('Confirmado!', 'Recebimento confirmado com sucesso.');
+      refetch();
+    } catch (err: any) {
+      Alert.alert('Erro', err.message);
+    }
+  };
 
   if (loading || !order) {
     return (
@@ -114,6 +148,49 @@ export default function OrderDetailScreen() {
           <TouchableOpacity style={styles.callButton}>
             <Ionicons name="call" size={20} color={colors.primary} />
           </TouchableOpacity>
+        </View>
+      )}
+
+      {needsConfirmation && (
+        <View style={styles.confirmCard}>
+          <View style={styles.confirmHeader}>
+            <Ionicons name="checkmark-circle" size={32} color={colors.success} />
+            <Text style={styles.confirmTitle}>Pedido entregue!</Text>
+          </View>
+          <Text style={styles.confirmSubtitle}>
+            Confirme que recebeu seu pedido para liberar o pagamento ao entregador.
+          </Text>
+          {timeLeft !== null && timeLeft > 0 && (
+            <Text style={styles.confirmTimer}>
+              Confirmacao automatica em {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+            </Text>
+          )}
+          {timeLeft === 0 && (
+            <Text style={styles.confirmTimer}>Confirmando automaticamente...</Text>
+          )}
+          <TouchableOpacity
+            style={styles.confirmButton}
+            onPress={handleConfirmReceipt}
+            disabled={confirming}
+          >
+            {confirming ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <>
+                <Ionicons name="checkmark-done" size={20} color={colors.white} />
+                <Text style={styles.confirmButtonText}>Confirmar recebimento</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {order.customerConfirmedAt && order.status === 'DELIVERED' && (
+        <View style={styles.confirmedBanner}>
+          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+          <Text style={styles.confirmedText}>
+            Recebimento confirmado em {new Date(order.customerConfirmedAt).toLocaleString('pt-BR')}
+          </Text>
         </View>
       )}
 
@@ -261,4 +338,42 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   payButtonText: { color: colors.white, fontSize: fonts.regular, fontWeight: 'bold' },
+  confirmCard: {
+    backgroundColor: colors.white,
+    marginHorizontal: 16,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: colors.success,
+    alignItems: 'center',
+    gap: 12,
+  },
+  confirmHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  confirmTitle: { fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text },
+  confirmSubtitle: { fontSize: fonts.regular, color: colors.textLight, textAlign: 'center' },
+  confirmTimer: { fontSize: fonts.small, color: colors.primary, fontWeight: '600' },
+  confirmButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.success,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    width: '100%',
+  },
+  confirmButtonText: { color: colors.white, fontSize: fonts.regular, fontWeight: 'bold' },
+  confirmedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#D4EDDA',
+    marginHorizontal: 16,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  confirmedText: { fontSize: fonts.small, fontWeight: '600', color: '#155724' },
 });

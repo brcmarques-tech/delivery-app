@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,28 @@ import {
   StyleSheet,
   RefreshControl,
   Linking,
+  Platform,
+  Vibration,
+  ActivityIndicator,
 } from 'react-native';
-import { useQuery, useMutation } from '@apollo/client';
+import { useQuery, useLazyQuery, useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
-import { GET_AVAILABLE_DELIVERIES, GET_MY_DELIVERIES } from '../../src/lib/graphql/queries';
+import * as Location from 'expo-location';
+import { io, Socket } from 'socket.io-client';
+import { GET_AVAILABLE_DELIVERIES, GET_MY_DELIVERIES, GET_ME, GET_MP_CONNECT_URL } from '../../src/lib/graphql/queries';
 import { ACCEPT_DELIVERY, CONFIRM_PICKUP, CONFIRM_DELIVERY } from '../../src/lib/graphql/mutations';
 import { useDeliveryTracking } from '../../src/hooks/useDeliveryTracking';
 import { useAlert } from '../../src/contexts/AlertContext';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { colors, fonts } from '../../src/theme';
+
+function openNavigation(lat: number, lng: number, label: string) {
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  Linking.openURL(url);
+}
+
+const API_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
+const WS_URL = `http://${API_HOST}:3000`;
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   PICKED_UP: { label: 'Coletado', color: colors.warning },
@@ -24,9 +38,149 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 
 type Tab = 'available' | 'my';
 
+interface DeliveryOffer {
+  orderId: string;
+  orderNumber: string;
+  storeAddress: string;
+  deliveryAddress: string;
+  deliveryFee: number;
+  itemCount: number;
+  timeoutSeconds: number;
+}
+
 export default function DeliveriesScreen() {
   const { alert } = useAlert();
+  const { user } = useAuth();
   const [tab, setTab] = useState<Tab>('available');
+  const [isOnline, setIsOnline] = useState(false);
+  const [currentOffer, setCurrentOffer] = useState<DeliveryOffer | null>(null);
+  const [offerCountdown, setOfferCountdown] = useState(0);
+  const socketRef = useRef<Socket | null>(null);
+  const locationSubRef = useRef<Location.LocationSubscription | null>(null);
+
+  // Check MP connection status
+  const { data: meData } = useQuery(GET_ME, { fetchPolicy: 'cache-and-network' });
+  const mpConnected = meData?.me?.mpConnected ?? user?.mpConnected ?? false;
+  const [fetchConnectUrl, { loading: loadingConnectUrl }] = useLazyQuery(GET_MP_CONNECT_URL, { fetchPolicy: 'network-only' });
+
+  async function handleConnectMp() {
+    const { data } = await fetchConnectUrl();
+    if (data?.mpConnectUrl) {
+      Linking.openURL(data.mpConnectUrl);
+    }
+  }
+
+  // Go online/offline
+  const toggleOnline = useCallback(async () => {
+    if (!mpConnected) {
+      alert('Conta nao conectada', 'Conecte sua conta Mercado Pago para comecar a fazer entregas.');
+      return;
+    }
+
+    if (isOnline) {
+      // Go offline
+      if (socketRef.current) {
+        socketRef.current.emit('delivererOffline', { userId: user?.id });
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      if (locationSubRef.current) {
+        locationSubRef.current.remove();
+        locationSubRef.current = null;
+      }
+      setIsOnline(false);
+      setCurrentOffer(null);
+      return;
+    }
+
+    // Go online
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Erro', 'Permissao de localizacao necessaria para receber entregas');
+      return;
+    }
+
+    const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    const { latitude, longitude } = current.coords;
+
+    const socket = io(WS_URL, { transports: ['websocket'] });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      socket.emit('delivererOnline', { userId: user?.id, latitude, longitude });
+    });
+
+    // Listen for delivery offers
+    socket.on('deliveryOffer', (offer: DeliveryOffer) => {
+      setCurrentOffer(offer);
+      setOfferCountdown(offer.timeoutSeconds);
+      try { Vibration.vibrate([0, 500, 200, 500]); } catch {}
+    });
+
+    // Listen for broadcast available deliveries
+    socket.on('newAvailableDelivery', () => {
+      refetchAvailable();
+    });
+
+    // Start watching location
+    locationSubRef.current = await Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.High, distanceInterval: 50, timeInterval: 15000 },
+      (loc) => {
+        socket.emit('delivererLocationUpdate', {
+          userId: user?.id,
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+      },
+    );
+
+    setIsOnline(true);
+  }, [isOnline, user]);
+
+  // Offer countdown timer
+  useEffect(() => {
+    if (!currentOffer || offerCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setOfferCountdown((prev) => {
+        if (prev <= 1) {
+          setCurrentOffer(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [currentOffer, offerCountdown]);
+
+  function handleAcceptOffer() {
+    if (!currentOffer || !socketRef.current) return;
+    if (!mpConnected) {
+      alert('Conta nao conectada', 'Conecte sua conta Mercado Pago para aceitar entregas.');
+      setCurrentOffer(null);
+      return;
+    }
+    socketRef.current.emit('acceptOffer', { orderId: currentOffer.orderId, delivererId: user?.id });
+    // Now accept via GraphQL too
+    handleAccept(currentOffer.orderId, currentOffer.orderNumber);
+    setCurrentOffer(null);
+  }
+
+  function handleDeclineOffer() {
+    if (!currentOffer || !socketRef.current) return;
+    socketRef.current.emit('declineOffer', { orderId: currentOffer.orderId, delivererId: user?.id });
+    setCurrentOffer(null);
+  }
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.emit('delivererOffline', { userId: user?.id });
+        socketRef.current.disconnect();
+      }
+      if (locationSubRef.current) locationSubRef.current.remove();
+    };
+  }, []);
 
   const {
     data: availableData,
@@ -59,6 +213,10 @@ export default function DeliveriesScreen() {
   useDeliveryTracking(activeDeliveryForTracking);
 
   async function handleAccept(orderId: string, orderNumber: string) {
+    if (!mpConnected) {
+      alert('Conta nao conectada', 'Conecte sua conta Mercado Pago para aceitar entregas.');
+      return;
+    }
     alert('Aceitar entrega', `Aceitar pedido #${orderNumber}?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -214,6 +372,32 @@ export default function DeliveriesScreen() {
               </View>
             </View>
 
+            {(order.status === 'PICKED_UP' || order.status === 'DELIVERING') && (
+              <TouchableOpacity
+                style={styles.navigateButton}
+                onPress={() => {
+                  if (order.status === 'PICKED_UP') {
+                    openNavigation(
+                      Number(order.store.latitude),
+                      Number(order.store.longitude),
+                      order.store.name,
+                    );
+                  } else {
+                    openNavigation(
+                      Number(order.deliveryLatitude),
+                      Number(order.deliveryLongitude),
+                      'Cliente',
+                    );
+                  }
+                }}
+              >
+                <Ionicons name="navigate" size={18} color={colors.white} />
+                <Text style={styles.navigateButtonText}>
+                  {order.status === 'PICKED_UP' ? 'Navegar ate a loja' : 'Navegar ate o cliente'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
             <View style={styles.itemsList}>
               {order.items.map((oi: any) => (
                 <Text key={oi.id} style={styles.itemText}>
@@ -264,16 +448,92 @@ export default function DeliveriesScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Delivery offer popup */}
+      {currentOffer && (
+        <View style={styles.offerOverlay}>
+          <View style={styles.offerCard}>
+            <Text style={styles.offerTitle}>Nova entrega!</Text>
+            <Text style={styles.offerTimer}>{offerCountdown}s</Text>
+            <View style={styles.offerInfo}>
+              <View style={styles.offerRow}>
+                <Ionicons name="storefront" size={16} color={colors.success} />
+                <Text style={styles.offerText}>{currentOffer.storeAddress}</Text>
+              </View>
+              <View style={styles.offerRow}>
+                <Ionicons name="flag" size={16} color={colors.danger} />
+                <Text style={styles.offerText}>{currentOffer.deliveryAddress}</Text>
+              </View>
+              <View style={styles.offerRow}>
+                <Ionicons name="cash" size={16} color={colors.primary} />
+                <Text style={styles.offerFee}>R$ {Number(currentOffer.deliveryFee).toFixed(2)}</Text>
+              </View>
+            </View>
+            <View style={styles.offerButtons}>
+              <TouchableOpacity style={styles.offerDecline} onPress={handleDeclineOffer}>
+                <Text style={styles.offerDeclineText}>Recusar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.offerAccept} onPress={handleAcceptOffer}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.white} />
+                <Text style={styles.offerAcceptText}>Aceitar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>Entregas</Text>
-          {activeDeliveryForTracking && (
-            <View style={styles.trackingBadge}>
-              <View style={styles.trackingDot} />
-              <Text style={styles.trackingText}>Rastreando</Text>
-            </View>
-          )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {activeDeliveryForTracking && (
+              <View style={styles.trackingBadge}>
+                <View style={styles.trackingDot} />
+                <Text style={styles.trackingText}>Rastreando</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[styles.onlineToggle, isOnline && styles.onlineToggleActive, !mpConnected && { opacity: 0.5 }]}
+              onPress={toggleOnline}
+              disabled={!mpConnected}
+            >
+              <View style={[styles.onlineDot, isOnline && styles.onlineDotActive]} />
+              <Text style={[styles.onlineText, isOnline && styles.onlineTextActive]}>
+                {isOnline ? 'Online' : 'Offline'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {!mpConnected && (
+          <View style={styles.mpBanner}>
+            <View style={styles.mpBannerContent}>
+              <View style={styles.mpBannerIcon}>
+                <Ionicons name="wallet-outline" size={28} color={colors.warning} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.mpBannerTitle}>Conecte sua conta para comecar</Text>
+                <Text style={styles.mpBannerSubtitle}>
+                  Para receber entregas e pagamentos, voce precisa conectar uma conta Mercado Pago
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.mpBannerButton}
+              onPress={handleConnectMp}
+              disabled={loadingConnectUrl}
+            >
+              {loadingConnectUrl ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <>
+                  <Ionicons name="link" size={18} color={colors.white} />
+                  <Text style={styles.mpBannerButtonText}>Conectar Mercado Pago</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={styles.tabBar}>
           <TouchableOpacity
             style={[styles.tabButton, isAvailableTab && styles.tabButtonActive]}
@@ -362,6 +622,53 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontWeight: '600',
   },
+  mpBanner: {
+    backgroundColor: colors.warning + '12',
+    borderWidth: 1.5,
+    borderColor: colors.warning + '40',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    gap: 14,
+  },
+  mpBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  mpBannerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.warning + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mpBannerTitle: {
+    fontSize: fonts.regular,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  mpBannerSubtitle: {
+    fontSize: fonts.small,
+    color: colors.textLight,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  mpBannerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#009EE3',
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  mpBannerButtonText: {
+    color: colors.white,
+    fontWeight: 'bold',
+    fontSize: fonts.regular,
+  },
   tabBar: { flexDirection: 'row', gap: 8 },
   tabButton: {
     flex: 1,
@@ -435,6 +742,21 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   actionButtonText: { color: colors.white, fontWeight: 'bold', fontSize: fonts.small },
+  navigateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#4285F4',
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  navigateButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: fonts.regular,
+  },
   completedInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -445,4 +767,120 @@ const styles = StyleSheet.create({
   emptyContainer: { alignItems: 'center', marginTop: 80, gap: 12, paddingHorizontal: 32 },
   emptyText: { fontSize: fonts.large, color: colors.textLight, fontWeight: '600' },
   emptySubtext: { fontSize: fonts.regular, color: colors.gray, textAlign: 'center' },
+  // Online toggle
+  onlineToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.grayLight,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  onlineToggleActive: {
+    backgroundColor: colors.success + '20',
+  },
+  onlineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.gray,
+  },
+  onlineDotActive: {
+    backgroundColor: colors.success,
+  },
+  onlineText: {
+    fontSize: fonts.small,
+    fontWeight: '600',
+    color: colors.gray,
+  },
+  onlineTextActive: {
+    color: colors.success,
+  },
+  // Offer popup
+  offerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+    padding: 24,
+  },
+  offerCard: {
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  offerTitle: {
+    fontSize: fonts.xlarge,
+    fontWeight: 'bold',
+    color: colors.text,
+    textAlign: 'center',
+  },
+  offerTimer: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: colors.danger,
+    textAlign: 'center',
+    marginVertical: 8,
+  },
+  offerInfo: {
+    backgroundColor: colors.grayLight,
+    borderRadius: 12,
+    padding: 16,
+    gap: 10,
+    marginVertical: 16,
+  },
+  offerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  offerText: {
+    fontSize: fonts.small,
+    color: colors.text,
+    flex: 1,
+  },
+  offerFee: {
+    fontSize: fonts.large,
+    fontWeight: 'bold',
+    color: colors.success,
+  },
+  offerButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  offerDecline: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: colors.grayLight,
+    alignItems: 'center',
+  },
+  offerDeclineText: {
+    fontSize: fonts.regular,
+    fontWeight: '600',
+    color: colors.textLight,
+  },
+  offerAccept: {
+    flex: 2,
+    flexDirection: 'row',
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  offerAcceptText: {
+    fontSize: fonts.regular,
+    fontWeight: 'bold',
+    color: colors.white,
+  },
 });

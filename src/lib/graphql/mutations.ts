@@ -113,3 +113,42 @@ export const CONFIRM_DELIVERY = gql`
     }
   }
 `;
+
+export const CREATE_ADDRESS = gql`
+  mutation CreateAddress($input: CreateAddressInput!) {
+    createAddress(input: $input) {
+      id street number complement neighborhood city state zipCode
+      latitude longitude isDefault
+    }
+  }
+`;
+
+export const SET_DEFAULT_ADDRESS = gql`
+  mutation SetDefaultAddress($id: String!) {
+    setDefaultAddress(id: $id) {
+      id isDefault
+    }
+  }
+`;
+
+export const DELETE_ADDRESS = gql`
+  mutation DeleteAddress($id: String!) {
+    deleteAddress(id: $id)
+  }
+`;
+
+export const DISCONNECT_MP = gql`
+  mutation DisconnectMercadoPago {
+    disconnectMercadoPago
+  }
+`;
+
+export const CONFIRM_RECEIPT = gql`
+  mutation ConfirmReceipt($orderId: String!) {
+    confirmReceipt(orderId: $orderId) {
+      id
+      status
+      customerConfirmedAt
+    }
+  }
+`;

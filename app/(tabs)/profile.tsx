@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useLazyQuery, useMutation, useQuery } from '@apollo/client';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { colors, fonts } from '../../src/theme';
+import { GET_ME, GET_MP_CONNECT_URL } from '../../src/lib/graphql/queries';
+import { DISCONNECT_MP } from '../../src/lib/graphql/mutations';
 
 const roleLabels: Record<string, string> = {
   CUSTOMER: 'Cliente',
@@ -15,10 +18,53 @@ const roleLabels: Record<string, string> = {
 };
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const { alert } = useAlert();
   const isDeliverer = user?.isDeliverer || user?.role === 'DELIVERER';
   const [retryCountdown, setRetryCountdown] = useState(0);
+
+  const { data: meData } = useQuery(GET_ME, { fetchPolicy: 'network-only' });
+  const [fetchMpUrl, { loading: mpUrlLoading }] = useLazyQuery(GET_MP_CONNECT_URL);
+  const [disconnectMp, { loading: disconnectLoading }] = useMutation(DISCONNECT_MP);
+
+  const mpConnected = meData?.me?.mpConnected ?? user?.mpConnected ?? false;
+
+  useEffect(() => {
+    if (meData?.me && user) {
+      updateUser({ ...user, mpConnected: meData.me.mpConnected });
+    }
+  }, [meData?.me?.mpConnected]);
+
+  async function handleConnectMp() {
+    try {
+      const { data } = await fetchMpUrl();
+      if (data?.mpConnectUrl) {
+        await Linking.openURL(data.mpConnectUrl);
+      }
+    } catch (err) {
+      alert('Erro', 'Nao foi possivel obter o link de conexao. Tente novamente.');
+    }
+  }
+
+  function handleDisconnectMp() {
+    alert('Desconectar Mercado Pago', 'Tem certeza? Voce deixara de receber pagamentos de entregas.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Desconectar',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await disconnectMp();
+            if (user) {
+              updateUser({ ...user, mpConnected: false });
+            }
+          } catch (err) {
+            alert('Erro', 'Nao foi possivel desconectar. Tente novamente.');
+          }
+        },
+      },
+    ]);
+  }
 
   const RETRY_DELAY_MS = 30 * 60 * 1000; // 30 minutos
 
@@ -54,7 +100,7 @@ export default function ProfileScreen() {
   }
 
   const menuItems = [
-    { icon: 'location-outline' as const, label: 'Meus enderecos', onPress: () => {} },
+    { icon: 'location-outline' as const, label: 'Meus enderecos', onPress: () => router.push('/addresses') },
     { icon: 'card-outline' as const, label: 'Formas de pagamento', onPress: () => {} },
     { icon: 'help-circle-outline' as const, label: 'Ajuda', onPress: () => {} },
     { icon: 'document-text-outline' as const, label: 'Termos de uso', onPress: () => {} },
@@ -137,6 +183,41 @@ export default function ProfileScreen() {
           <Text style={styles.delivererActiveText}>
             Entregador ativo - veja a aba "Entregas"
           </Text>
+        </View>
+      )}
+
+      {isDeliverer && !mpConnected && (
+        <TouchableOpacity style={styles.mpBanner} onPress={handleConnectMp} disabled={mpUrlLoading}>
+          <View style={styles.mpBannerIcon}>
+            <Ionicons name="wallet-outline" size={28} color="#009EE3" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.mpBannerTitle}>Conecte seu Mercado Pago</Text>
+            <Text style={styles.mpBannerSubtitle}>
+              Conecte para receber os valores das entregas diretamente na sua conta
+            </Text>
+          </View>
+          {mpUrlLoading ? (
+            <ActivityIndicator size="small" color="#009EE3" />
+          ) : (
+            <Ionicons name="chevron-forward" size={24} color="#009EE3" />
+          )}
+        </TouchableOpacity>
+      )}
+
+      {isDeliverer && mpConnected && (
+        <View style={styles.mpConnectedBanner}>
+          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+          <Text style={[styles.delivererActiveText, { flex: 1 }]}>
+            Mercado Pago conectado
+          </Text>
+          <TouchableOpacity onPress={handleDisconnectMp} disabled={disconnectLoading}>
+            {disconnectLoading ? (
+              <ActivityIndicator size="small" color={colors.danger} />
+            ) : (
+              <Text style={styles.mpDisconnectText}>Desconectar</Text>
+            )}
+          </TouchableOpacity>
         </View>
       )}
 
@@ -283,6 +364,52 @@ const styles = StyleSheet.create({
     color: colors.danger,
     marginTop: 8,
     opacity: 0.7,
+  },
+  mpBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#009EE3' + '30',
+    borderStyle: 'dashed',
+    gap: 12,
+  },
+  mpBannerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#009EE3' + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mpBannerTitle: {
+    fontSize: fonts.regular,
+    fontWeight: 'bold',
+    color: '#009EE3',
+  },
+  mpBannerSubtitle: {
+    fontSize: fonts.small,
+    color: colors.textLight,
+    marginTop: 2,
+  },
+  mpConnectedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.success + '15',
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 12,
+  },
+  mpDisconnectText: {
+    fontSize: fonts.small,
+    color: colors.danger,
+    fontWeight: '600',
   },
   menu: { backgroundColor: colors.white, marginTop: 16, borderRadius: 16, marginHorizontal: 16 },
   menuItem: {

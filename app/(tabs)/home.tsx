@@ -13,18 +13,28 @@ import {
 import { useQuery } from '@apollo/client';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { GET_STORES, GET_ACTIVE_PROMOTIONS } from '../../src/lib/graphql/queries';
+import { GET_STORES, GET_ACTIVE_PROMOTIONS, GET_NEARBY_STORES } from '../../src/lib/graphql/queries';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useCart } from '../../src/contexts/CartContext';
+import { useLocation } from '../../src/contexts/LocationContext';
 import { colors, fonts } from '../../src/theme';
 
 export default function HomeScreen() {
   const { user } = useAuth();
   const { itemCount } = useCart();
-  const { data, loading, refetch } = useQuery(GET_STORES);
+  const { location } = useLocation();
+  const { data: nearbyData, loading: nearbyLoading, refetch: refetchNearby } = useQuery(GET_NEARBY_STORES, {
+    variables: { latitude: location?.latitude || 0, longitude: location?.longitude || 0, radiusKm: 30 },
+    skip: !location,
+  });
+  const { data: allData, loading: allLoading, refetch: refetchAll } = useQuery(GET_STORES);
   const { data: promosData } = useQuery(GET_ACTIVE_PROMOTIONS);
 
-  const stores = data?.stores || [];
+  const nearbyStores = nearbyData?.nearbyStores || [];
+  const allStores = allData?.stores || [];
+  // Fallback: if GPS returned but no nearby stores found, show all stores
+  const stores = location && nearbyStores.length > 0 ? nearbyStores : allStores;
+  const loading = location ? nearbyLoading : allLoading;
   const promotions = promosData?.activePromotions || [];
 
   function renderStore({ item }: { item: any }) {
@@ -95,7 +105,7 @@ export default function HomeScreen() {
         keyExtractor={(item) => item.id}
         renderItem={renderStore}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { refetchNearby(); refetchAll(); }} />}
         ListHeaderComponent={
           promotions.length > 0 ? (
             <View style={styles.promosSection}>
