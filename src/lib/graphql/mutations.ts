@@ -143,6 +143,12 @@ export const DISCONNECT_MP = gql`
   }
 `;
 
+export const REGISTER_PUSH_TOKEN = gql`
+  mutation RegisterPushToken($token: String!) {
+    registerPushToken(token: $token)
+  }
+`;
+
 export const CONFIRM_RECEIPT = gql`
   mutation ConfirmReceipt($orderId: String!) {
     confirmReceipt(orderId: $orderId) {

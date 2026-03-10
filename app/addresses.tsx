@@ -58,12 +58,14 @@ export default function AddressesScreen() {
       const results = await Location.reverseGeocodeAsync({ latitude, longitude });
       if (results.length > 0) {
         const r = results[0];
+        const city = r.city || r.subregion || '';
+        const neighborhood = r.district && r.district !== city ? r.district : '';
         setForm((prev) => ({
           ...prev,
           street: r.street || prev.street,
           number: r.streetNumber || prev.number,
-          neighborhood: r.district || r.subregion || prev.neighborhood,
-          city: r.city || prev.city,
+          neighborhood: neighborhood || prev.neighborhood,
+          city: city || prev.city,
           state: r.region || prev.state,
           zipCode: r.postalCode || prev.zipCode,
         }));

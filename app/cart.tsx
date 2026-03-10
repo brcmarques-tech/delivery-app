@@ -146,11 +146,13 @@ export default function CartScreen() {
         const results = await Location.reverseGeocodeAsync({ latitude, longitude });
         if (results.length > 0) {
           const r = results[0];
+          const city = r.city || r.subregion || '';
+          const neighborhood = r.district && r.district !== city ? r.district : '';
           const parts = [
             r.street,
             r.streetNumber,
-            r.district || r.subregion,
-            r.city,
+            neighborhood,
+            city,
             r.region,
           ].filter(Boolean);
           setAddress(parts.join(', '));

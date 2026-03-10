@@ -36,6 +36,13 @@
       "expo-router",
       "expo-font",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#FF6B35"
+        }
+      ],
+      [
         "expo-location",
         {
           "locationWhenInUsePermission": "Precisamos da sua localização para encontrar lojas perto de você.",

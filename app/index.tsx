@@ -4,15 +4,25 @@ import { useQuery } from '@apollo/client';
 import { View, ActivityIndicator } from 'react-native';
 import { GET_MY_ADDRESSES } from '../src/lib/graphql/queries';
 import { colors } from '../src/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useState } from 'react';
 
 export default function Index() {
   const { user, loading } = useAuth();
-  const { data: addrData, loading: addrLoading } = useQuery(GET_MY_ADDRESSES, {
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
+
+  const { data: addrData, loading: addrLoading, error: addrError } = useQuery(GET_MY_ADDRESSES, {
     skip: !user,
     fetchPolicy: 'network-only',
   });
 
-  if (loading || (user && addrLoading)) {
+  useEffect(() => {
+    AsyncStorage.getItem('onboardingDone').then((val) => {
+      setOnboardingDone(val === 'true');
+    });
+  }, []);
+
+  if (loading || onboardingDone === null) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -24,8 +34,13 @@ export default function Index() {
     return <Redirect href="/auth/login" />;
   }
 
+  // If query errored (e.g. token not ready yet) or still loading, go to home
+  if (addrError || addrLoading) {
+    return <Redirect href="/(tabs)/home" />;
+  }
+
   const addresses = addrData?.myAddresses || [];
-  if (addresses.length === 0) {
+  if (addresses.length === 0 && !onboardingDone) {
     return <Redirect href="/onboarding-address" />;
   }
 

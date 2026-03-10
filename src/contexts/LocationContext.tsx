@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
+import { useAuth } from './AuthContext';
 
 interface LocationData {
   latitude: number;
@@ -16,15 +17,17 @@ interface LocationContextType {
 
 const LocationContext = createContext<LocationContextType>({
   location: null,
-  loading: true,
+  loading: false,
   error: null,
   refresh: async () => {},
 });
 
 export function LocationProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [location, setLocation] = useState<LocationData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestedRef = useRef(false);
 
   async function getLocation() {
     try {
@@ -39,7 +42,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
       }
 
       const current = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Highest,
+        accuracy: Location.Accuracy.Balanced,
         mayShowUserSettingsDialog: true,
       });
 
@@ -54,9 +57,17 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Only request location after user is logged in
   useEffect(() => {
-    getLocation();
-  }, []);
+    if (user && !requestedRef.current) {
+      requestedRef.current = true;
+      getLocation();
+    }
+    if (!user) {
+      requestedRef.current = false;
+      setLocation(null);
+    }
+  }, [user]);
 
   return (
     <LocationContext.Provider value={{ location, loading, error, refresh: getLocation }}>

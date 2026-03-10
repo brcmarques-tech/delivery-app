@@ -7,9 +7,11 @@ import { CartProvider } from '../src/contexts/CartContext';
 import { AlertProvider } from '../src/contexts/AlertContext';
 import { LocationProvider } from '../src/contexts/LocationContext';
 import { useOrderNotifications } from '../src/hooks/useOrderNotifications';
+import { usePushNotifications } from '../src/hooks/usePushNotifications';
 
 function NotificationListener() {
   useOrderNotifications();
+  usePushNotifications();
   return null;
 }
 

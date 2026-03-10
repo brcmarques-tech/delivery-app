@@ -29,7 +29,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email, password);
-      router.replace('/(tabs)/home');
+      router.replace('/');
     } catch {
       alert('Erro', 'Email ou senha invalidos');
     } finally {

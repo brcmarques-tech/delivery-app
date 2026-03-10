@@ -52,12 +52,20 @@ export default function OnboardingAddressScreen() {
       const results = await Location.reverseGeocodeAsync({ latitude, longitude });
       if (results.length > 0) {
         const r = results[0];
+        console.log('Reverse geocode result:', JSON.stringify(r, null, 2));
+
+        // Android/iOS retornam campos diferentes:
+        // city pode vir em r.city, r.subregion ou r.region
+        // bairro pode vir em r.district, r.subregion ou r.name
+        const city = r.city || r.subregion || '';
+        const neighborhood = r.district && r.district !== city ? r.district : '';
+
         setForm((prev) => ({
           ...prev,
           street: r.street || prev.street,
           number: r.streetNumber || prev.number,
-          neighborhood: r.district || r.subregion || prev.neighborhood,
-          city: r.city || prev.city,
+          neighborhood: neighborhood || prev.neighborhood,
+          city: city || prev.city,
           state: r.region || prev.state,
           zipCode: r.postalCode || prev.zipCode,
         }));
