@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Image, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { useQuery, useMutation } from '@apollo/client';
+import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { GET_ORDER } from '../../src/lib/graphql/queries';
 import { CONFIRM_RECEIPT } from '../../src/lib/graphql/mutations';
+import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { colors, fonts } from '../../src/theme';
 
 const statusSteps = [
@@ -22,6 +23,16 @@ export default function OrderDetailScreen() {
   const { data, loading, refetch } = useQuery(GET_ORDER, {
     variables: { id },
     pollInterval: 5000,
+  });
+
+  // Real-time updates for this order
+  useSubscription(ORDER_UPDATED, {
+    variables: { orderId: id },
+    onData: () => { refetch(); },
+  });
+  useSubscription(DELIVERY_UPDATED, {
+    variables: { orderId: id },
+    onData: () => { refetch(); },
   });
   const [confirmReceipt, { loading: confirming }] = useMutation(CONFIRM_RECEIPT);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);

@@ -8,6 +8,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { colors, fonts } from '../../src/theme';
@@ -20,6 +21,7 @@ export default function RegisterScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleRegister() {
     if (!name || !email || !phone || !password) {
@@ -67,14 +69,26 @@ export default function RegisterScreen() {
           onChangeText={setPhone}
           keyboardType="phone-pad"
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Senha (min. 6 caracteres)"
-          placeholderTextColor={colors.gray}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Senha (min. 6 caracteres)"
+            placeholderTextColor={colors.gray}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity
+            style={styles.eyeButton}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Ionicons
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={22}
+              color={colors.gray}
+            />
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
@@ -106,6 +120,22 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: fonts.regular,
     color: colors.text,
+  },
+  passwordContainer: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: colors.grayLight,
+    borderRadius: 12,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 16,
+    fontSize: fonts.regular,
+    color: colors.text,
+  },
+  eyeButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 16,
   },
   button: {
     backgroundColor: colors.primary,

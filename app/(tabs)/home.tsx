@@ -10,10 +10,11 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
-import { useQuery } from '@apollo/client';
+import { useQuery, useSubscription } from '@apollo/client';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { GET_STORES, GET_ACTIVE_PROMOTIONS, GET_NEARBY_STORES } from '../../src/lib/graphql/queries';
+import { STORE_UPDATED, PROMOTION_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useCart } from '../../src/contexts/CartContext';
 import { useLocation } from '../../src/contexts/LocationContext';
@@ -26,9 +27,22 @@ export default function HomeScreen() {
   const { data: nearbyData, loading: nearbyLoading, refetch: refetchNearby } = useQuery(GET_NEARBY_STORES, {
     variables: { latitude: location?.latitude || 0, longitude: location?.longitude || 0, radiusKm: 30 },
     skip: !location,
+    pollInterval: 30000,
   });
-  const { data: allData, loading: allLoading, refetch: refetchAll } = useQuery(GET_STORES);
-  const { data: promosData } = useQuery(GET_ACTIVE_PROMOTIONS);
+  const { data: allData, loading: allLoading, refetch: refetchAll } = useQuery(GET_STORES, {
+    pollInterval: 30000,
+  });
+  const { data: promosData, refetch: refetchPromos } = useQuery(GET_ACTIVE_PROMOTIONS, {
+    pollInterval: 30000,
+  });
+
+  // Real-time: refresh when stores or promotions change
+  useSubscription(STORE_UPDATED, {
+    onData: () => { refetchNearby(); refetchAll(); },
+  });
+  useSubscription(PROMOTION_UPDATED, {
+    onData: () => { refetchPromos(); },
+  });
 
   const nearbyStores = nearbyData?.nearbyStores || [];
   const allStores = allData?.stores || [];

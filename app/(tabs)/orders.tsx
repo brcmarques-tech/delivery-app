@@ -7,10 +7,11 @@ import {
   StyleSheet,
   RefreshControl,
 } from 'react-native';
-import { useQuery } from '@apollo/client';
+import { useQuery, useSubscription } from '@apollo/client';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { GET_MY_ORDERS } from '../../src/lib/graphql/queries';
+import { ORDER_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { colors, fonts } from '../../src/theme';
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -26,8 +27,13 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 };
 
 export default function OrdersScreen() {
-  const { data, loading, refetch } = useQuery(GET_MY_ORDERS);
+  const { data, loading, refetch } = useQuery(GET_MY_ORDERS, { pollInterval: 15000 });
   const orders = data?.myOrders || [];
+
+  // Real-time order updates
+  useSubscription(ORDER_UPDATED, {
+    onData: () => { refetch(); },
+  });
 
   return (
     <View style={styles.container}>

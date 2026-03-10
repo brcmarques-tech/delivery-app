@@ -11,7 +11,7 @@ import {
   Vibration,
   ActivityIndicator,
 } from 'react-native';
-import { useQuery, useLazyQuery, useMutation } from '@apollo/client';
+import { useQuery, useLazyQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { io, Socket } from 'socket.io-client';
@@ -20,6 +20,7 @@ import { ACCEPT_DELIVERY, CONFIRM_PICKUP, CONFIRM_DELIVERY } from '../../src/lib
 import { useDeliveryTracking } from '../../src/hooks/useDeliveryTracking';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { colors, fonts } from '../../src/theme';
 
 function openNavigation(lat: number, lng: number, label: string) {
@@ -193,6 +194,14 @@ export default function DeliveriesScreen() {
     loading: loadingMy,
     refetch: refetchMy,
   } = useQuery(GET_MY_DELIVERIES, { pollInterval: 10000 });
+
+  // Real-time updates
+  useSubscription(ORDER_UPDATED, {
+    onData: () => { refetchAvailable(); },
+  });
+  useSubscription(DELIVERY_UPDATED, {
+    onData: () => { refetchMy(); refetchAvailable(); },
+  });
 
   const [acceptDelivery] = useMutation(ACCEPT_DELIVERY);
   const [confirmPickup] = useMutation(CONFIRM_PICKUP);
