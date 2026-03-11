@@ -6,8 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 
 const LOCATION_TASK_NAME = 'DELIVERY_BACKGROUND_LOCATION';
-const API_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
-const WS_URL = `http://${API_HOST}:3000`;
+const WS_URL = 'https://delivery-api-fdc4.onrender.com';
 
 let socketInstance: Socket | null = null;
 let activeDeliveryId: string | null = null;

@@ -4,12 +4,12 @@ import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient } from 'graphql-ws';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 
-const API_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
+const API_URL = 'https://delivery-api-fdc4.onrender.com/graphql';
+const WS_URL = 'wss://delivery-api-fdc4.onrender.com/graphql';
 
 const httpLink = createHttpLink({
-  uri: `http://${API_HOST}:3000/graphql`,
+  uri: API_URL,
 });
 
 const authLink = setContext(async (_, { headers }) => {
@@ -26,7 +26,7 @@ let wsLink: GraphQLWsLink | null = null;
 try {
   wsLink = new GraphQLWsLink(
     createClient({
-      url: `ws://${API_HOST}:3000/graphql`,
+      url: WS_URL,
       retryAttempts: 5,
       connectionParams: async () => {
         const token = await AsyncStorage.getItem('token');
