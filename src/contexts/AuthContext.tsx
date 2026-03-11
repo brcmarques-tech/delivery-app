@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApolloClient, useMutation } from '@apollo/client';
+import { AppState } from 'react-native';
 import { LOGIN, REGISTER } from '../lib/graphql/mutations';
+import { GET_ME } from '../lib/graphql/queries';
 
 interface User {
   id: string;
@@ -36,9 +38,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loginMutation] = useMutation(LOGIN);
   const [registerMutation] = useMutation(REGISTER);
 
+  const appState = useRef(AppState.currentState);
+
   useEffect(() => {
     loadStoredAuth();
   }, []);
+
+  // Re-validate token when app comes back to foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active' && token) {
+        validateToken();
+      }
+      appState.current = nextState;
+    });
+    return () => sub.remove();
+  }, [token]);
+
+  async function validateToken() {
+    try {
+      const { data } = await apolloClient.query({
+        query: GET_ME,
+        fetchPolicy: 'network-only',
+      });
+      if (data?.me) {
+        const freshUser = data.me;
+        await AsyncStorage.setItem('user', JSON.stringify(freshUser));
+        setUser(freshUser);
+      } else {
+        await forceLogout();
+      }
+    } catch {
+      // Token invalid or expired — force logout
+      await forceLogout();
+    }
+  }
+
+  async function forceLogout() {
+    await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+    await apolloClient.clearStore();
+  }
 
   async function loadStoredAuth() {
     const storedToken = await AsyncStorage.getItem('token');
@@ -46,6 +88,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (storedToken && storedUser) {
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
+      // Validate token with API in background
+      try {
+        const { data } = await apolloClient.query({
+          query: GET_ME,
+          fetchPolicy: 'network-only',
+        });
+        if (data?.me) {
+          await AsyncStorage.setItem('user', JSON.stringify(data.me));
+          setUser(data.me);
+        } else {
+          await forceLogout();
+        }
+      } catch {
+        await forceLogout();
+      }
     }
     setLoading(false);
   }

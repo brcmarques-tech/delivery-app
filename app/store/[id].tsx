@@ -11,16 +11,27 @@ import {
   Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { useQuery } from '@apollo/client';
+import { useQuery, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { GET_STORE } from '../../src/lib/graphql/queries';
+import { PRODUCT_UPDATED, STORE_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useCart } from '../../src/contexts/CartContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { colors, fonts } from '../../src/theme';
 
 export default function StoreScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data, loading } = useQuery(GET_STORE, { variables: { id } });
+  const { data, loading, refetch } = useQuery(GET_STORE, { variables: { id }, pollInterval: 15000 });
+
+  // Real-time: refresh when products or store changes
+  useSubscription(PRODUCT_UPDATED, {
+    variables: { storeId: id },
+    onData: () => { refetch(); },
+  });
+  useSubscription(STORE_UPDATED, {
+    variables: { storeId: id },
+    onData: () => { refetch(); },
+  });
   const { addItem, storeId, itemCount, total } = useCart();
   const { alert } = useAlert();
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
@@ -169,7 +180,10 @@ export default function StoreScreen() {
             )}
             {!item.isAvailable && (
               <View style={styles.unavailable}>
-                <Text style={styles.unavailableText}>Indisponivel</Text>
+                <View style={styles.unavailableBadge}>
+                  <Ionicons name="close-circle" size={16} color={colors.white} />
+                  <Text style={styles.unavailableText}>Indisponivel no momento</Text>
+                </View>
               </View>
             )}
           </TouchableOpacity>
@@ -316,12 +330,21 @@ const styles = StyleSheet.create({
   productImagePlaceholder: { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' },
   unavailable: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: 'rgba(255,255,255,0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 12,
   },
-  unavailableText: { color: colors.danger, fontWeight: '600' },
+  unavailableBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.danger,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  unavailableText: { color: colors.white, fontWeight: '700', fontSize: fonts.small },
   cartBar: {
     position: 'absolute',
     bottom: 24,
