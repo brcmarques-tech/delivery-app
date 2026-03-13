@@ -58,8 +58,9 @@ export default function RegisterScreen() {
     try {
       await register(name, email, password, phone, undefined, cpfDigits);
       router.replace('/onboarding-address');
-    } catch {
-      alert('Erro', 'Nao foi possivel criar a conta. Tente novamente.');
+    } catch (err: any) {
+      const msg = err?.graphQLErrors?.[0]?.message || err?.message || 'Nao foi possivel criar a conta. Tente novamente.';
+      alert('Erro', msg);
     } finally {
       setLoading(false);
     }

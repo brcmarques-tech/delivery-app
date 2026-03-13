@@ -170,7 +170,7 @@ export default function DelivererRegisterScreen() {
       setSubmitted(true);
     } catch (err: any) {
       setUploading(false);
-      const msg = err?.message || 'Erro desconhecido';
+      const msg = err?.graphQLErrors?.[0]?.message || err?.message || 'Erro desconhecido';
       alert('Erro', `Não foi possível completar o cadastro: ${msg}`);
     }
   }
