@@ -37,6 +37,7 @@ export default function StoreScreen() {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
+  const [weightGrams, setWeightGrams] = useState(500);
 
   const store = data?.store;
 
@@ -77,6 +78,7 @@ export default function StoreScreen() {
             onPress: () => {
               setSelectedProduct(product);
               setQuantity(1);
+              setWeightGrams(500);
             },
           },
         ],
@@ -85,22 +87,39 @@ export default function StoreScreen() {
     }
     setSelectedProduct(product);
     setQuantity(1);
+    setWeightGrams(500);
   }
 
   function confirmAdd() {
     if (!selectedProduct) return;
     const price = Number(selectedProduct.promotionalPrice || selectedProduct.price);
-    addItem(
-      {
-        productId: selectedProduct.id,
-        name: selectedProduct.name,
-        price,
-        quantity,
-        imageUrl: selectedProduct.imageUrl,
-      },
-      id!,
-      store.name,
-    );
+    if (selectedProduct.isVariableWeight) {
+      addItem(
+        {
+          productId: selectedProduct.id,
+          name: selectedProduct.name,
+          price,
+          quantity: 1,
+          imageUrl: selectedProduct.imageUrl,
+          isVariableWeight: true,
+          weightGrams,
+        },
+        id!,
+        store.name,
+      );
+    } else {
+      addItem(
+        {
+          productId: selectedProduct.id,
+          name: selectedProduct.name,
+          price,
+          quantity,
+          imageUrl: selectedProduct.imageUrl,
+        },
+        id!,
+        store.name,
+      );
+    }
     setSelectedProduct(null);
   }
 
@@ -158,7 +177,9 @@ export default function StoreScreen() {
                 <Text style={styles.productDesc} numberOfLines={2}>{item.description}</Text>
               ) : null}
               <View style={styles.priceRow}>
-                {item.promotionalPrice ? (
+                {item.isVariableWeight ? (
+                  <Text style={styles.price}>R$ {Number(item.promotionalPrice || item.price).toFixed(2)}/kg</Text>
+                ) : item.promotionalPrice ? (
                   <>
                     <Text style={styles.priceOld}>R$ {Number(item.price).toFixed(2)}</Text>
                     <Text style={styles.price}>R$ {Number(item.promotionalPrice).toFixed(2)}</Text>
@@ -166,7 +187,7 @@ export default function StoreScreen() {
                 ) : (
                   <Text style={styles.price}>R$ {Number(item.price).toFixed(2)}</Text>
                 )}
-                {item.unit && <Text style={styles.unit}>/ {item.unit}</Text>}
+                {!item.isVariableWeight && item.unit && <Text style={styles.unit}>/ {item.unit}</Text>}
               </View>
             </View>
             {item.imageUrl ? (
@@ -234,7 +255,9 @@ export default function StoreScreen() {
                     <Text style={styles.addModalDesc}>{selectedProduct.description}</Text>
                   ) : null}
                   <View style={styles.addModalPriceRow}>
-                    {selectedProduct.promotionalPrice ? (
+                    {selectedProduct.isVariableWeight ? (
+                      <Text style={styles.addModalUnit}>R$ {Number(selectedProduct.promotionalPrice || selectedProduct.price).toFixed(2)}/kg</Text>
+                    ) : selectedProduct.promotionalPrice ? (
                       <>
                         <Text style={styles.addModalPriceOld}>R$ {Number(selectedProduct.price).toFixed(2)}</Text>
                         <Text style={styles.addModalPrice}>R$ {Number(selectedProduct.promotionalPrice).toFixed(2)}</Text>
@@ -242,32 +265,60 @@ export default function StoreScreen() {
                     ) : (
                       <Text style={styles.addModalPrice}>R$ {Number(selectedProduct.price).toFixed(2)}</Text>
                     )}
-                    {selectedProduct.unit && <Text style={styles.addModalUnit}>/ {selectedProduct.unit}</Text>}
+                    {!selectedProduct.isVariableWeight && selectedProduct.unit && <Text style={styles.addModalUnit}>/ {selectedProduct.unit}</Text>}
                   </View>
                 </View>
 
-                {/* Quantidade */}
-                <View style={styles.quantityRow}>
-                  <TouchableOpacity
-                    style={[styles.quantityBtn, quantity <= 1 && styles.quantityBtnDisabled]}
-                    onPress={() => quantity > 1 && setQuantity(quantity - 1)}
-                    disabled={quantity <= 1}
-                  >
-                    <Ionicons name="remove" size={22} color={quantity <= 1 ? colors.gray : colors.primary} />
-                  </TouchableOpacity>
-                  <Text style={styles.quantityText}>{quantity}</Text>
-                  <TouchableOpacity
-                    style={styles.quantityBtn}
-                    onPress={() => setQuantity(quantity + 1)}
-                  >
-                    <Ionicons name="add" size={22} color={colors.primary} />
-                  </TouchableOpacity>
-                </View>
+                {/* Quantidade / Peso */}
+                {selectedProduct.isVariableWeight ? (
+                  <View style={styles.quantityRow}>
+                    <TouchableOpacity
+                      style={[styles.quantityBtn, weightGrams <= 100 && styles.quantityBtnDisabled]}
+                      onPress={() => weightGrams > 100 && setWeightGrams(weightGrams - 100)}
+                      disabled={weightGrams <= 100}
+                    >
+                      <Ionicons name="remove" size={22} color={weightGrams <= 100 ? colors.gray : colors.primary} />
+                    </TouchableOpacity>
+                    <Text style={styles.quantityText}>
+                      {weightGrams >= 1000 ? `${(weightGrams / 1000).toFixed(weightGrams % 1000 === 0 ? 0 : 1)}kg` : `${weightGrams}g`}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.quantityBtn}
+                      onPress={() => setWeightGrams(weightGrams + 100)}
+                    >
+                      <Ionicons name="add" size={22} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.quantityRow}>
+                    <TouchableOpacity
+                      style={[styles.quantityBtn, quantity <= 1 && styles.quantityBtnDisabled]}
+                      onPress={() => quantity > 1 && setQuantity(quantity - 1)}
+                      disabled={quantity <= 1}
+                    >
+                      <Ionicons name="remove" size={22} color={quantity <= 1 ? colors.gray : colors.primary} />
+                    </TouchableOpacity>
+                    <Text style={styles.quantityText}>{quantity}</Text>
+                    <TouchableOpacity
+                      style={styles.quantityBtn}
+                      onPress={() => setQuantity(quantity + 1)}
+                    >
+                      <Ionicons name="add" size={22} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                )}
 
                 {/* Botao confirmar */}
                 <TouchableOpacity style={styles.addModalButton} onPress={confirmAdd} activeOpacity={0.8}>
                   <Text style={styles.addModalButtonText}>Adicionar</Text>
-                  <Text style={styles.addModalButtonPrice}>R$ {(selectedPrice * quantity).toFixed(2)}</Text>
+                  {selectedProduct.isVariableWeight ? (
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.addModalButtonPrice}>R$ {((selectedPrice * weightGrams) / 1000).toFixed(2)}</Text>
+                      <Text style={[styles.addModalButtonPrice, { fontSize: 11, opacity: 0.85 }]}>(R$ {selectedPrice.toFixed(2)}/kg)</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.addModalButtonPrice}>R$ {(selectedPrice * quantity).toFixed(2)}</Text>
+                  )}
                 </TouchableOpacity>
               </>
             )}

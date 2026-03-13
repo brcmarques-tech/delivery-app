@@ -31,7 +31,7 @@ const ALL_PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string; de
 ];
 
 export default function CartScreen() {
-  const { items, storeId, storeName, total, updateQuantity, removeItem, clearCart } = useCart();
+  const { items, storeId, storeName, total, updateQuantity, updateWeight, removeItem, clearCart } = useCart();
   const { alert } = useAlert();
   const { location: gpsLocation } = useLocation();
   const [address, setAddress] = useState('');
@@ -208,6 +208,7 @@ export default function CartScreen() {
               productId: i.productId,
               quantity: i.quantity,
               notes: i.notes,
+              ...(i.isVariableWeight ? { weightGrams: i.weightGrams } : {}),
             })),
             ...(isPickup
               ? {}
@@ -287,23 +288,49 @@ export default function CartScreen() {
           <View style={styles.itemCard}>
             <View style={styles.itemInfo}>
               <Text style={styles.itemName}>{item.name}</Text>
-              <Text style={styles.itemPrice}>R$ {(item.price * item.quantity).toFixed(2)}</Text>
+              <Text style={styles.itemPrice}>
+                {item.isVariableWeight
+                  ? `R$ ${((item.price * (item.weightGrams || 0)) / 1000).toFixed(2)}`
+                  : `R$ ${(item.price * item.quantity).toFixed(2)}`}
+              </Text>
             </View>
-            <View style={styles.quantityRow}>
-              <TouchableOpacity
-                style={styles.qtyButton}
-                onPress={() => updateQuantity(item.productId, item.quantity - 1)}
-              >
-                <Ionicons name={item.quantity === 1 ? 'trash-outline' : 'remove'} size={18} color={colors.primary} />
-              </TouchableOpacity>
-              <Text style={styles.qtyText}>{item.quantity}</Text>
-              <TouchableOpacity
-                style={styles.qtyButton}
-                onPress={() => updateQuantity(item.productId, item.quantity + 1)}
-              >
-                <Ionicons name="add" size={18} color={colors.primary} />
-              </TouchableOpacity>
-            </View>
+            {item.isVariableWeight ? (
+              <View style={styles.quantityRow}>
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPress={() => updateWeight(item.productId, (item.weightGrams || 0) - 100)}
+                >
+                  <Ionicons name={(item.weightGrams || 0) <= 100 ? 'trash-outline' : 'remove'} size={18} color={colors.primary} />
+                </TouchableOpacity>
+                <Text style={styles.qtyText}>
+                  {(item.weightGrams || 0) >= 1000
+                    ? `${((item.weightGrams || 0) / 1000).toFixed((item.weightGrams || 0) % 1000 === 0 ? 0 : 1)}kg`
+                    : `${item.weightGrams || 0}g`}
+                </Text>
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPress={() => updateWeight(item.productId, (item.weightGrams || 0) + 100)}
+                >
+                  <Ionicons name="add" size={18} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.quantityRow}>
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPress={() => updateQuantity(item.productId, item.quantity - 1)}
+                >
+                  <Ionicons name={item.quantity === 1 ? 'trash-outline' : 'remove'} size={18} color={colors.primary} />
+                </TouchableOpacity>
+                <Text style={styles.qtyText}>{item.quantity}</Text>
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPress={() => updateQuantity(item.productId, item.quantity + 1)}
+                >
+                  <Ionicons name="add" size={18} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
         ListFooterComponent={

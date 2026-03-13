@@ -207,13 +207,20 @@ export default function OrderDetailScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Itens</Text>
-        {order.items.map((item: any) => (
-          <View key={item.id} style={styles.itemRow}>
-            <Text style={styles.itemQty}>{item.quantity}x</Text>
-            <Text style={styles.itemName}>{item.product.name}</Text>
-            <Text style={styles.itemPrice}>R$ {Number(item.totalPrice).toFixed(2)}</Text>
-          </View>
-        ))}
+        {order.items.map((item: any) => {
+          const weightLabel = item.weightGrams
+            ? item.weightGrams >= 1000
+              ? `${(item.weightGrams / 1000).toFixed(item.weightGrams % 1000 === 0 ? 0 : 1)}kg`
+              : `${item.weightGrams}g`
+            : null;
+          return (
+            <View key={item.id} style={styles.itemRow}>
+              <Text style={styles.itemQty}>{weightLabel ? weightLabel : `${item.quantity}x`}</Text>
+              <Text style={styles.itemName}>{item.product?.name || 'Produto removido'}</Text>
+              <Text style={styles.itemPrice}>R$ {Number(item.totalPrice).toFixed(2)}</Text>
+            </View>
+          );
+        })}
       </View>
 
       <View style={styles.section}>

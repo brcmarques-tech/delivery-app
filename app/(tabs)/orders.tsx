@@ -63,7 +63,7 @@ export default function OrdersScreen() {
               <View style={styles.itemsList}>
                 {item.items.slice(0, 3).map((oi: any) => (
                   <Text key={oi.id} style={styles.itemText}>
-                    {oi.quantity}x {oi.product.name}
+                    {oi.quantity}x {oi.product?.name || 'Produto removido'}
                   </Text>
                 ))}
                 {item.items.length > 3 && (

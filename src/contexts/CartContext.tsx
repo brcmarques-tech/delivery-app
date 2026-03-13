@@ -7,6 +7,8 @@ interface CartItem {
   quantity: number;
   imageUrl?: string;
   notes?: string;
+  isVariableWeight?: boolean;
+  weightGrams?: number;
 }
 
 interface CartContextData {
@@ -16,6 +18,7 @@ interface CartContextData {
   addItem: (item: CartItem, storeId: string, storeName: string) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
+  updateWeight: (productId: string, weightGrams: number) => void;
   clearCart: () => void;
   total: number;
   itemCount: number;
@@ -28,7 +31,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [storeId, setStoreId] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string | null>(null);
 
-  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const total = items.reduce((sum, item) => {
+    if (item.isVariableWeight) {
+      return sum + (item.price * (item.weightGrams || 0)) / 1000;
+    }
+    return sum + item.price * item.quantity;
+  }, 0);
+
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   function addItem(item: CartItem, newStoreId: string, newStoreName: string) {
@@ -45,6 +54,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => {
       const existing = prev.find((i) => i.productId === item.productId);
       if (existing) {
+        if (item.isVariableWeight) {
+          // For variable-weight items, replace the weightGrams
+          return prev.map((i) =>
+            i.productId === item.productId
+              ? { ...i, weightGrams: item.weightGrams }
+              : i,
+          );
+        }
         return prev.map((i) =>
           i.productId === item.productId
             ? { ...i, quantity: i.quantity + item.quantity }
@@ -69,6 +86,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  function updateWeight(productId: string, weightGrams: number) {
+    if (weightGrams <= 0) {
+      removeItem(productId);
+      return;
+    }
+    setItems((prev) =>
+      prev.map((i) => (i.productId === productId ? { ...i, weightGrams } : i)),
+    );
+  }
+
   function clearCart() {
     setItems([]);
     setStoreId(null);
@@ -77,7 +104,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   return (
     <CartContext.Provider
-      value={{ items, storeId, storeName, addItem, removeItem, updateQuantity, clearCart, total, itemCount }}
+      value={{ items, storeId, storeName, addItem, removeItem, updateQuantity, updateWeight, clearCart, total, itemCount }}
     >
       {children}
     </CartContext.Provider>

@@ -56,6 +56,7 @@ export const GET_STORE = gql`
         promotionalPrice
         imageUrl
         isAvailable
+        isVariableWeight
         unit
         category {
           id
@@ -86,6 +87,7 @@ export const GET_MY_ORDERS = gql`
       items {
         id
         quantity
+        weightGrams
         totalPrice
         product {
           name
@@ -119,6 +121,7 @@ export const GET_ORDER = gql`
       items {
         id
         quantity
+        weightGrams
         unitPrice
         totalPrice
         product {
