@@ -4,6 +4,7 @@ export const colors = {
   secondary: '#2D3436',
   background: '#F5F5F5',
   white: '#FFFFFF',
+  card: '#FFFFFF',
   gray: '#95A5A6',
   grayLight: '#ECF0F1',
   grayDark: '#7F8C8D',

@@ -48,7 +48,8 @@ Ao prosseguir com o cadastro, você declara ter lido, compreendido e concordado 
 export default function DelivererRegisterScreen() {
   const { updateUser } = useAuth();
   const { alert } = useAlert();
-  const [cpf, setCpf] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [cnhNumber, setCnhNumber] = useState('');
   const [vehicleType, setVehicleType] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [identityPhoto, setIdentityPhoto] = useState<string | null>(null);
@@ -60,12 +61,11 @@ export default function DelivererRegisterScreen() {
   const [uploadImage] = useMutation(UPLOAD_IMAGE);
   const [uploading, setUploading] = useState(false);
 
-  function formatCpf(value: string) {
-    const digits = value.replace(/\D/g, '').slice(0, 11);
-    if (digits.length <= 3) return digits;
-    if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
-    if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
-    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+  function formatBirthDate(value: string) {
+    const digits = value.replace(/\D/g, '').slice(0, 8);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
   }
 
   async function pickIdentityPhoto() {
@@ -111,13 +111,25 @@ export default function DelivererRegisterScreen() {
   }
 
   async function handleSubmit() {
-    const cleanCpf = cpf.replace(/\D/g, '');
-    if (cleanCpf.length !== 11) {
-      alert('Erro', 'CPF deve ter 11 digitos');
+    if (!birthDate || birthDate.length < 10) {
+      alert('Erro', 'Informe sua data de nascimento');
+      return;
+    }
+    // Parse DD/MM/YYYY to ISO
+    const [dd, mm, yyyy] = birthDate.split('/');
+    const birthISO = `${yyyy}-${mm}-${dd}`;
+    const birthObj = new Date(birthISO);
+    const age = Math.floor((Date.now() - birthObj.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    if (age < 18) {
+      alert('Erro', 'Voce precisa ter pelo menos 18 anos');
       return;
     }
     if (!vehicleType) {
       alert('Erro', 'Selecione o tipo de veiculo');
+      return;
+    }
+    if ((vehicleType === 'MOTO' || vehicleType === 'CARRO') && !cnhNumber.trim()) {
+      alert('Erro', 'CNH obrigatoria para veiculos motorizados');
       return;
     }
     if (!identityPhoto) {
@@ -130,7 +142,7 @@ export default function DelivererRegisterScreen() {
     }
 
     if (!identityPhotoBase64) {
-      alert('Erro', 'Não foi possível processar a foto. Tente tirar novamente.');
+      alert('Erro', 'Nao foi possivel processar a foto. Tente tirar novamente.');
       return;
     }
 
@@ -145,7 +157,8 @@ export default function DelivererRegisterScreen() {
       const { data } = await registerAsDeliverer({
         variables: {
           input: {
-            cpf: cleanCpf,
+            birthDate: birthISO,
+            cnhNumber: cnhNumber.trim() || undefined,
             vehicleType,
             vehiclePlate: vehiclePlate || undefined,
             identityPhotoUrl: photoUrl,
@@ -199,15 +212,15 @@ export default function DelivererRegisterScreen() {
       </Text>
 
       <View style={styles.form}>
-        <Text style={styles.label}>CPF</Text>
+        <Text style={styles.label}>Data de nascimento</Text>
         <TextInput
           style={styles.input}
-          placeholder="000.000.000-00"
+          placeholder="DD/MM/AAAA"
           placeholderTextColor={colors.gray}
-          value={cpf}
-          onChangeText={(v) => setCpf(formatCpf(v))}
+          value={birthDate}
+          onChangeText={(v) => setBirthDate(formatBirthDate(v))}
           keyboardType="numeric"
-          maxLength={14}
+          maxLength={10}
         />
 
         <Text style={styles.label}>Tipo de veiculo</Text>
@@ -240,6 +253,17 @@ export default function DelivererRegisterScreen() {
 
         {(vehicleType === 'MOTO' || vehicleType === 'CARRO') && (
           <>
+            <Text style={styles.label}>Numero da CNH</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="00000000000"
+              placeholderTextColor={colors.gray}
+              value={cnhNumber}
+              onChangeText={setCnhNumber}
+              keyboardType="numeric"
+              maxLength={11}
+            />
+
             <Text style={styles.label}>Placa do veiculo</Text>
             <TextInput
               style={styles.input}

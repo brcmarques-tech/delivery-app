@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useLazyQuery, useMutation, useQuery } from '@apollo/client';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
-import { colors, fonts } from '../../src/theme';
+import { useTheme } from '../../src/contexts/ThemeContext';
+import { colors as staticColors, fonts } from '../../src/theme';
 import { GET_ME, GET_MP_CONNECT_URL } from '../../src/lib/graphql/queries';
 import { DISCONNECT_MP } from '../../src/lib/graphql/mutations';
+import AcceptTermsScreen from '../accept-terms';
 
 const roleLabels: Record<string, string> = {
   CUSTOMER: 'Cliente',
@@ -20,8 +22,10 @@ const roleLabels: Record<string, string> = {
 export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
   const { alert } = useAlert();
+  const { isDark, toggleTheme, colors } = useTheme();
   const isDeliverer = user?.isDeliverer || user?.role === 'DELIVERER';
   const [retryCountdown, setRetryCountdown] = useState(0);
+  const [showTerms, setShowTerms] = useState(false);
 
   const { data: meData } = useQuery(GET_ME, { fetchPolicy: 'network-only' });
   const [fetchMpUrl, { loading: mpUrlLoading }] = useLazyQuery(GET_MP_CONNECT_URL);
@@ -103,19 +107,19 @@ export default function ProfileScreen() {
     { icon: 'location-outline' as const, label: 'Meus enderecos', onPress: () => router.push('/addresses') },
     { icon: 'card-outline' as const, label: 'Formas de pagamento', onPress: () => {} },
     { icon: 'help-circle-outline' as const, label: 'Ajuda', onPress: () => {} },
-    { icon: 'document-text-outline' as const, label: 'Termos de uso', onPress: () => {} },
+    { icon: 'document-text-outline' as const, label: 'Termos de uso', onPress: () => setShowTerms(true) },
   ];
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.white }]}>
         <View style={[styles.avatar, isDeliverer && { backgroundColor: colors.success }]}>
-          <Text style={styles.avatarText}>
+          <Text style={[styles.avatarText, { color: '#FFFFFF' }]}>
             {user?.name?.charAt(0).toUpperCase()}
           </Text>
         </View>
-        <Text style={styles.name}>{user?.name}</Text>
-        <Text style={styles.email}>{user?.email}</Text>
+        <Text style={[styles.name, { color: colors.text }]}>{user?.name}</Text>
+        <Text style={[styles.email, { color: colors.textLight }]}>{user?.email}</Text>
         <View style={[styles.roleBadge, isDeliverer && { backgroundColor: colors.success + '15' }]}>
           <Text style={[styles.roleText, isDeliverer && { color: colors.success }]}>
             {roleLabels[user?.role || ''] || user?.role}
@@ -126,7 +130,7 @@ export default function ProfileScreen() {
       {/* Banner de entregador */}
       {!isDeliverer && !user?.pendingRole && !user?.rejectedAt && (
         <TouchableOpacity
-          style={styles.delivererBanner}
+          style={[styles.delivererBanner, { backgroundColor: colors.card, borderColor: colors.primary + '30' }]}
           onPress={() => router.push('/deliverer-register')}
         >
           <View style={styles.delivererBannerIcon}>
@@ -134,7 +138,7 @@ export default function ProfileScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.delivererBannerTitle}>Quero ser entregador</Text>
-            <Text style={styles.delivererBannerSubtitle}>
+            <Text style={[styles.delivererBannerSubtitle, { color: colors.textLight }]}>
               Faca entregas e ganhe dinheiro extra
             </Text>
           </View>
@@ -187,13 +191,13 @@ export default function ProfileScreen() {
       )}
 
       {isDeliverer && !mpConnected && (
-        <TouchableOpacity style={styles.mpBanner} onPress={handleConnectMp} disabled={mpUrlLoading}>
+        <TouchableOpacity style={[styles.mpBanner, { backgroundColor: colors.card }]} onPress={handleConnectMp} disabled={mpUrlLoading}>
           <View style={styles.mpBannerIcon}>
             <Ionicons name="wallet-outline" size={28} color="#009EE3" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.mpBannerTitle}>Conecte seu Mercado Pago</Text>
-            <Text style={styles.mpBannerSubtitle}>
+            <Text style={[styles.mpBannerSubtitle, { color: colors.textLight }]}>
               Conecte para receber os valores das entregas diretamente na sua conta
             </Text>
           </View>
@@ -221,28 +225,54 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      <View style={styles.menu}>
+      <View style={[styles.menu, { backgroundColor: colors.card }]}>
         {menuItems.map((item, idx) => (
-          <TouchableOpacity key={idx} style={styles.menuItem} onPress={item.onPress}>
+          <TouchableOpacity key={idx} style={[styles.menuItem, { borderBottomColor: colors.grayLight }]} onPress={item.onPress}>
             <Ionicons name={item.icon} size={22} color={colors.text} />
-            <Text style={styles.menuLabel}>{item.label}</Text>
+            <Text style={[styles.menuLabel, { color: colors.text }]}>{item.label}</Text>
             <Ionicons name="chevron-forward" size={20} color={colors.gray} />
           </TouchableOpacity>
         ))}
+      </View>
+
+      {/* Dark mode toggle */}
+      <View style={[styles.menu, { backgroundColor: colors.card, marginTop: 12 }]}>
+        <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0, borderBottomColor: colors.grayLight }]} onPress={toggleTheme}>
+          <Ionicons name={isDark ? 'moon' : 'sunny-outline'} size={22} color={colors.text} />
+          <Text style={[styles.menuLabel, { color: colors.text }]}>
+            {isDark ? 'Modo escuro' : 'Modo claro'}
+          </Text>
+          <View style={{
+            width: 48, height: 24, borderRadius: 12,
+            backgroundColor: isDark ? '#FF6B35' : '#95A5A6',
+            justifyContent: 'center',
+            paddingHorizontal: 2,
+          }}>
+            <View style={{
+              width: 20, height: 20, borderRadius: 10,
+              backgroundColor: '#FFFFFF',
+              transform: [{ translateX: isDark ? 24 : 0 }],
+            }} />
+          </View>
+        </TouchableOpacity>
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Ionicons name="log-out-outline" size={22} color={colors.danger} />
         <Text style={styles.logoutText}>Sair da conta</Text>
       </TouchableOpacity>
+
+      <Modal visible={showTerms} animationType="slide">
+        <AcceptTermsScreen readOnly onClose={() => setShowTerms(false)} />
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: staticColors.background },
   header: {
-    backgroundColor: colors.white,
+    backgroundColor: staticColors.white,
     padding: 24,
     paddingTop: 56,
     alignItems: 'center',
@@ -251,31 +281,31 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.primary,
+    backgroundColor: staticColors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarText: { fontSize: 28, fontWeight: 'bold', color: colors.white },
-  name: { fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text, marginTop: 12 },
-  email: { fontSize: fonts.regular, color: colors.textLight, marginTop: 4 },
+  avatarText: { fontSize: 28, fontWeight: 'bold', color: staticColors.white },
+  name: { fontSize: fonts.xlarge, fontWeight: 'bold', color: staticColors.text, marginTop: 12 },
+  email: { fontSize: fonts.regular, color: staticColors.textLight, marginTop: 4 },
   roleBadge: {
     marginTop: 8,
-    backgroundColor: colors.primary + '15',
+    backgroundColor: staticColors.primary + '15',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 8,
   },
-  roleText: { color: colors.primary, fontSize: fonts.tiny, fontWeight: '600' },
+  roleText: { color: staticColors.primary, fontSize: fonts.tiny, fontWeight: '600' },
   delivererBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: staticColors.white,
     marginHorizontal: 16,
     marginTop: 16,
     padding: 16,
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: colors.primary + '30',
+    borderColor: staticColors.primary + '30',
     borderStyle: 'dashed',
     gap: 12,
   },
@@ -283,25 +313,25 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.primary + '15',
+    backgroundColor: staticColors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
   },
   delivererBannerTitle: {
     fontSize: fonts.regular,
     fontWeight: 'bold',
-    color: colors.primary,
+    color: staticColors.primary,
   },
   delivererBannerSubtitle: {
     fontSize: fonts.small,
-    color: colors.textLight,
+    color: staticColors.textLight,
     marginTop: 2,
   },
   delivererActiveBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: colors.success + '15',
+    backgroundColor: staticColors.success + '15',
     marginHorizontal: 16,
     marginTop: 16,
     padding: 14,
@@ -309,14 +339,14 @@ const styles = StyleSheet.create({
   },
   delivererActiveText: {
     fontSize: fonts.small,
-    color: colors.success,
+    color: staticColors.success,
     fontWeight: '600',
   },
   pendingBanner: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 8,
-    backgroundColor: colors.warning + '15',
+    backgroundColor: staticColors.warning + '15',
     marginHorizontal: 16,
     marginTop: 16,
     padding: 14,
@@ -324,14 +354,14 @@ const styles = StyleSheet.create({
   },
   pendingText: {
     fontSize: fonts.small,
-    color: colors.warning,
+    color: staticColors.warning,
     fontWeight: '600',
   },
   rejectedBanner: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 8,
-    backgroundColor: colors.danger + '15',
+    backgroundColor: staticColors.danger + '15',
     marginHorizontal: 16,
     marginTop: 16,
     padding: 14,
@@ -339,12 +369,12 @@ const styles = StyleSheet.create({
   },
   rejectedText: {
     fontSize: fonts.small,
-    color: colors.danger,
+    color: staticColors.danger,
     fontWeight: '600',
   },
   rejectedReason: {
     fontSize: fonts.tiny,
-    color: colors.danger,
+    color: staticColors.danger,
     marginTop: 4,
     opacity: 0.8,
   },
@@ -355,20 +385,20 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     fontSize: fonts.tiny,
-    color: colors.primary,
+    color: staticColors.primary,
     fontWeight: '600',
     textAlign: 'center',
   },
   retryTimerText: {
     fontSize: fonts.tiny,
-    color: colors.danger,
+    color: staticColors.danger,
     marginTop: 8,
     opacity: 0.7,
   },
   mpBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: staticColors.white,
     marginHorizontal: 16,
     marginTop: 16,
     padding: 16,
@@ -393,14 +423,14 @@ const styles = StyleSheet.create({
   },
   mpBannerSubtitle: {
     fontSize: fonts.small,
-    color: colors.textLight,
+    color: staticColors.textLight,
     marginTop: 2,
   },
   mpConnectedBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: colors.success + '15',
+    backgroundColor: staticColors.success + '15',
     marginHorizontal: 16,
     marginTop: 12,
     padding: 14,
@@ -408,19 +438,19 @@ const styles = StyleSheet.create({
   },
   mpDisconnectText: {
     fontSize: fonts.small,
-    color: colors.danger,
+    color: staticColors.danger,
     fontWeight: '600',
   },
-  menu: { backgroundColor: colors.white, marginTop: 16, borderRadius: 16, marginHorizontal: 16 },
+  menu: { backgroundColor: staticColors.white, marginTop: 16, borderRadius: 16, marginHorizontal: 16 },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.grayLight,
+    borderBottomColor: staticColors.grayLight,
   },
-  menuLabel: { flex: 1, fontSize: fonts.regular, color: colors.text },
+  menuLabel: { flex: 1, fontSize: fonts.regular, color: staticColors.text },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -429,5 +459,5 @@ const styles = StyleSheet.create({
     marginTop: 24,
     padding: 16,
   },
-  logoutText: { fontSize: fonts.regular, color: colors.danger, fontWeight: '600' },
+  logoutText: { fontSize: fonts.regular, color: staticColors.danger, fontWeight: '600' },
 });

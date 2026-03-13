@@ -184,13 +184,21 @@ export const GET_ME = gql`
       name
       email
       phone
+      cpf
       role
       isDeliverer
       pendingRole
       rejectedAt
       rejectionReason
       mpConnected
+      acceptedTermsAt
     }
+  }
+`;
+
+export const GET_CONTRACT_CONTENT = gql`
+  query ContractContent($type: String!) {
+    contractContent(type: $type)
   }
 `;
 

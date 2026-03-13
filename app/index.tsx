@@ -34,6 +34,11 @@ export default function Index() {
     return <Redirect href="/auth/login" />;
   }
 
+  // Termos de uso obrigatorios
+  if (!user.acceptedTermsAt) {
+    return <Redirect href="/accept-terms" />;
+  }
+
   // If query errored (e.g. token not ready yet) or still loading, go to home
   if (addrError || addrLoading) {
     return <Redirect href="/(tabs)/home" />;

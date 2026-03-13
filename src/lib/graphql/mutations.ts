@@ -8,11 +8,13 @@ export const REGISTER = gql`
         id
         name
         email
+        cpf
         role
         isDeliverer
         pendingRole
         rejectedAt
         rejectionReason
+        acceptedTermsAt
       }
     }
   }
@@ -26,11 +28,13 @@ export const LOGIN = gql`
         id
         name
         email
+        cpf
         role
         isDeliverer
         pendingRole
         rejectedAt
         rejectionReason
+        acceptedTermsAt
       }
     }
   }
@@ -61,10 +65,11 @@ export const REGISTER_AS_DELIVERER = gql`
       role
       isDeliverer
       pendingRole
-      cpf
       vehicleType
       vehiclePlate
       identityPhotoUrl
+      birthDate
+      cnhNumber
     }
   }
 `;
@@ -146,6 +151,15 @@ export const DISCONNECT_MP = gql`
 export const REGISTER_PUSH_TOKEN = gql`
   mutation RegisterPushToken($token: String!) {
     registerPushToken(token: $token)
+  }
+`;
+
+export const ACCEPT_TERMS = gql`
+  mutation AcceptTerms {
+    acceptTerms {
+      id
+      acceptedTermsAt
+    }
   }
 `;
 

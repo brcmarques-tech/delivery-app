@@ -9,12 +9,14 @@ interface User {
   id: string;
   name: string;
   email: string;
+  cpf?: string;
   role: string;
   isDeliverer?: boolean;
   pendingRole?: string | null;
   rejectedAt?: string | null;
   rejectionReason?: string | null;
   mpConnected?: boolean;
+  acceptedTermsAt?: string | null;
 }
 
 interface AuthContextData {
@@ -22,7 +24,7 @@ interface AuthContextData {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, phone: string, role?: string) => Promise<void>;
+  register: (name: string, email: string, password: string, phone: string, role?: string, cpf?: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (user: User) => Promise<void>;
 }
@@ -118,9 +120,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(userData);
   }
 
-  async function register(name: string, email: string, password: string, phone: string, role?: string) {
+  async function register(name: string, email: string, password: string, phone: string, role?: string, cpf?: string) {
     const { data } = await registerMutation({
-      variables: { input: { name, email, password, phone, role } },
+      variables: { input: { name, email, password, phone, role, cpf } },
     });
     const { accessToken, user: userData } = data.register;
     await AsyncStorage.setItem('token', accessToken);
