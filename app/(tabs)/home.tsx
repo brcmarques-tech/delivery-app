@@ -56,9 +56,14 @@ export default function HomeScreen() {
   function renderStore({ item }: { item: any }) {
     return (
       <TouchableOpacity
-        style={[styles.storeCard, { backgroundColor: colors.card }]}
+        style={[styles.storeCard, { backgroundColor: colors.card, position: 'relative', overflow: 'visible' }]}
         onPress={() => router.push(`/store/${item.id}`)}
       >
+        {item.verificationLevel && item.verificationLevel !== 'NONE' && (
+          <Text style={{ position: 'absolute', top: -8, left: -4, fontSize: 20, zIndex: 10 }}>
+            {item.verificationLevel === 'BRONZE' ? '🥉' : item.verificationLevel === 'SILVER' ? '🥈' : item.verificationLevel === 'GOLD' ? '🥇' : '💎'}
+          </Text>
+        )}
         {item.logoUrl ? (
           <Image source={{ uri: item.logoUrl }} style={styles.storeLogo} />
         ) : (
@@ -138,7 +143,7 @@ export default function HomeScreen() {
                     <TouchableOpacity
                       key={promo.id}
                       style={[styles.promoCard, { backgroundColor: colors.card }]}
-                      onPress={() => promo.store?.id && router.push(`/store/${promo.store.id}`)}
+                      onPress={() => router.push(`/promotion/${promo.id}`)}
                     >
                       <View>
                         {(promo.product?.imageUrl || promo.imageUrl) ? (

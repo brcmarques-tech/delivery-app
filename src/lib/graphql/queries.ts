@@ -12,6 +12,8 @@ export const GET_STORES = gql`
       deliveryFee
       estimatedDeliveryMinutes
       minimumOrder
+      verificationLevel
+      verificationScore
     }
   }
 `;
@@ -28,6 +30,8 @@ export const GET_NEARBY_STORES = gql`
       deliveryFee
       estimatedDeliveryMinutes
       minimumOrder
+      verificationLevel
+      verificationScore
     }
   }
 `;
@@ -48,6 +52,8 @@ export const GET_STORE = gql`
       deliveryFee
       estimatedDeliveryMinutes
       minimumOrder
+      verificationLevel
+      verificationScore
       products {
         id
         name
@@ -150,16 +156,25 @@ export const GET_ACTIVE_PROMOTIONS = gql`
       title
       description
       imageUrl
+      startDate
+      endDate
       promotionalPrice
       product {
         id
         name
         imageUrl
         price
+        description
       }
       store {
         id
         name
+        logoUrl
+        deliveryFee
+        estimatedDeliveryMinutes
+        freeDelivery
+        isOpen
+        verificationLevel
       }
     }
   }

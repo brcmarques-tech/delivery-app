@@ -134,7 +134,14 @@ export default function StoreScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.storeInfo}>
-          <Text style={styles.storeName}>{store.name}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={styles.storeName}>{store.name}</Text>
+            {store.verificationLevel && store.verificationLevel !== 'NONE' && (
+              <Text style={{ fontSize: 16 }}>
+                {store.verificationLevel === 'BRONZE' ? '🥉' : store.verificationLevel === 'SILVER' ? '🥈' : store.verificationLevel === 'GOLD' ? '🥇' : '💎'}
+              </Text>
+            )}
+          </View>
           <View style={styles.storeDetails}>
             <Text style={styles.detailText}>{store.estimatedDeliveryMinutes} min</Text>
             <Text style={styles.detailDot}>•</Text>
