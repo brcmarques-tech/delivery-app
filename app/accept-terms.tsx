@@ -23,7 +23,7 @@ Ultima atualizacao: Marco de 2026
 
 Estes Termos de Uso regulam o acesso e o uso da plataforma bcmTech Delivery pelo Cliente (consumidor final).
 
-A plataforma e operada por BRUNO CARDOSO MARQUES LTDA (BCM TECH), inscrita no CNPJ sob o n. 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graca, 19, Centro, CEP 96330-000, Sao Gabriel - RS.
+A plataforma e operada por BRUNO CARDOSO MARQUES LTDA (BCM TECH), inscrita no CNPJ sob o n. 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graca, 19, Centro, CEP 96330-000, Arroio Grande - RS.
 
 1. OBJETO
 1.1. A Plataforma conecta consumidores finais a estabelecimentos comerciais (vendedores), oferecendo infraestrutura para visualizacao de produtos, realizacao de pedidos, pagamento online e logistica de entrega.
@@ -65,7 +65,7 @@ A plataforma e operada por BRUNO CARDOSO MARQUES LTDA (BCM TECH), inscrita no CN
 
 9. DISPOSICOES GERAIS
 9.1. Estes Termos sao regidos pela legislacao brasileira.
-9.2. Foro: comarca de Sao Gabriel - RS.
+9.2. Foro: comarca de Arroio Grande - RS.
 9.3. A Empresa pode alterar estes Termos, notificando o usuario pela Plataforma.
 
 Ao aceitar, voce manifesta seu consentimento livre, informado e inequivoco com todos os termos acima.`;
@@ -73,7 +73,7 @@ Ao aceitar, voce manifesta seu consentimento livre, informado e inequivoco com t
 const DEFAULT_DELIVERER_CONTRACT = `TERMO DE COMPROMISSO DO ENTREGADOR — BCM TECH DELIVERY
 Ultima atualizacao: Marco de 2026
 
-Este Termo regula a atuacao de entregadores autonomos na plataforma bcmTech Delivery, operada por BRUNO CARDOSO MARQUES LTDA (BCM TECH), CNPJ 59.858.037/0001-06, Sao Gabriel - RS.
+Este Termo regula a atuacao de entregadores autonomos na plataforma bcmTech Delivery, operada por BRUNO CARDOSO MARQUES LTDA (BCM TECH), CNPJ 59.858.037/0001-06, Arroio Grande - RS.
 
 1. OBRIGACAO DE ENTREGA
 O entregador que aceitar um pedido se compromete a realizar a entrega no endereco indicado, dentro do prazo estimado pela plataforma.
@@ -106,7 +106,7 @@ O cadastro como entregador NAO configura vinculo empregaticio com a plataforma (
 As informacoes pessoais sao tratadas conforme a LGPD (Lei 13.709/18).
 
 9. FORO
-Fica eleito o foro da comarca de Sao Gabriel - RS para dirimir quaisquer controversias.
+Fica eleito o foro da comarca de Arroio Grande - RS para dirimir quaisquer controversias.
 
 Ao aceitar, voce declara ter lido, compreendido e concordado com todos os termos acima.`;
 
@@ -115,7 +115,7 @@ Ultima atualizacao: Marco de 2026
 
 Estes Termos regulam o uso da plataforma bcmTech Delivery por Vendedores (estabelecimentos comerciais).
 
-Operada por BRUNO CARDOSO MARQUES LTDA (BCM TECH), CNPJ 59.858.037/0001-06, Sao Gabriel - RS.
+Operada por BRUNO CARDOSO MARQUES LTDA (BCM TECH), CNPJ 59.858.037/0001-06, Arroio Grande - RS.
 
 1. OBJETO
 1.1. A Plataforma e um marketplace que conecta vendedores a consumidores finais.
@@ -136,7 +136,7 @@ Operada por BRUNO CARDOSO MARQUES LTDA (BCM TECH), CNPJ 59.858.037/0001-06, Sao 
 Dados tratados conforme Lei 13.709/2018.
 
 5. FORO
-Comarca de Sao Gabriel - RS.
+Comarca de Arroio Grande - RS.
 
 Ao aceitar, voce manifesta seu consentimento com todos os termos acima.`;
 
@@ -190,7 +190,8 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
 
   function handleScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-    if (contentSize.height - contentOffset.y - layoutMeasurement.height < 60) {
+    const scrolled = contentOffset.y + layoutMeasurement.height;
+    if (scrolled >= contentSize.height * 0.8) {
       setScrolledToEnd(true);
     }
   }
