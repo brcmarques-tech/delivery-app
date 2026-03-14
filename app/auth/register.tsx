@@ -13,6 +13,22 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { colors, fonts } from '../../src/theme';
 
+const DEFAULT_TERMS = `TERMOS DE USO — BCM TECH DELIVERY
+
+A plataforma e operada por BRUNO CARDOSO MARQUES LTDA (BCM TECH), CNPJ 59.858.037/0001-06, Arroio Grande - RS.
+
+1. A Plataforma conecta consumidores a estabelecimentos comerciais, oferecendo infraestrutura para pedidos, pagamento e entrega.
+
+2. O usuario declara que todas as informacoes fornecidas no cadastro sao verdadeiras.
+
+3. Pagamentos sao processados pelo Mercado Pago. Cancelamentos seguem o CDC (Lei 8.078/90).
+
+4. Os dados pessoais sao tratados conforme a LGPD (Lei 13.709/2018).
+
+5. Foro: comarca de Arroio Grande - RS.
+
+Ao aceitar, voce manifesta seu consentimento com todos os termos acima.`;
+
 export default function RegisterScreen() {
   const { register } = useAuth();
   const { alert } = useAlert();
@@ -23,6 +39,8 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
 
   function formatCpf(value: string) {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -51,6 +69,10 @@ export default function RegisterScreen() {
     }
     if (!validateCpf(cpf)) {
       alert('Erro', 'CPF invalido');
+      return;
+    }
+    if (!acceptedTerms) {
+      alert('Erro', 'Voce precisa aceitar os termos de uso para continuar');
       return;
     }
     const cpfDigits = cpf.replace(/\D/g, '');
@@ -126,10 +148,43 @@ export default function RegisterScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Termos de uso */}
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+          style={styles.termsRow}
+          onPress={() => setAcceptedTerms(!acceptedTerms)}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={acceptedTerms ? 'checkbox' : 'square-outline'}
+            size={22}
+            color={acceptedTerms ? colors.primary : colors.gray}
+          />
+          <Text style={styles.termsText}>
+            Li e aceito os{' '}
+            <Text
+              style={styles.termsLink}
+              onPress={(e) => { e.stopPropagation?.(); setShowTerms(true); }}
+            >
+              Termos de Uso
+            </Text>
+          </Text>
+        </TouchableOpacity>
+
+        {showTerms && (
+          <View style={styles.termsBox}>
+            <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+              <Text style={styles.termsContent}>{DEFAULT_TERMS}</Text>
+            </ScrollView>
+            <TouchableOpacity onPress={() => setShowTerms(false)}>
+              <Text style={styles.termsClose}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={[styles.button, (loading || !acceptedTerms) && styles.buttonDisabled]}
           onPress={handleRegister}
-          disabled={loading}
+          disabled={loading || !acceptedTerms}
         >
           <Text style={styles.buttonText}>
             {loading ? 'Criando...' : 'Criar conta'}
@@ -184,4 +239,36 @@ const styles = StyleSheet.create({
   buttonText: { color: colors.white, fontSize: fonts.large, fontWeight: 'bold' },
   link: { textAlign: 'center', color: colors.textLight, fontSize: fonts.regular, marginTop: 16 },
   linkBold: { color: colors.primary, fontWeight: 'bold' },
+  termsRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+  },
+  termsText: {
+    flex: 1,
+    fontSize: fonts.small,
+    color: colors.textLight,
+  },
+  termsLink: {
+    color: colors.primary,
+    fontWeight: '600' as const,
+    textDecorationLine: 'underline' as const,
+  },
+  termsBox: {
+    backgroundColor: colors.grayLight,
+    borderRadius: 12,
+    padding: 14,
+  },
+  termsContent: {
+    fontSize: fonts.tiny,
+    color: colors.textLight,
+    lineHeight: 18,
+  },
+  termsClose: {
+    color: colors.primary,
+    fontWeight: '600' as const,
+    fontSize: fonts.small,
+    textAlign: 'center' as const,
+    marginTop: 10,
+  },
 });
