@@ -28,8 +28,8 @@ function openNavigation(lat: number, lng: number, label: string) {
   Linking.openURL(url);
 }
 
-const API_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
-const WS_URL = `http://${API_HOST}:3000`;
+const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
+const WS_URL = __DEV__ ? `http://${DEV_HOST}:3000` : 'https://delivery-api-fdc4.onrender.com';
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   PICKED_UP: { label: 'Coletado', color: colors.warning },
