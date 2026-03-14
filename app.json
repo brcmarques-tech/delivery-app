@@ -55,7 +55,8 @@
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "extra": {
       "router": {},

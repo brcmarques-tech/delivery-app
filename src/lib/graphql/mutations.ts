@@ -1,8 +1,8 @@
 import { gql } from '@apollo/client';
 
 export const REGISTER = gql`
-  mutation Register($input: RegisterInput!) {
-    register(input: $input) {
+  mutation RegisterApp($input: RegisterAppInput!) {
+    registerApp(input: $input) {
       accessToken
       user {
         id
@@ -21,8 +21,8 @@ export const REGISTER = gql`
 `;
 
 export const LOGIN = gql`
-  mutation Login($input: LoginInput!) {
-    login(input: $input) {
+  mutation LoginApp($input: LoginInput!) {
+    loginApp(input: $input) {
       accessToken
       user {
         id
@@ -149,14 +149,14 @@ export const DISCONNECT_MP = gql`
 `;
 
 export const REGISTER_PUSH_TOKEN = gql`
-  mutation RegisterPushToken($token: String!) {
-    registerPushToken(token: $token)
+  mutation RegisterAppPushToken($token: String!) {
+    registerAppPushToken(token: $token)
   }
 `;
 
 export const ACCEPT_TERMS = gql`
-  mutation AcceptTerms {
-    acceptTerms {
+  mutation AcceptAppTerms {
+    acceptAppTerms {
       id
       acceptedTermsAt
     }
@@ -170,5 +170,17 @@ export const CONFIRM_RECEIPT = gql`
       status
       customerConfirmedAt
     }
+  }
+`;
+
+export const REQUEST_PASSWORD_RESET = gql`
+  mutation RequestPasswordResetApp($email: String!) {
+    requestPasswordResetApp(email: $email)
+  }
+`;
+
+export const RESET_PASSWORD = gql`
+  mutation ResetPassword($token: String!, $newPassword: String!) {
+    resetPassword(token: $token, newPassword: $newPassword, type: "app")
   }
 `;

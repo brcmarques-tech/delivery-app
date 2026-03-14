@@ -63,8 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         query: GET_ME,
         fetchPolicy: 'network-only',
       });
-      if (data?.me) {
-        const freshUser = data.me;
+      if (data?.meApp) {
+        const freshUser = data.meApp;
         await AsyncStorage.setItem('user', JSON.stringify(freshUser));
         setUser(freshUser);
       } else {
@@ -96,9 +96,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           query: GET_ME,
           fetchPolicy: 'network-only',
         });
-        if (data?.me) {
-          await AsyncStorage.setItem('user', JSON.stringify(data.me));
-          setUser(data.me);
+        if (data?.meApp) {
+          await AsyncStorage.setItem('user', JSON.stringify(data.meApp));
+          setUser(data.meApp);
         } else {
           await forceLogout();
         }
@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data } = await loginMutation({
       variables: { input: { email, password } },
     });
-    const { accessToken, user: userData } = data.login;
+    const { accessToken, user: userData } = data.loginApp;
     await AsyncStorage.setItem('token', accessToken);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);
@@ -122,9 +122,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function register(name: string, email: string, password: string, phone: string, role?: string, cpf?: string) {
     const { data } = await registerMutation({
-      variables: { input: { name, email, password, phone, role, cpf } },
+      variables: { input: { name, email, password, phone, cpf } },
     });
-    const { accessToken, user: userData } = data.register;
+    const { accessToken, user: userData } = data.registerApp;
     await AsyncStorage.setItem('token', accessToken);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);
