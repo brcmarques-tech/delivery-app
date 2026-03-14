@@ -70,6 +70,7 @@ export const REGISTER_AS_DELIVERER = gql`
       identityPhotoUrl
       birthDate
       cnhNumber
+      acceptedTermsAt
     }
   }
 `;
