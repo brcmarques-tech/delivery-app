@@ -120,11 +120,6 @@ export default function ProfileScreen() {
         </View>
         <Text style={[styles.name, { color: colors.text }]}>{user?.name}</Text>
         <Text style={[styles.email, { color: colors.textLight }]}>{user?.email}</Text>
-        <View style={[styles.roleBadge, isDeliverer && { backgroundColor: colors.success + '15' }]}>
-          <Text style={[styles.roleText, isDeliverer && { color: colors.success }]}>
-            {roleLabels[user?.role || ''] || user?.role}
-          </Text>
-        </View>
       </View>
 
       {/* Banner de entregador */}
