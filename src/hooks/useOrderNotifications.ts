@@ -57,9 +57,9 @@ export function useOrderNotifications() {
 
   // Sync user data from server (role changes, approval, rejection, etc)
   useEffect(() => {
-    if (!meData?.me || !user) return;
+    if (!meData?.meApp || !user) return;
 
-    const me = meData.me;
+    const me = meData.meApp;
 
     // Skip first load to avoid false notifications
     if (!initializedRef.current) {
@@ -108,8 +108,8 @@ export function useOrderNotifications() {
           : 'Seu cadastro como entregador foi rejeitado.',
       );
     }
-    // Role changed by admin (e.g. deliverer -> customer)
-    else if (roleChanged) {
+    // Role changed by admin (e.g. deliverer -> customer) — only alert if user had a previous role
+    else if (roleChanged && user.role) {
       const roleLabels: Record<string, string> = {
         CUSTOMER: 'Cliente',
         DELIVERER: 'Entregador',

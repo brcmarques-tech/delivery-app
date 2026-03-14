@@ -12,6 +12,8 @@ import {
 import { router } from 'expo-router';
 import { useMutation, useQuery } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { ACCEPT_TERMS } from '../src/lib/graphql/mutations';
 import { GET_CONTRACT_CONTENT } from '../src/lib/graphql/queries';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -23,7 +25,7 @@ Ultima atualizacao: Marco de 2026
 
 Estes Termos de Uso regulam o acesso e o uso da plataforma bcmTech Delivery pelo Cliente (consumidor final).
 
-A plataforma e operada por BRUNO CARDOSO MARQUES LTDA (BCM TECH), inscrita no CNPJ sob o n. 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graca, 19, Centro, CEP 96330-000, Arroio Grande - RS.
+A plataforma e operada por BCM TECH, inscrita no CNPJ sob o n. 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graca, 19, Centro, CEP 96330-000, Arroio Grande - RS.
 
 1. OBJETO
 1.1. A Plataforma conecta consumidores finais a estabelecimentos comerciais (vendedores), oferecendo infraestrutura para visualizacao de produtos, realizacao de pedidos, pagamento online e logistica de entrega.
@@ -73,7 +75,7 @@ Ao aceitar, voce manifesta seu consentimento livre, informado e inequivoco com t
 const DEFAULT_DELIVERER_CONTRACT = `TERMO DE COMPROMISSO DO ENTREGADOR — BCM TECH DELIVERY
 Ultima atualizacao: Marco de 2026
 
-Este Termo regula a atuacao de entregadores autonomos na plataforma bcmTech Delivery, operada por BRUNO CARDOSO MARQUES LTDA (BCM TECH), CNPJ 59.858.037/0001-06, Arroio Grande - RS.
+Este Termo regula a atuacao de entregadores autonomos na plataforma bcmTech Delivery, operada por BCM TECH, CNPJ 59.858.037/0001-06, Arroio Grande - RS.
 
 1. OBRIGACAO DE ENTREGA
 O entregador que aceitar um pedido se compromete a realizar a entrega no endereco indicado, dentro do prazo estimado pela plataforma.
@@ -115,7 +117,7 @@ Ultima atualizacao: Marco de 2026
 
 Estes Termos regulam o uso da plataforma bcmTech Delivery por Vendedores (estabelecimentos comerciais).
 
-Operada por BRUNO CARDOSO MARQUES LTDA (BCM TECH), CNPJ 59.858.037/0001-06, Arroio Grande - RS.
+Operada por BCM TECH, CNPJ 59.858.037/0001-06, Arroio Grande - RS.
 
 1. OBJETO
 1.1. A Plataforma e um marketplace que conecta vendedores a consumidores finais.
@@ -217,6 +219,38 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
   const formatCpf = (cpf: string) =>
     cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
 
+  async function handleDownloadPdf() {
+    try {
+      const html = `
+        <html><head><meta charset="utf-8"><style>
+          body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+          .header { background: #F97316; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 30px; }
+          .header h1 { color: white; margin: 0; font-size: 22px; }
+          .signee { background: #f5f5f5; border-radius: 10px; padding: 16px; margin-bottom: 24px; }
+          .signee-label { font-size: 10px; color: #888; font-weight: 600; margin-bottom: 6px; }
+          .signee-name { font-size: 16px; font-weight: 600; }
+          .signee-info { font-size: 13px; color: #666; margin-top: 2px; }
+          .contract { font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
+          .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #999; border-top: 1px solid #eee; padding-top: 16px; }
+        </style></head><body>
+          <div class="header"><h1>bcmTech Delivery</h1></div>
+          ${user?.name || user?.cpf ? `<div class="signee">
+            <div class="signee-label">PARTE CONTRATANTE / ASSINANTE:</div>
+            ${user?.name ? `<div class="signee-name">${user.name}</div>` : ''}
+            ${user?.cpf ? `<div class="signee-info">CPF: ${formatCpf(user.cpf)}</div>` : ''}
+            ${user?.phone ? `<div class="signee-info">Telefone: ${user.phone}</div>` : ''}
+          </div>` : ''}
+          <div class="contract">${contractText}</div>
+          <div class="footer">Contrato aceito digitalmente na plataforma bcmTech Delivery.</div>
+        </body></html>
+      `;
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `${title} - bcmTech Delivery` });
+    } catch {
+      alert('Erro', 'Nao foi possivel gerar o PDF.');
+    }
+  }
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -257,6 +291,10 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
       {/* Footer */}
       {readOnly ? (
         <View style={styles.footer}>
+          <TouchableOpacity style={styles.pdfButton} onPress={handleDownloadPdf}>
+            <Ionicons name="download-outline" size={20} color={colors.primary} />
+            <Text style={styles.pdfButtonText}>Baixar contrato em PDF</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.closeFooterButton} onPress={onClose}>
             <Text style={styles.closeFooterText}>Fechar</Text>
           </TouchableOpacity>
@@ -406,6 +444,22 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: fonts.large,
     fontWeight: 'bold',
+  },
+  pdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 10,
+  },
+  pdfButtonText: {
+    color: colors.primary,
+    fontSize: fonts.small,
+    fontWeight: '600',
   },
   closeFooterButton: {
     backgroundColor: colors.grayLight,

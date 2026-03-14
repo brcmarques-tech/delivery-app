@@ -193,8 +193,8 @@ export const ESTIMATE_DELIVERY_TIME = gql`
 `;
 
 export const GET_ME = gql`
-  query Me {
-    me {
+  query MeApp {
+    meApp {
       id
       name
       email
