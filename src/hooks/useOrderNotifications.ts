@@ -24,7 +24,7 @@ export function useOrderNotifications() {
   const { user, updateUser } = useAuth();
   const { alert } = useAlert();
   const prevStatusesRef = useRef<Record<string, string>>({});
-  const initializedRef = useRef(false);
+  const initializedRef = useRef(0);
 
   const { data: ordersData } = useQuery(GET_MY_ORDERS, {
     pollInterval: 30000,
@@ -61,16 +61,17 @@ export function useOrderNotifications() {
 
     const me = meData.meApp;
 
-    // Skip first load to avoid false notifications
-    if (!initializedRef.current) {
-      initializedRef.current = true;
-      // Still sync data silently on first load
+    // Skip first two loads to avoid false notifications on login/register
+    if (initializedRef.current < 2) {
+      initializedRef.current = (initializedRef.current || 0) + 1;
+      // Still sync data silently
       if (
         me.role !== user.role ||
         me.isDeliverer !== user.isDeliverer ||
         me.pendingRole !== user.pendingRole
       ) {
         updateUser({
+          ...user,
           id: me.id,
           name: me.name,
           email: me.email,
@@ -79,6 +80,7 @@ export function useOrderNotifications() {
           pendingRole: me.pendingRole,
           rejectedAt: me.rejectedAt,
           rejectionReason: me.rejectionReason,
+          acceptedTermsAt: me.acceptedTermsAt ?? user.acceptedTermsAt,
         });
       }
       return;
@@ -108,7 +110,7 @@ export function useOrderNotifications() {
           : 'Seu cadastro como entregador foi rejeitado.',
       );
     }
-    // Role changed by admin (e.g. deliverer -> customer) — only alert if user had a previous role
+    // Role changed by admin (e.g. deliverer -> customer)
     else if (roleChanged && user.role) {
       const roleLabels: Record<string, string> = {
         CUSTOMER: 'Cliente',
