@@ -77,10 +77,10 @@ export default function DelivererRegisterScreen() {
 
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
-      quality: 0.7,
-      allowsEditing: true,
-      aspect: [4, 3],
+      quality: 0.4,
+      allowsEditing: false,
       base64: true,
+      exif: false,
     });
 
     if (!result.canceled && result.assets[0]) {
@@ -98,10 +98,10 @@ export default function DelivererRegisterScreen() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      quality: 0.7,
-      allowsEditing: true,
-      aspect: [4, 3],
+      quality: 0.4,
+      allowsEditing: false,
       base64: true,
+      exif: false,
     });
 
     if (!result.canceled && result.assets[0]) {
