@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useLazyQuery, useMutation, useQuery } from '@apollo/client';
@@ -26,6 +26,7 @@ export default function ProfileScreen() {
   const isDeliverer = user?.isDeliverer || user?.role === 'DELIVERER';
   const [retryCountdown, setRetryCountdown] = useState(0);
   const [showTerms, setShowTerms] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   const { data: meData } = useQuery(GET_ME, { fetchPolicy: 'network-only' });
   const [fetchMpUrl, { loading: mpUrlLoading }] = useLazyQuery(GET_MP_CONNECT_URL);
@@ -106,7 +107,7 @@ export default function ProfileScreen() {
   const menuItems = [
     { icon: 'location-outline' as const, label: 'Meus enderecos', onPress: () => router.push('/addresses') },
     { icon: 'card-outline' as const, label: 'Formas de pagamento', onPress: () => {} },
-    { icon: 'help-circle-outline' as const, label: 'Ajuda', onPress: () => {} },
+    { icon: 'help-circle-outline' as const, label: 'Ajuda', onPress: () => setShowHelp(true) },
     { icon: 'document-text-outline' as const, label: 'Termos de uso', onPress: () => setShowTerms(true) },
   ];
 
@@ -259,6 +260,81 @@ export default function ProfileScreen() {
 
       <Modal visible={showTerms} animationType="slide">
         <AcceptTermsScreen readOnly onClose={() => setShowTerms(false)} />
+      </Modal>
+
+      <Modal visible={showHelp} animationType="slide" transparent>
+        <View style={[styles.helpOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+          <View style={[styles.helpModal, { backgroundColor: colors.card }]}>
+            <View style={styles.helpHeader}>
+              <Text style={[styles.helpTitle, { color: colors.text }]}>Ajuda & Suporte</Text>
+              <TouchableOpacity onPress={() => setShowHelp(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 400 }}>
+              <TouchableOpacity
+                style={[styles.helpItem, { borderBottomColor: colors.grayLight }]}
+                onPress={() => { setShowHelp(false); Linking.openURL('mailto:suporte@bcmtech.com.br'); }}
+              >
+                <View style={[styles.helpIconBox, { backgroundColor: '#FF6B35' + '15' }]}>
+                  <Ionicons name="mail-outline" size={24} color="#FF6B35" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.helpItemTitle, { color: colors.text }]}>Email de Suporte</Text>
+                  <Text style={[styles.helpItemSub, { color: colors.textLight }]}>suporte@bcmtech.com.br</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.gray} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.helpItem, { borderBottomColor: colors.grayLight }]}
+                onPress={() => { setShowHelp(false); Linking.openURL('mailto:contato@bcmtech.com.br'); }}
+              >
+                <View style={[styles.helpIconBox, { backgroundColor: '#3498DB' + '15' }]}>
+                  <Ionicons name="briefcase-outline" size={24} color="#3498DB" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.helpItemTitle, { color: colors.text }]}>Contato Comercial</Text>
+                  <Text style={[styles.helpItemSub, { color: colors.textLight }]}>contato@bcmtech.com.br</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.gray} />
+              </TouchableOpacity>
+
+              <View style={[styles.helpItem, { borderBottomColor: colors.grayLight, opacity: 0.5 }]}>
+                <View style={[styles.helpIconBox, { backgroundColor: '#27AE60' + '15' }]}>
+                  <Ionicons name="logo-whatsapp" size={24} color="#27AE60" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.helpItemTitle, { color: colors.text }]}>WhatsApp</Text>
+                  <Text style={[styles.helpItemSub, { color: colors.textLight }]}>Em breve</Text>
+                </View>
+              </View>
+
+              <View style={styles.helpFaqSection}>
+                <Text style={[styles.helpFaqTitle, { color: colors.text }]}>Perguntas Frequentes</Text>
+
+                {[
+                  { q: 'Como faco um pedido?', a: 'Escolha uma loja, adicione produtos ao carrinho e finalize o pedido escolhendo a forma de pagamento.' },
+                  { q: 'Como me torno entregador?', a: 'No seu perfil, clique em "Quero ser entregador" e preencha o cadastro. Apos aprovacao, voce podera fazer entregas.' },
+                  { q: 'Como acompanho meu pedido?', a: 'Apos realizar o pedido, voce pode acompanhar o status em tempo real na aba "Pedidos".' },
+                  { q: 'Como conecto meu Mercado Pago?', a: 'Se voce e entregador, va no perfil e clique em "Conecte seu Mercado Pago" para receber pagamentos das entregas.' },
+                ].map((item, i) => (
+                  <View key={i} style={[styles.helpFaqItem, { borderBottomColor: colors.grayLight }]}>
+                    <Text style={[styles.helpFaqQuestion, { color: colors.text }]}>{item.q}</Text>
+                    <Text style={[styles.helpFaqAnswer, { color: colors.textLight }]}>{item.a}</Text>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+
+            <View style={styles.helpFooter}>
+              <Text style={[styles.helpFooterText, { color: colors.textLight }]}>
+                Atendimento: Seg a Sex, 9h as 18h
+              </Text>
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -455,4 +531,19 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   logoutText: { fontSize: fonts.regular, color: staticColors.danger, fontWeight: '600' },
+  helpOverlay: { flex: 1, justifyContent: 'flex-end' },
+  helpModal: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32 },
+  helpHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  helpTitle: { fontSize: fonts.xlarge, fontWeight: 'bold' },
+  helpItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1 },
+  helpIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  helpItemTitle: { fontSize: fonts.regular, fontWeight: '600' },
+  helpItemSub: { fontSize: fonts.small, marginTop: 2 },
+  helpFaqSection: { marginTop: 20 },
+  helpFaqTitle: { fontSize: fonts.medium, fontWeight: 'bold', marginBottom: 12 },
+  helpFaqItem: { paddingVertical: 12, borderBottomWidth: 1 },
+  helpFaqQuestion: { fontSize: fonts.regular, fontWeight: '600', marginBottom: 4 },
+  helpFaqAnswer: { fontSize: fonts.small, lineHeight: 20 },
+  helpFooter: { marginTop: 16, alignItems: 'center' },
+  helpFooterText: { fontSize: fonts.small },
 });
