@@ -301,15 +301,19 @@ export default function ProfileScreen() {
                 <Ionicons name="chevron-forward" size={20} color={colors.gray} />
               </TouchableOpacity>
 
-              <View style={[styles.helpItem, { borderBottomColor: colors.grayLight, opacity: 0.5 }]}>
+              <TouchableOpacity
+                style={[styles.helpItem, { borderBottomColor: colors.grayLight }]}
+                onPress={() => { setShowHelp(false); Linking.openURL('https://wa.me/5553991971031?text=Ol%C3%A1%2C%20preciso%20de%20ajuda%20com%20o%20app.'); }}
+              >
                 <View style={[styles.helpIconBox, { backgroundColor: '#27AE60' + '15' }]}>
                   <Ionicons name="logo-whatsapp" size={24} color="#27AE60" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.helpItemTitle, { color: colors.text }]}>WhatsApp</Text>
-                  <Text style={[styles.helpItemSub, { color: colors.textLight }]}>Em breve</Text>
+                  <Text style={[styles.helpItemSub, { color: colors.textLight }]}>(53) 99197-1031</Text>
                 </View>
-              </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.gray} />
+              </TouchableOpacity>
 
               <View style={styles.helpFaqSection}>
                 <Text style={[styles.helpFaqTitle, { color: colors.text }]}>Perguntas Frequentes</Text>
