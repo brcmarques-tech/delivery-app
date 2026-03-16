@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApolloClient, useMutation } from '@apollo/client';
 import { AppState } from 'react-native';
-import { LOGIN, REGISTER } from '../lib/graphql/mutations';
+import { LOGIN, REGISTER, GOOGLE_AUTH_APP, REGISTER_APP_WITH_GOOGLE } from '../lib/graphql/mutations';
 import { GET_ME } from '../lib/graphql/queries';
 
 interface User {
@@ -17,6 +17,8 @@ interface User {
   rejectionReason?: string | null;
   mpConnected?: boolean;
   acceptedTermsAt?: string | null;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
 }
 
 interface AuthContextData {
@@ -24,9 +26,12 @@ interface AuthContextData {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
+  registerWithGoogle: (idToken: string, phone: string, cpf: string) => Promise<void>;
   register: (name: string, email: string, password: string, phone: string, role?: string, cpf?: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (user: User) => Promise<void>;
+  setAuthData: (token: string, user: User) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -39,6 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const apolloClient = useApolloClient();
   const [loginMutation] = useMutation(LOGIN);
   const [registerMutation] = useMutation(REGISTER);
+  const [googleAuthMutation] = useMutation(GOOGLE_AUTH_APP);
+  const [registerGoogleMutation] = useMutation(REGISTER_APP_WITH_GOOGLE);
 
   const appState = useRef(AppState.currentState);
 
@@ -120,6 +127,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(userData);
   }
 
+  async function loginWithGoogle(idToken: string) {
+    const { data } = await googleAuthMutation({
+      variables: { idToken },
+    });
+    const { accessToken, user: userData } = data.googleAuthApp;
+    await AsyncStorage.setItem('token', accessToken);
+    await AsyncStorage.setItem('user', JSON.stringify(userData));
+    setToken(accessToken);
+    setUser(userData);
+  }
+
+  async function registerWithGoogle(idToken: string, phone: string, cpf: string) {
+    const { data } = await registerGoogleMutation({
+      variables: { idToken, phone, cpf },
+    });
+    const { accessToken, user: userData } = data.registerAppWithGoogle;
+    await AsyncStorage.setItem('token', accessToken);
+    await AsyncStorage.setItem('user', JSON.stringify(userData));
+    setToken(accessToken);
+    setUser(userData);
+  }
+
   async function register(name: string, email: string, password: string, phone: string, role?: string, cpf?: string) {
     const { data } = await registerMutation({
       variables: { input: { name, email, password, phone, cpf } },
@@ -136,6 +165,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(updatedUser);
   }
 
+  async function setAuthData(accessToken: string, userData: User) {
+    await AsyncStorage.setItem('token', accessToken);
+    await AsyncStorage.setItem('user', JSON.stringify(userData));
+    setToken(accessToken);
+    setUser(userData);
+  }
+
   async function logout() {
     await AsyncStorage.removeItem('token');
     await AsyncStorage.removeItem('user');
@@ -145,7 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginWithGoogle, registerWithGoogle, register, logout, updateUser, setAuthData }}>
       {children}
     </AuthContext.Provider>
   );

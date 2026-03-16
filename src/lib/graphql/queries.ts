@@ -207,6 +207,8 @@ export const GET_ME = gql`
       rejectionReason
       mpConnected
       acceptedTermsAt
+      emailVerified
+      phoneVerified
     }
   }
 `;

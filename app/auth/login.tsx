@@ -7,20 +7,67 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import Constants from 'expo-constants';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { colors, fonts } from '../../src/theme';
 
+const API_BASE = 'https://delivery-api-fdc4.onrender.com';
+const RETURN_URL = Constants.appOwnership === 'expo'
+  ? Linking.createURL('google-auth')
+  : 'delivery-app://google-auth';
+
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, setAuthData } = useAuth();
   const { alert } = useAlert();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  async function handleGoogleLogin() {
+    setGoogleLoading(true);
+    try {
+      const result = await WebBrowser.openAuthSessionAsync(
+        `${API_BASE}/auth/google/mobile?mode=login&userType=app&returnUrl=${encodeURIComponent(RETURN_URL)}`,
+        RETURN_URL,
+      );
+
+      if (result.type === 'success' && result.url) {
+        const parsed = Linking.parse(result.url);
+        const params = parsed.queryParams || {};
+
+        if (params.error) {
+          const error = params.error as string;
+          if (error === 'GOOGLE_NO_ACCOUNT') {
+            alert('Conta nao encontrada', 'Nenhuma conta encontrada com este email Google. Cadastre-se primeiro.');
+          } else {
+            alert('Erro', 'Erro ao entrar com Google. Tente novamente.');
+          }
+          return;
+        }
+
+        if (params.token && params.user) {
+          const token = params.token as string;
+          const user = JSON.parse(params.user as string);
+          await setAuthData(token, user);
+          router.replace('/');
+        }
+      }
+    } catch {
+      alert('Erro', 'Erro ao entrar com Google. Tente novamente.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
 
   async function handleLogin() {
     if (!email || !password) {
@@ -97,6 +144,30 @@ export default function LoginScreen() {
           <Text style={styles.buttonText}>
             {loading ? 'Entrando...' : 'Entrar'}
           </Text>
+        </TouchableOpacity>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>ou</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+          onPress={handleGoogleLogin}
+          disabled={googleLoading}
+        >
+          {googleLoading ? (
+            <ActivityIndicator size="small" color={colors.text} />
+          ) : (
+            <>
+              <Image
+                source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
+                style={styles.googleIcon}
+              />
+              <Text style={styles.googleButtonText}>Continuar com Google</Text>
+            </>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.push('/auth/register')}>
@@ -202,6 +273,40 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: fonts.large,
     fontWeight: 'bold',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.grayLight,
+  },
+  dividerText: {
+    color: colors.gray,
+    fontSize: fonts.small,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.grayLight,
+    gap: 10,
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
+  },
+  googleButtonText: {
+    color: colors.text,
+    fontSize: fonts.regular,
+    fontWeight: '600',
   },
   link: {
     textAlign: 'center',

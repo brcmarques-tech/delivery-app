@@ -15,8 +15,45 @@ export const REGISTER = gql`
         rejectedAt
         rejectionReason
         acceptedTermsAt
+        emailVerified
+        phoneVerified
       }
     }
+  }
+`;
+
+export const VALIDATE_REGISTRATION = gql`
+  mutation ValidateRegistration($email: String!, $cpf: String!, $phone: String!, $userType: String) {
+    validateRegistration(email: $email, cpf: $cpf, phone: $phone, userType: $userType) {
+      valid
+      emailError
+      cpfError
+      phoneError
+    }
+  }
+`;
+
+export const SEND_VERIFICATION_CODE = gql`
+  mutation SendVerificationCode($input: SendCodeInput!) {
+    sendVerificationCode(input: $input)
+  }
+`;
+
+export const VERIFY_CODE = gql`
+  mutation VerifyCode($input: VerifyCodeInput!) {
+    verifyCode(input: $input)
+  }
+`;
+
+export const SEND_EMAIL_VERIFICATION = gql`
+  mutation SendEmailVerification($userType: String) {
+    sendEmailVerification(userType: $userType)
+  }
+`;
+
+export const CONFIRM_EMAIL_VERIFICATION = gql`
+  mutation ConfirmEmailVerification($code: String!, $userType: String) {
+    confirmEmailVerification(code: $code, userType: $userType)
   }
 `;
 
@@ -35,6 +72,8 @@ export const LOGIN = gql`
         rejectedAt
         rejectionReason
         acceptedTermsAt
+        emailVerified
+        phoneVerified
       }
     }
   }
@@ -183,5 +222,31 @@ export const REQUEST_PASSWORD_RESET = gql`
 export const RESET_PASSWORD = gql`
   mutation ResetPassword($token: String!, $newPassword: String!) {
     resetPassword(token: $token, newPassword: $newPassword, type: "app")
+  }
+`;
+
+export const GOOGLE_AUTH_APP = gql`
+  mutation GoogleAuthApp($idToken: String!) {
+    googleAuthApp(idToken: $idToken) {
+      accessToken
+      user {
+        id name email cpf role isDeliverer pendingRole
+        rejectedAt rejectionReason acceptedTermsAt
+        emailVerified phoneVerified
+      }
+    }
+  }
+`;
+
+export const REGISTER_APP_WITH_GOOGLE = gql`
+  mutation RegisterAppWithGoogle($idToken: String!, $phone: String!, $cpf: String!) {
+    registerAppWithGoogle(idToken: $idToken, phone: $phone, cpf: $cpf) {
+      accessToken
+      user {
+        id name email cpf role isDeliverer pendingRole
+        rejectedAt rejectionReason acceptedTermsAt
+        emailVerified phoneVerified
+      }
+    }
   }
 `;
