@@ -2634,6 +2634,11 @@ expo-application@~55.0.8:
   resolved "https://registry.yarnpkg.com/expo-application/-/expo-application-55.0.8.tgz#5e216efde0f414d2bb8b3989d47151ba75c461ef"
   integrity sha512-PeZk4Zj8LlzRcRtK3J4ouSPBoi9lroYsRbbz/0HEvx+uB6HIaM1qfzgpcctvjkdJJfnidBQNyieW5BVO/qUQ6w==
 
+expo-application@~55.0.9:
+  version "55.0.9"
+  resolved "https://registry.yarnpkg.com/expo-application/-/expo-application-55.0.9.tgz#ed5c8755014f94114d98222b8ba3a1b31b0134e8"
+  integrity sha512-jXTaLKdW4cvGSUjF2UQed9ao4P/7TsEo/To7TjxM+jNa74xCSUCBSTxdQftm6hZWRzXG8KT7rSoQDEL51neh1w==
+
 expo-asset@~55.0.8:
   version "55.0.8"
   resolved "https://registry.yarnpkg.com/expo-asset/-/expo-asset-55.0.8.tgz#17622c3b19a4ab51a962608492b935f8c8637bb1"
@@ -2642,6 +2647,18 @@ expo-asset@~55.0.8:
     "@expo/image-utils" "^0.8.12"
     expo-constants "~55.0.7"
 
+expo-auth-session@~55.0.8:
+  version "55.0.8"
+  resolved "https://registry.yarnpkg.com/expo-auth-session/-/expo-auth-session-55.0.8.tgz#fcad13da090efe2377479a9400b0bc82ac9db7c1"
+  integrity sha512-mOcsdZTHp0ukFXE+J810wlxerMhzxpirRRbLNhLPgp8LIRF/kfm4UAjRd3cebER3iK5mopfWF+RX6FoUyf06Pw==
+  dependencies:
+    expo-application "~55.0.9"
+    expo-constants "~55.0.7"
+    expo-crypto "~55.0.9"
+    expo-linking "~55.0.7"
+    expo-web-browser "~55.0.9"
+    invariant "^2.2.4"
+
 expo-constants@~55.0.7:
   version "55.0.7"
   resolved "https://registry.yarnpkg.com/expo-constants/-/expo-constants-55.0.7.tgz#c9fcb4b2f2a6eb06a760bdd4f4425ba8f3f937b9"
@@ -2649,6 +2666,11 @@ expo-constants@~55.0.7:
   dependencies:
     "@expo/config" "~55.0.8"
     "@expo/env" "~2.1.1"
+
+expo-crypto@~55.0.9:
+  version "55.0.9"
+  resolved "https://registry.yarnpkg.com/expo-crypto/-/expo-crypto-55.0.9.tgz#bab058ffa7c7ffd2c04fd2257a6a77882a5d4625"
+  integrity sha512-hYiZYRPMXGQXSgKjp/m84l/6Uq8mTeMts1C7bFZXN5M5TUOiRhrLeqMSYZFXrAlkFpXeO46V+Ts1CFauMBLuCw==
 
 expo-device@~55.0.9:
   version "55.0.9"
@@ -2813,6 +2835,11 @@ expo-task-manager@~55.0.9:
   integrity sha512-ABqEua5FCjXmzRB+OGKD2KcQL2gkh57nCwGnFGe5Km+/b+0uxIs0lq0L3PPyoYPs1tAWp5FKfn2jcnz1nbBCVA==
   dependencies:
     unimodules-app-loader "~55.0.2"
+
+expo-web-browser@~55.0.9:
+  version "55.0.9"
+  resolved "https://registry.yarnpkg.com/expo-web-browser/-/expo-web-browser-55.0.9.tgz#b00fbc0dcc08bc8d577bac305dd589002e6aa05d"
+  integrity sha512-PvAVsG401QmZabtTsYh1cYcpPiqvBPs8oiOkSrp0jIXnneiM466HxmeNtvo+fNxqJ2nwOBz9qLPiWRO91VBfsQ==
 
 expo@~55.0.5:
   version "55.0.5"

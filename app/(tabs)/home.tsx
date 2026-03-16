@@ -99,6 +99,18 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {user && user.emailVerified === false && (
+        <TouchableOpacity
+          style={styles.emailBanner}
+          onPress={() => router.push('/profile' as any)}
+        >
+          <Ionicons name="mail-outline" size={18} color="#fff" />
+          <Text style={styles.emailBannerText}>
+            Verifique seu email para receber notificacoes
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color="#fff" />
+        </TouchableOpacity>
+      )}
       <View style={[styles.header, { backgroundColor: colors.white }]}>
         <View>
           <View style={styles.logoWrapper}>
@@ -276,4 +288,18 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   promoBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: 'bold' },
+  emailBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  emailBannerText: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
 });

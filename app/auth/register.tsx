@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,26 @@ import {
   ActivityIndicator,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  Image,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useMutation } from '@apollo/client';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import Constants from 'expo-constants';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
+import { VALIDATE_REGISTRATION, SEND_VERIFICATION_CODE, VERIFY_CODE } from '../../src/lib/graphql/mutations';
 import { colors, fonts } from '../../src/theme';
+
+const API_BASE = 'https://delivery-api-fdc4.onrender.com';
+const RETURN_URL = Constants.appOwnership === 'expo'
+  ? Linking.createURL('google-auth')
+  : 'delivery-app://google-auth';
 
 const CONTRACT_TEXT = `TERMOS DE USO — BCM TECH DELIVERY (CLIENTE)
 Ultima atualizacao: Marco de 2026
@@ -75,6 +87,20 @@ function formatCpfDisplay(cpf: string) {
   return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
 }
 
+function formatPhoneDisplay(phone: string) {
+  const d = phone.replace(/\D/g, '');
+  if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+  return phone;
+}
+
+function formatPhone(value: string) {
+  const d = value.replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 2) return d;
+  if (d.length <= 7) return `(${d.slice(0,2)}) ${d.slice(2)}`;
+  return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+}
+
 function buildContractHtml(userName: string, userCpf: string, userPhone: string) {
   const now = new Date();
   const dateStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -104,9 +130,9 @@ function buildContractHtml(userName: string, userCpf: string, userPhone: string)
 }
 
 export default function RegisterScreen() {
-  const { register } = useAuth();
+  const { register, registerWithGoogle } = useAuth();
   const { alert } = useAlert();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -116,6 +142,62 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [scrolledToEnd, setScrolledToEnd] = useState(false);
   const [checked, setChecked] = useState(false);
+
+  // Google register state
+  const [isGoogleRegister, setIsGoogleRegister] = useState(false);
+  const [googleIdToken, setGoogleIdToken] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  async function handleGoogleRegister() {
+    setGoogleLoading(true);
+    try {
+      const result = await WebBrowser.openAuthSessionAsync(
+        `${API_BASE}/auth/google/mobile?mode=register&userType=app&returnUrl=${encodeURIComponent(RETURN_URL)}`,
+        RETURN_URL,
+      );
+
+      if (result.type === 'success' && result.url) {
+        const parsed = Linking.parse(result.url);
+        const params = parsed.queryParams || {};
+
+        if (params.error) {
+          alert('Erro', 'Erro ao conectar com Google. Tente novamente.');
+          return;
+        }
+
+        if (params.mode === 'register') {
+          setName((params.name as string) || '');
+          setEmail((params.email as string) || '');
+          setGoogleIdToken((params.accessToken as string) || '');
+          setIsGoogleRegister(true);
+        }
+      }
+    } catch {
+      alert('Erro', 'Erro ao conectar com Google. Tente novamente.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
+
+  const [fieldErrors, setFieldErrors] = useState<{ emailError?: string; cpfError?: string; phoneError?: string }>({});
+
+  // OTP state
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
+
+  const [validateRegistration] = useMutation(VALIDATE_REGISTRATION);
+  const [sendVerificationCode] = useMutation(SEND_VERIFICATION_CODE);
+  const [verifyCode] = useMutation(VERIFY_CODE);
+
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const t = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(t);
+    }
+  }, [resendTimer]);
 
   function formatCpf(value: string) {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -137,20 +219,114 @@ export default function RegisterScreen() {
     return parseInt(d[10]) === c;
   }
 
-  function handleNext() {
-    if (!name || !email || !phone || !cpf || !password) {
-      alert('Erro', 'Preencha todos os campos');
-      return;
+  async function handleNext() {
+    if (isGoogleRegister) {
+      if (!phone || !cpf) {
+        alert('Erro', 'Preencha telefone e CPF');
+        return;
+      }
+    } else {
+      if (!name || !email || !phone || !cpf || !password) {
+        alert('Erro', 'Preencha todos os campos');
+        return;
+      }
+      if (password.length < 6) {
+        alert('Erro', 'A senha deve ter pelo menos 6 caracteres');
+        return;
+      }
     }
-    if (password.length < 6) {
-      alert('Erro', 'A senha deve ter pelo menos 6 caracteres');
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+      alert('Erro', 'Telefone invalido. Use DDD + numero');
       return;
     }
     if (!validateCpf(cpf)) {
       alert('Erro', 'CPF invalido');
       return;
     }
-    setStep(2);
+    // Valida email, CPF e telefone no servidor antes de enviar codigo
+    setOtpSending(true);
+    setFieldErrors({});
+    try {
+      const { data: valData } = await validateRegistration({
+        variables: { email, cpf: cpf.replace(/\D/g, ''), phone: phoneDigits, userType: 'app' },
+      });
+      const result = valData?.validateRegistration;
+      if (result && !result.valid) {
+        setFieldErrors({
+          emailError: result.emailError || undefined,
+          cpfError: result.cpfError || undefined,
+          phoneError: result.phoneError || undefined,
+        });
+        setOtpSending(false);
+        return;
+      }
+    } catch (err: any) {
+      const msg = err?.graphQLErrors?.[0]?.message || err?.message || 'Erro na validacao';
+      alert('Erro', msg);
+      setOtpSending(false);
+      return;
+    }
+    // Tudo ok, envia codigo por WhatsApp
+    setOtpSending(false);
+    await sendOtp();
+  }
+
+  async function sendOtp() {
+    setOtpSending(true);
+    try {
+      await sendVerificationCode({
+        variables: { input: { value: phone.replace(/\D/g, ''), channel: 'whatsapp' } },
+      });
+      setStep(2);
+      setResendTimer(60);
+      setOtpDigits(['', '', '', '', '', '']);
+      setTimeout(() => inputRefs.current[0]?.focus(), 300);
+    } catch (err: any) {
+      const msg = err?.graphQLErrors?.[0]?.message || err?.message || 'Erro ao enviar codigo';
+      alert('Erro', msg);
+    } finally {
+      setOtpSending(false);
+    }
+  }
+
+  function handleOtpChange(index: number, value: string) {
+    if (value.length > 1) value = value[value.length - 1];
+    if (value && !/^\d$/.test(value)) return;
+
+    const newDigits = [...otpDigits];
+    newDigits[index] = value;
+    setOtpDigits(newDigits);
+
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  }
+
+  function handleOtpKeyPress(index: number, key: string) {
+    if (key === 'Backspace' && !otpDigits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  }
+
+  async function handleVerifyOtp() {
+    const code = otpDigits.join('');
+    if (code.length !== 6) {
+      alert('Erro', 'Digite o codigo completo de 6 digitos');
+      return;
+    }
+    setOtpVerifying(true);
+    try {
+      await verifyCode({
+        variables: { input: { value: phone.replace(/\D/g, ''), code, channel: 'whatsapp' } },
+      });
+      setStep(3);
+    } catch (err: any) {
+      const msg = err?.graphQLErrors?.[0]?.message || err?.message || 'Codigo incorreto';
+      alert('Erro', msg);
+    } finally {
+      setOtpVerifying(false);
+    }
   }
 
   function handleScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
@@ -175,7 +351,11 @@ export default function RegisterScreen() {
     const cpfDigits = cpf.replace(/\D/g, '');
     setLoading(true);
     try {
-      await register(name, email, password, phone, undefined, cpfDigits);
+      if (isGoogleRegister) {
+        await registerWithGoogle(googleIdToken, phone.replace(/\D/g, ''), cpfDigits);
+      } else {
+        await register(name, email, password, phone.replace(/\D/g, ''), undefined, cpfDigits);
+      }
       router.replace('/onboarding-address');
     } catch (err: any) {
       const msg = err?.graphQLErrors?.[0]?.message || err?.message || 'Nao foi possivel criar a conta. Tente novamente.';
@@ -189,44 +369,96 @@ export default function RegisterScreen() {
   if (step === 1) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        {/* Step indicator */}
+        <View style={styles.stepIndicator}>
+          <View style={[styles.stepDot, styles.stepActive]} />
+          <View style={styles.stepLine} />
+          <View style={styles.stepDot} />
+          <View style={styles.stepLine} />
+          <View style={styles.stepDot} />
+        </View>
+        <Text style={styles.stepLabel}>Dados pessoais</Text>
+
+        <View style={styles.headerIcon}>
+          <Ionicons name="person-add" size={40} color={colors.primary} />
+        </View>
         <Text style={styles.title}>Criar conta</Text>
         <Text style={styles.subtitle}>Cadastre-se para comecar a pedir</Text>
 
         <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Nome completo"
-            placeholderTextColor={colors.gray}
-            value={name}
-            onChangeText={setName}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor={colors.gray}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Telefone"
-            placeholderTextColor={colors.gray}
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="CPF"
-            placeholderTextColor={colors.gray}
-            value={cpf}
-            onChangeText={(v) => setCpf(formatCpf(v))}
-            keyboardType="numeric"
-            maxLength={14}
-          />
+          {isGoogleRegister ? (
+            <View style={styles.googleInfoBox}>
+              <Image source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }} style={styles.googleInfoIcon} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.googleInfoName}>{name}</Text>
+                <Text style={styles.googleInfoEmail}>{email}</Text>
+              </View>
+              <TouchableOpacity onPress={() => { setIsGoogleRegister(false); setGoogleIdToken(''); setName(''); setEmail(''); }}>
+                <Ionicons name="close-circle" size={22} color={colors.gray} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <View style={styles.inputContainer}>
+                <Ionicons name="person-outline" size={20} color={colors.gray} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.inputWithIcon}
+                  placeholder="Nome completo"
+                  placeholderTextColor={colors.gray}
+                  value={name}
+                  onChangeText={setName}
+                />
+              </View>
+              <View>
+                <View style={[styles.inputContainer, fieldErrors.emailError ? styles.inputError : null]}>
+                  <Ionicons name="mail-outline" size={20} color={fieldErrors.emailError ? colors.danger : colors.gray} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.inputWithIcon}
+                    placeholder="Email"
+                    placeholderTextColor={colors.gray}
+                    value={email}
+                    onChangeText={(v) => { setEmail(v); setFieldErrors(f => ({ ...f, emailError: undefined })); }}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+                {fieldErrors.emailError && <Text style={styles.fieldError}>{fieldErrors.emailError}</Text>}
+              </View>
+            </>
+          )}
+          <View>
+            <View style={[styles.inputContainer, fieldErrors.phoneError ? styles.inputError : null]}>
+              <Ionicons name="call-outline" size={20} color={fieldErrors.phoneError ? colors.danger : colors.gray} style={styles.inputIcon} />
+              <TextInput
+                style={styles.inputWithIcon}
+                placeholder="(DD) 99999-9999"
+                placeholderTextColor={colors.gray}
+                value={phone}
+                onChangeText={(v) => { setPhone(formatPhone(v)); setFieldErrors(f => ({ ...f, phoneError: undefined })); }}
+                keyboardType="phone-pad"
+                maxLength={15}
+              />
+            </View>
+            {fieldErrors.phoneError && <Text style={styles.fieldError}>{fieldErrors.phoneError}</Text>}
+          </View>
+          <View>
+            <View style={[styles.inputContainer, fieldErrors.cpfError ? styles.inputError : null]}>
+              <Ionicons name="document-text-outline" size={20} color={fieldErrors.cpfError ? colors.danger : colors.gray} style={styles.inputIcon} />
+              <TextInput
+                style={styles.inputWithIcon}
+                placeholder="CPF"
+                placeholderTextColor={colors.gray}
+                value={cpf}
+                onChangeText={(v) => { setCpf(formatCpf(v)); setFieldErrors(f => ({ ...f, cpfError: undefined })); }}
+                keyboardType="numeric"
+                maxLength={14}
+              />
+            </View>
+            {fieldErrors.cpfError && <Text style={styles.fieldError}>{fieldErrors.cpfError}</Text>}
+          </View>
+          {!isGoogleRegister && (
           <View style={styles.passwordContainer}>
+            <Ionicons name="lock-closed-outline" size={20} color={colors.gray} style={styles.inputIcon} />
             <TextInput
               style={styles.passwordInput}
               placeholder="Senha (min. 6 caracteres)"
@@ -246,10 +478,47 @@ export default function RegisterScreen() {
               />
             </TouchableOpacity>
           </View>
+          )}
 
-          <TouchableOpacity style={styles.button} onPress={handleNext}>
-            <Text style={styles.buttonText}>Continuar</Text>
+          <TouchableOpacity
+            style={[styles.button, otpSending && styles.buttonDisabled]}
+            onPress={handleNext}
+            disabled={otpSending}
+          >
+            {otpSending ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.buttonText}>Continuar</Text>
+            )}
           </TouchableOpacity>
+
+          {!isGoogleRegister && (
+            <>
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>ou</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+                onPress={handleGoogleRegister}
+                disabled={googleLoading}
+              >
+                {googleLoading ? (
+                  <ActivityIndicator size="small" color={colors.text} />
+                ) : (
+                  <>
+                    <Image
+                      source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
+                      style={styles.googleIconBtn}
+                    />
+                    <Text style={styles.googleButtonText}>Cadastrar com Google</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
 
           <TouchableOpacity onPress={() => router.back()}>
             <Text style={styles.link}>Ja tem conta? <Text style={styles.linkBold}>Entrar</Text></Text>
@@ -259,12 +528,93 @@ export default function RegisterScreen() {
     );
   }
 
-  // Step 2: Contract view with user data
+  // Step 2: WhatsApp verification
+  if (step === 2) {
+    return (
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.otpContent}>
+          {/* Step indicator */}
+          <View style={styles.stepIndicator}>
+            <View style={[styles.stepDot, styles.stepDone]} />
+            <View style={[styles.stepLine, styles.stepLineDone]} />
+            <View style={[styles.stepDot, styles.stepActive]} />
+            <View style={styles.stepLine} />
+            <View style={styles.stepDot} />
+          </View>
+          <Text style={styles.stepLabel}>Verificacao</Text>
+
+          <TouchableOpacity style={styles.backButtonOtp} onPress={() => setStep(1)}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+
+          <View style={styles.otpIconContainer}>
+            <Ionicons name="logo-whatsapp" size={48} color="#25D366" />
+          </View>
+          <Text style={styles.otpTitle}>Verifique seu WhatsApp</Text>
+          <Text style={styles.otpSubtitle}>
+            Enviamos um codigo de 6 digitos para{'\n'}
+            <Text style={styles.otpPhone}>{formatPhoneDisplay(phone.replace(/\D/g, ''))}</Text>
+          </Text>
+
+          <View style={styles.otpRow}>
+            {otpDigits.map((digit, i) => (
+              <TextInput
+                key={i}
+                ref={(ref) => { inputRefs.current[i] = ref; }}
+                style={[styles.otpInput, digit ? styles.otpInputFilled : null]}
+                value={digit}
+                onChangeText={(v) => handleOtpChange(i, v)}
+                onKeyPress={({ nativeEvent }) => handleOtpKeyPress(i, nativeEvent.key)}
+                keyboardType="number-pad"
+                maxLength={1}
+                selectTextOnFocus
+              />
+            ))}
+          </View>
+
+          <TouchableOpacity
+            style={[styles.button, (otpVerifying || otpDigits.join('').length !== 6) && styles.buttonDisabled]}
+            onPress={handleVerifyOtp}
+            disabled={otpVerifying || otpDigits.join('').length !== 6}
+          >
+            {otpVerifying ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.buttonText}>Verificar</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={sendOtp}
+            disabled={resendTimer > 0 || otpSending}
+            style={styles.resendContainer}
+          >
+            <Text style={[styles.resendText, resendTimer > 0 && { color: colors.gray }]}>
+              {resendTimer > 0
+                ? `Reenviar codigo em ${resendTimer}s`
+                : 'Reenviar codigo'}
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // Step 3: Contract view
   return (
     <View style={styles.contractContainer}>
-      {/* Header */}
+      {/* Step indicator */}
       <View style={styles.contractHeader}>
-        <TouchableOpacity style={styles.backButton} onPress={() => setStep(1)}>
+        <View style={[styles.stepIndicator, { marginTop: 0 }]}>
+          <View style={[styles.stepDot, styles.stepDone]} />
+          <View style={[styles.stepLine, styles.stepLineDone]} />
+          <View style={[styles.stepDot, styles.stepDone]} />
+          <View style={[styles.stepLine, styles.stepLineDone]} />
+          <View style={[styles.stepDot, styles.stepActive]} />
+        </View>
+        <Text style={styles.stepLabel}>Contrato</Text>
+
+        <TouchableOpacity style={styles.backButton} onPress={() => setStep(2)}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Ionicons name="document-text" size={32} color={colors.primary} />
@@ -272,25 +622,22 @@ export default function RegisterScreen() {
         <Text style={styles.contractSubtitle}>Leia o contrato antes de finalizar o cadastro</Text>
       </View>
 
-      {/* Contract body */}
       <ScrollView
         style={styles.contractScroll}
         contentContainerStyle={styles.contractScrollContent}
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
-        {/* Signee box */}
         <View style={styles.signeeBox}>
           <Text style={styles.signeeLabel}>PARTE CONTRATANTE / ASSINANTE:</Text>
           <Text style={styles.signeeName}>{name}</Text>
           <Text style={styles.signeeInfo}>CPF: {formatCpfDisplay(cpf.replace(/\D/g, ''))}</Text>
-          <Text style={styles.signeeInfo}>Telefone: {phone}</Text>
+          <Text style={styles.signeeInfo}>Telefone: {formatPhoneDisplay(phone.replace(/\D/g, ''))}</Text>
         </View>
 
         <Text style={styles.contractText}>{CONTRACT_TEXT}</Text>
       </ScrollView>
 
-      {/* Footer */}
       <View style={styles.contractFooter}>
         {!scrolledToEnd && (
           <Text style={styles.scrollHint}>
@@ -298,13 +645,11 @@ export default function RegisterScreen() {
           </Text>
         )}
 
-        {/* Download PDF */}
         <TouchableOpacity style={styles.pdfButton} onPress={handleDownloadPdf}>
           <Ionicons name="download-outline" size={20} color={colors.primary} />
           <Text style={styles.pdfButtonText}>Baixar contrato em PDF</Text>
         </TouchableOpacity>
 
-        {/* Checkbox */}
         <TouchableOpacity
           style={styles.checkboxRow}
           onPress={() => scrolledToEnd && setChecked(!checked)}
@@ -320,7 +665,6 @@ export default function RegisterScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* Accept button */}
         <TouchableOpacity
           style={[styles.acceptButton, (!checked || !scrolledToEnd || loading) && styles.buttonDisabled]}
           onPress={handleAcceptAndRegister}
@@ -338,12 +682,84 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Step indicator
+  stepIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  stepDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.grayLight,
+    borderWidth: 2,
+    borderColor: colors.grayLight,
+  },
+  stepActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  stepDone: {
+    backgroundColor: colors.success,
+    borderColor: colors.success,
+  },
+  stepLine: {
+    width: 40,
+    height: 2,
+    backgroundColor: colors.grayLight,
+  },
+  stepLineDone: {
+    backgroundColor: colors.success,
+  },
+  stepLabel: {
+    fontSize: fonts.small,
+    color: colors.textLight,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+
+  // Header icon
+  headerIcon: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
   // Step 1 styles
   container: { flex: 1, backgroundColor: colors.white },
   content: { padding: 24, paddingTop: 60 },
-  title: { fontSize: fonts.title, fontWeight: 'bold', color: colors.text },
-  subtitle: { fontSize: fonts.regular, color: colors.textLight, marginTop: 8, marginBottom: 24 },
-  form: { gap: 16 },
+  title: { fontSize: fonts.title, fontWeight: 'bold', color: colors.text, textAlign: 'center' },
+  subtitle: { fontSize: fonts.regular, color: colors.textLight, marginTop: 8, marginBottom: 24, textAlign: 'center' },
+  form: { gap: 14 },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.grayLight,
+    borderRadius: 12,
+  },
+  inputError: {
+    borderWidth: 2,
+    borderColor: colors.danger,
+    backgroundColor: '#FEF2F2',
+  },
+  fieldError: {
+    color: colors.danger,
+    fontSize: fonts.tiny,
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  inputIcon: {
+    paddingLeft: 16,
+  },
+  inputWithIcon: {
+    flex: 1,
+    padding: 16,
+    paddingLeft: 12,
+    fontSize: fonts.regular,
+    color: colors.text,
+  },
   input: {
     backgroundColor: colors.grayLight,
     borderRadius: 12,
@@ -360,6 +776,7 @@ const styles = StyleSheet.create({
   passwordInput: {
     flex: 1,
     padding: 16,
+    paddingLeft: 12,
     fontSize: fonts.regular,
     color: colors.text,
   },
@@ -379,7 +796,134 @@ const styles = StyleSheet.create({
   link: { textAlign: 'center', color: colors.textLight, fontSize: fonts.regular, marginTop: 16 },
   linkBold: { color: colors.primary, fontWeight: 'bold' },
 
-  // Step 2 styles
+  // Google styles
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.grayLight,
+  },
+  dividerText: {
+    color: colors.gray,
+    fontSize: fonts.small,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.grayLight,
+    gap: 10,
+  },
+  googleIconBtn: {
+    width: 20,
+    height: 20,
+  },
+  googleButtonText: {
+    color: colors.text,
+    fontSize: fonts.regular,
+    fontWeight: '600',
+  },
+  googleInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    gap: 10,
+  },
+  googleInfoIcon: {
+    width: 24,
+    height: 24,
+  },
+  googleInfoName: {
+    fontSize: fonts.regular,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  googleInfoEmail: {
+    fontSize: fonts.small,
+    color: colors.textLight,
+  },
+
+  // Step 2: OTP styles
+  otpContent: {
+    padding: 24,
+    paddingTop: 60,
+    alignItems: 'center',
+  },
+  backButtonOtp: {
+    alignSelf: 'flex-start',
+    padding: 8,
+    marginBottom: 16,
+  },
+  otpIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#E8F5E9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  otpTitle: {
+    fontSize: fonts.xlarge,
+    fontWeight: 'bold',
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  otpSubtitle: {
+    fontSize: fonts.regular,
+    color: colors.textLight,
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 22,
+  },
+  otpPhone: {
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  otpRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 32,
+  },
+  otpInput: {
+    width: 48,
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.grayLight,
+    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.text,
+    backgroundColor: colors.white,
+  },
+  otpInputFilled: {
+    borderColor: colors.primary,
+    backgroundColor: '#FFF5F0',
+  },
+  resendContainer: {
+    marginTop: 20,
+  },
+  resendText: {
+    fontSize: fonts.regular,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+
+  // Step 3 styles
   contractContainer: { flex: 1, backgroundColor: colors.white },
   contractHeader: {
     paddingTop: 56,
