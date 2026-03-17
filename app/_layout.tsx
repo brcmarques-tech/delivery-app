@@ -9,6 +9,7 @@ import { LocationProvider } from '../src/contexts/LocationContext';
 import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { useOrderNotifications } from '../src/hooks/useOrderNotifications';
 import { usePushNotifications } from '../src/hooks/usePushNotifications';
+import { DeliveryConfirmationModal } from '../src/components/DeliveryConfirmationModal';
 
 function NotificationListener() {
   useOrderNotifications();
@@ -30,6 +31,7 @@ export default function RootLayout() {
             <LocationProvider>
               <CartProvider>
                 <NotificationListener />
+                <DeliveryConfirmationModal />
                 <ThemedStatusBar />
                 <Stack screenOptions={{ headerShown: false }} />
               </CartProvider>

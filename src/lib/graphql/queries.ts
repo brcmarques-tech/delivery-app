@@ -84,6 +84,7 @@ export const GET_MY_ORDERS = gql`
       orderNumber
       status
       total
+      customerConfirmedAt
       createdAt
       store {
         id
@@ -98,6 +99,10 @@ export const GET_MY_ORDERS = gql`
         product {
           name
         }
+      }
+      delivery {
+        id
+        deliveredAt
       }
     }
   }
