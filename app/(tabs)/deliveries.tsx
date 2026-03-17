@@ -21,6 +21,7 @@ import { useDeliveryTracking } from '../../src/hooks/useDeliveryTracking';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../src/theme';
 
 function openNavigation(lat: number, lng: number, label: string) {
@@ -50,6 +51,7 @@ interface DeliveryOffer {
 }
 
 export default function DeliveriesScreen() {
+  const insets = useSafeAreaInsets();
   const { alert } = useAlert();
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>('available');
@@ -490,7 +492,7 @@ export default function DeliveriesScreen() {
         </View>
       )}
 
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>Entregas</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

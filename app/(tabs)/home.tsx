@@ -18,6 +18,7 @@ import { STORE_UPDATED, PROMOTION_UPDATED } from '../../src/lib/graphql/subscrip
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useCart } from '../../src/contexts/CartContext';
 import { useLocation } from '../../src/contexts/LocationContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { colors as staticColors, fonts } from '../../src/theme';
 
@@ -26,6 +27,7 @@ export default function HomeScreen() {
   const { itemCount } = useCart();
   const { location } = useLocation();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { data: nearbyData, loading: nearbyLoading, refetch: refetchNearby } = useQuery(GET_NEARBY_STORES, {
     variables: { latitude: location?.latitude || 0, longitude: location?.longitude || 0, radiusKm: 30 },
     skip: !location,
@@ -111,7 +113,7 @@ export default function HomeScreen() {
           <Ionicons name="chevron-forward" size={16} color="#fff" />
         </TouchableOpacity>
       )}
-      <View style={[styles.header, { backgroundColor: colors.white }]}>
+      <View style={[styles.header, { backgroundColor: colors.white, paddingTop: insets.top + 12 }]}>
         <View>
           <View style={styles.logoWrapper}>
             <Text style={styles.logoBcm}>BCM TECH</Text>

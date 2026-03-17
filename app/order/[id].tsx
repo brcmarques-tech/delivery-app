@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GET_ORDER } from '../../src/lib/graphql/queries';
 import { CONFIRM_RECEIPT } from '../../src/lib/graphql/mutations';
 import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../src/theme';
 
 const statusSteps = [
@@ -19,6 +20,7 @@ const statusSteps = [
 ];
 
 export default function OrderDetailScreen() {
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, loading, refetch } = useQuery(GET_ORDER, {
     variables: { id },
@@ -83,7 +85,7 @@ export default function OrderDetailScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>

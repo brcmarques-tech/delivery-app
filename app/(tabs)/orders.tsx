@@ -13,10 +13,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { GET_MY_ORDERS } from '../../src/lib/graphql/queries';
 import { ORDER_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as staticColors, fonts } from '../../src/theme';
 
 export default function OrdersScreen() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { data, loading, refetch } = useQuery(GET_MY_ORDERS, { pollInterval: 15000 });
   const orders = data?.myOrders || [];
 
@@ -39,7 +41,7 @@ export default function OrdersScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.white }]}>
+      <View style={[styles.header, { backgroundColor: colors.white, paddingTop: insets.top + 12 }]}>
         <Text style={[styles.title, { color: colors.text }]}>Meus pedidos</Text>
       </View>
 

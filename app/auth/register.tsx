@@ -23,6 +23,7 @@ import Constants from 'expo-constants';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { VALIDATE_REGISTRATION, SEND_VERIFICATION_CODE, VERIFY_CODE } from '../../src/lib/graphql/mutations';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../src/theme';
 
 const API_BASE = 'https://delivery-api-fdc4.onrender.com';
@@ -132,6 +133,7 @@ function buildContractHtml(userName: string, userCpf: string, userPhone: string)
 export default function RegisterScreen() {
   const { register, registerWithGoogle } = useAuth();
   const { alert } = useAlert();
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -368,7 +370,7 @@ export default function RegisterScreen() {
   // Step 1: Registration form
   if (step === 1) {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
         {/* Step indicator */}
         <View style={styles.stepIndicator}>
           <View style={[styles.stepDot, styles.stepActive]} />
@@ -532,7 +534,7 @@ export default function RegisterScreen() {
   if (step === 2) {
     return (
       <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.otpContent}>
+        <ScrollView contentContainerStyle={[styles.otpContent, { paddingTop: insets.top + 16 }]}>
           {/* Step indicator */}
           <View style={styles.stepIndicator}>
             <View style={[styles.stepDot, styles.stepDone]} />
@@ -604,7 +606,7 @@ export default function RegisterScreen() {
   return (
     <View style={styles.contractContainer}>
       {/* Step indicator */}
-      <View style={styles.contractHeader}>
+      <View style={[styles.contractHeader, { paddingTop: insets.top + 12 }]}>
         <View style={[styles.stepIndicator, { marginTop: 0 }]}>
           <View style={[styles.stepDot, styles.stepDone]} />
           <View style={[styles.stepLine, styles.stepLineDone]} />
@@ -614,7 +616,7 @@ export default function RegisterScreen() {
         </View>
         <Text style={styles.stepLabel}>Contrato</Text>
 
-        <TouchableOpacity style={styles.backButton} onPress={() => setStep(2)}>
+        <TouchableOpacity style={[styles.backButton, { top: insets.top + 12 }]} onPress={() => setStep(2)}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Ionicons name="document-text" size={32} color={colors.primary} />
@@ -638,7 +640,7 @@ export default function RegisterScreen() {
         <Text style={styles.contractText}>{CONTRACT_TEXT}</Text>
       </ScrollView>
 
-      <View style={styles.contractFooter}>
+      <View style={[styles.contractFooter, { paddingBottom: insets.bottom + 16 }]}>
         {!scrolledToEnd && (
           <Text style={styles.scrollHint}>
             Role ate o final do contrato para poder aceitar.

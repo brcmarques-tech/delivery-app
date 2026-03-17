@@ -6,6 +6,7 @@ import { useLazyQuery, useMutation, useQuery } from '@apollo/client';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as staticColors, fonts } from '../../src/theme';
 import { GET_ME, GET_MP_CONNECT_URL } from '../../src/lib/graphql/queries';
 import { DISCONNECT_MP } from '../../src/lib/graphql/mutations';
@@ -23,6 +24,7 @@ export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
   const { alert } = useAlert();
   const { isDark, toggleTheme, colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const isDeliverer = user?.isDeliverer || user?.role === 'DELIVERER';
   const [retryCountdown, setRetryCountdown] = useState(0);
   const [showTerms, setShowTerms] = useState(false);
@@ -113,7 +115,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.white }]}>
+      <View style={[styles.header, { backgroundColor: colors.white, paddingTop: insets.top + 12 }]}>
         <View style={[styles.avatar, isDeliverer && { backgroundColor: colors.success }]}>
           <Text style={[styles.avatarText, { color: '#FFFFFF' }]}>
             {user?.name?.charAt(0).toUpperCase()}
@@ -264,7 +266,7 @@ export default function ProfileScreen() {
 
       <Modal visible={showHelp} animationType="slide" transparent>
         <View style={[styles.helpOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-          <View style={[styles.helpModal, { backgroundColor: colors.card }]}>
+          <View style={[styles.helpModal, { backgroundColor: colors.card, paddingBottom: insets.bottom + 32 }]}>
             <View style={styles.helpHeader}>
               <Text style={[styles.helpTitle, { color: colors.text }]}>Ajuda & Suporte</Text>
               <TouchableOpacity onPress={() => setShowHelp(false)}>

@@ -19,6 +19,7 @@ import { useAlert } from '../src/contexts/AlertContext';
 import { useLocation } from '../src/contexts/LocationContext';
 import { CREATE_ORDER } from '../src/lib/graphql/mutations';
 import { CALCULATE_DELIVERY_FEE, GET_MY_ADDRESSES, GET_STORE, ESTIMATE_DELIVERY_TIME } from '../src/lib/graphql/queries';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../src/theme';
 
 type PaymentMethod = 'ON_DELIVERY' | 'MERCADO_PAGO' | 'PIX';
@@ -31,6 +32,7 @@ const ALL_PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string; de
 ];
 
 export default function CartScreen() {
+  const insets = useSafeAreaInsets();
   const { items, storeId, storeName, total, updateQuantity, updateWeight, removeItem, clearCart } = useCart();
   const { alert } = useAlert();
   const { location: gpsLocation } = useLocation();
@@ -268,7 +270,7 @@ export default function CartScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -283,7 +285,7 @@ export default function CartScreen() {
       <FlatList
         data={items}
         keyExtractor={(item) => item.productId}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
         renderItem={({ item }) => (
           <View style={styles.itemCard}>
             <View style={styles.itemInfo}>
@@ -562,7 +564,7 @@ export default function CartScreen() {
       />
 
       <TouchableOpacity
-        style={[styles.checkoutButton, (loading || (!isPickup && !coords)) && styles.checkoutDisabled]}
+        style={[styles.checkoutButton, { bottom: insets.bottom + 24 }, (loading || (!isPickup && !coords)) && styles.checkoutDisabled]}
         onPress={handleCheckout}
         disabled={loading || (!isPickup && !coords)}
       >

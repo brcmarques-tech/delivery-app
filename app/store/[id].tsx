@@ -17,9 +17,11 @@ import { GET_STORE } from '../../src/lib/graphql/queries';
 import { PRODUCT_UPDATED, STORE_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useCart } from '../../src/contexts/CartContext';
 import { useAlert } from '../../src/contexts/AlertContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../src/theme';
 
 export default function StoreScreen() {
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, loading, refetch } = useQuery(GET_STORE, { variables: { id }, pollInterval: 15000 });
 
@@ -129,7 +131,7 @@ export default function StoreScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/home')}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -168,7 +170,7 @@ export default function StoreScreen() {
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
         renderSectionHeader={({ section }) => (
           <Text style={styles.sectionTitle}>{section.title}</Text>
         )}
@@ -219,7 +221,7 @@ export default function StoreScreen() {
       />
 
       {itemCount > 0 && storeId === id && (
-        <TouchableOpacity style={styles.cartBar} onPress={() => router.push('/cart')}>
+        <TouchableOpacity style={[styles.cartBar, { bottom: insets.bottom + 24 }]} onPress={() => router.push('/cart')}>
           <View style={styles.cartBadge}>
             <Text style={styles.cartBadgeText}>{itemCount}</Text>
           </View>
@@ -236,7 +238,7 @@ export default function StoreScreen() {
               <Image source={{ uri: zoomedImage }} style={styles.imageModalImage} resizeMode="contain" />
             )}
           </View>
-          <TouchableOpacity style={styles.imageModalClose} onPress={() => setZoomedImage(null)}>
+          <TouchableOpacity style={[styles.imageModalClose, { top: insets.top + 12 }]} onPress={() => setZoomedImage(null)}>
             <Ionicons name="close" size={28} color={colors.white} />
           </TouchableOpacity>
         </Pressable>
@@ -245,7 +247,7 @@ export default function StoreScreen() {
       {/* Modal de adicionar ao carrinho */}
       <Modal visible={!!selectedProduct} transparent animationType="slide" onRequestClose={() => setSelectedProduct(null)}>
         <Pressable style={styles.addModalOverlay} onPress={() => setSelectedProduct(null)}>
-          <Pressable style={styles.addModalSheet} onPress={() => {}}>
+          <Pressable style={[styles.addModalSheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => {}}>
             {selectedProduct && (
               <>
                 {/* Imagem */}
