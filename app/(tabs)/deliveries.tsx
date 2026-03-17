@@ -9,13 +9,12 @@ import {
   Linking,
   Platform,
   Vibration,
-  ActivityIndicator,
 } from 'react-native';
-import { useQuery, useLazyQuery, useMutation, useSubscription } from '@apollo/client';
+import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { io, Socket } from 'socket.io-client';
-import { GET_AVAILABLE_DELIVERIES, GET_MY_DELIVERIES, GET_ME, GET_MP_CONNECT_URL } from '../../src/lib/graphql/queries';
+import { GET_AVAILABLE_DELIVERIES, GET_MY_DELIVERIES, GET_ME } from '../../src/lib/graphql/queries';
 import { ACCEPT_DELIVERY, CONFIRM_PICKUP, CONFIRM_DELIVERY } from '../../src/lib/graphql/mutations';
 import { useDeliveryTracking } from '../../src/hooks/useDeliveryTracking';
 import { useAlert } from '../../src/contexts/AlertContext';
@@ -61,22 +60,14 @@ export default function DeliveriesScreen() {
   const socketRef = useRef<Socket | null>(null);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
 
-  // Check MP connection status
+  // Check payment connection status
   const { data: meData } = useQuery(GET_ME, { fetchPolicy: 'cache-and-network' });
-  const mpConnected = meData?.me?.mpConnected ?? user?.mpConnected ?? false;
-  const [fetchConnectUrl, { loading: loadingConnectUrl }] = useLazyQuery(GET_MP_CONNECT_URL, { fetchPolicy: 'network-only' });
-
-  async function handleConnectMp() {
-    const { data } = await fetchConnectUrl();
-    if (data?.mpConnectUrl) {
-      Linking.openURL(data.mpConnectUrl);
-    }
-  }
+  const paymentConnected = meData?.meApp?.paymentConnected ?? user?.paymentConnected ?? false;
 
   // Go online/offline
   const toggleOnline = useCallback(async () => {
-    if (!mpConnected) {
-      alert('Conta nao conectada', 'Conecte sua conta Mercado Pago para comecar a fazer entregas.');
+    if (!paymentConnected) {
+      alert('Conta nao conectada', 'Conecte sua conta de pagamento para comecar a fazer entregas.');
       return;
     }
 
@@ -157,8 +148,8 @@ export default function DeliveriesScreen() {
 
   function handleAcceptOffer() {
     if (!currentOffer || !socketRef.current) return;
-    if (!mpConnected) {
-      alert('Conta nao conectada', 'Conecte sua conta Mercado Pago para aceitar entregas.');
+    if (!paymentConnected) {
+      alert('Conta nao conectada', 'Conecte sua conta de pagamento para aceitar entregas.');
       setCurrentOffer(null);
       return;
     }
@@ -224,8 +215,8 @@ export default function DeliveriesScreen() {
   useDeliveryTracking(activeDeliveryForTracking);
 
   async function handleAccept(orderId: string, orderNumber: string) {
-    if (!mpConnected) {
-      alert('Conta nao conectada', 'Conecte sua conta Mercado Pago para aceitar entregas.');
+    if (!paymentConnected) {
+      alert('Conta nao conectada', 'Conecte sua conta de pagamento para aceitar entregas.');
       return;
     }
     alert('Aceitar entrega', `Aceitar pedido #${orderNumber}?`, [
@@ -503,9 +494,9 @@ export default function DeliveriesScreen() {
               </View>
             )}
             <TouchableOpacity
-              style={[styles.onlineToggle, isOnline && styles.onlineToggleActive, !mpConnected && { opacity: 0.5 }]}
+              style={[styles.onlineToggle, isOnline && styles.onlineToggleActive, !paymentConnected && { opacity: 0.5 }]}
               onPress={toggleOnline}
-              disabled={!mpConnected}
+              disabled={!paymentConnected}
             >
               <View style={[styles.onlineDot, isOnline && styles.onlineDotActive]} />
               <Text style={[styles.onlineText, isOnline && styles.onlineTextActive]}>
@@ -515,7 +506,7 @@ export default function DeliveriesScreen() {
           </View>
         </View>
 
-        {!mpConnected && (
+        {!paymentConnected && (
           <View style={styles.mpBanner}>
             <View style={styles.mpBannerContent}>
               <View style={styles.mpBannerIcon}>
@@ -524,24 +515,14 @@ export default function DeliveriesScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.mpBannerTitle}>Conecte sua conta para comecar</Text>
                 <Text style={styles.mpBannerSubtitle}>
-                  Para receber entregas e pagamentos, voce precisa conectar uma conta Mercado Pago
+                  Para receber entregas e pagamentos, cadastre-se como recebedor ou entre em contato com o suporte
                 </Text>
               </View>
             </View>
-            <TouchableOpacity
-              style={styles.mpBannerButton}
-              onPress={handleConnectMp}
-              disabled={loadingConnectUrl}
-            >
-              {loadingConnectUrl ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <>
-                  <Ionicons name="link" size={18} color={colors.white} />
-                  <Text style={styles.mpBannerButtonText}>Conectar Mercado Pago</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            <View style={styles.mpBannerButton}>
+              <Ionicons name="information-circle" size={18} color={colors.white} />
+              <Text style={styles.mpBannerButtonText}>Conectar Pagamento</Text>
+            </View>
           </View>
         )}
 
@@ -671,7 +652,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#009EE3',
+    backgroundColor: '#65A300',
     borderRadius: 12,
     paddingVertical: 12,
   },

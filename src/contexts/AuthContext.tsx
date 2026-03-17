@@ -15,7 +15,7 @@ interface User {
   pendingRole?: string | null;
   rejectedAt?: string | null;
   rejectionReason?: string | null;
-  mpConnected?: boolean;
+  paymentConnected?: boolean;
   acceptedTermsAt?: string | null;
   emailVerified?: boolean;
   phoneVerified?: boolean;

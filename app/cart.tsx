@@ -18,16 +18,16 @@ import { useCart } from '../src/contexts/CartContext';
 import { useAlert } from '../src/contexts/AlertContext';
 import { useLocation } from '../src/contexts/LocationContext';
 import { CREATE_ORDER } from '../src/lib/graphql/mutations';
-import { CALCULATE_DELIVERY_FEE, GET_MY_ADDRESSES, GET_STORE, ESTIMATE_DELIVERY_TIME } from '../src/lib/graphql/queries';
+import { CALCULATE_DELIVERY_FEE, GET_MY_ADDRESSES, GET_STORE, ESTIMATE_DELIVERY_TIME, LIST_MY_CARDS } from '../src/lib/graphql/queries';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../src/theme';
 
-type PaymentMethod = 'ON_DELIVERY' | 'MERCADO_PAGO' | 'PIX';
+type PaymentMethod = 'ON_DELIVERY' | 'CREDIT_CARD' | 'PIX';
 type DeliveryType = 'DELIVERY' | 'PICKUP';
 
 const ALL_PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string; description: string; requiresOwnDelivery?: boolean }[] = [
   { key: 'ON_DELIVERY', label: 'Na entrega', icon: 'cash-outline', description: 'Pague ao receber', requiresOwnDelivery: true },
-  { key: 'MERCADO_PAGO', label: 'Mercado Pago', icon: 'card-outline', description: 'Cartao ou debito' },
+  { key: 'CREDIT_CARD', label: 'Cartao de Credito', icon: 'card-outline', description: 'Pague com cartao salvo ou novo' },
   { key: 'PIX', label: 'PIX', icon: 'qr-code-outline', description: 'Pagamento instantaneo' },
 ];
 
@@ -41,14 +41,16 @@ export default function CartScreen() {
   const [loading, setLoading] = useState(false);
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('DELIVERY');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ON_DELIVERY');
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [createOrder] = useMutation(CREATE_ORDER);
   const [calcFee, { data: feeData, loading: feeLoading }] = useLazyQuery(CALCULATE_DELIVERY_FEE);
   const [calcTime, { data: timeData, loading: timeLoading }] = useLazyQuery(ESTIMATE_DELIVERY_TIME);
   const { data: addressesData } = useQuery(GET_MY_ADDRESSES);
   const { data: storeData } = useQuery(GET_STORE, { variables: { id: storeId }, skip: !storeId });
+  const { data: cardsData } = useQuery(LIST_MY_CARDS);
 
   const storeHasOwnDelivery = storeData?.store?.hasOwnDelivery || false;
-  const ownerMpConnected = storeData?.store?.ownerMpConnected ?? true;
+  const ownerPaymentConnected = storeData?.store?.ownerPaymentConnected ?? true;
 
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locatingGps, setLocatingGps] = useState(false);
@@ -80,18 +82,18 @@ export default function CartScreen() {
   const deliveryFee = isPickup ? 0 : (feeData?.calculateDeliveryFee ?? 0);
   const finalTotal = total + deliveryFee;
 
-  // If no MP and no own delivery, force PICKUP
-  const pickupOnly = !ownerMpConnected && !storeHasOwnDelivery;
+  // If payment not connected and no own delivery, force PICKUP
+  const pickupOnly = !ownerPaymentConnected && !storeHasOwnDelivery;
   React.useEffect(() => {
     if (pickupOnly && deliveryType !== 'PICKUP') {
       setDeliveryType('PICKUP');
     }
   }, [pickupOnly]);
 
-  // Filter payment options based on store delivery type and MP connection
+  // Filter payment options based on store delivery type and payment connection
   const paymentOptions = ALL_PAYMENT_OPTIONS.filter((opt) => {
-    // When MP is not connected, only allow ON_DELIVERY
-    if (!ownerMpConnected) {
+    // When payment is not connected, only allow ON_DELIVERY
+    if (!ownerPaymentConnected) {
       return opt.key === 'ON_DELIVERY';
     }
     // Otherwise, filter ON_DELIVERY based on own delivery / pickup
@@ -106,7 +108,7 @@ export default function CartScreen() {
     if (!paymentOptions.find((o) => o.key === paymentMethod)) {
       setPaymentMethod(paymentOptions[0]?.key || 'ON_DELIVERY');
     }
-  }, [storeHasOwnDelivery, isPickup, ownerMpConnected]);
+  }, [storeHasOwnDelivery, isPickup, ownerPaymentConnected]);
 
   // Geocode address text to coordinates when address changes (debounced)
   useEffect(() => {
@@ -221,6 +223,7 @@ export default function CartScreen() {
                 }),
             notes,
             paymentMethod,
+            ...(paymentMethod === 'CREDIT_CARD' && selectedCardId ? { cardId: selectedCardId } : {}),
           },
         },
       });
@@ -228,10 +231,12 @@ export default function CartScreen() {
       const order = data.createOrder;
       clearCart();
 
-      if (paymentMethod === 'MERCADO_PAGO' && order.checkoutUrl) {
+      if ((paymentMethod === 'CREDIT_CARD' || paymentMethod === 'PIX') && order.checkoutUrl) {
         alert(
           'Pedido criado!',
-          'Voce sera redirecionado para o pagamento.',
+          paymentMethod === 'PIX'
+            ? 'Voce sera redirecionado para pagar com PIX.'
+            : 'Voce sera redirecionado para o pagamento.',
           [
             {
               text: 'Pagar agora',
@@ -242,8 +247,11 @@ export default function CartScreen() {
             },
           ],
         );
-      } else if (paymentMethod === 'PIX' && order.pixQrCode) {
-        router.replace({ pathname: `/order/${order.id}`, params: { showPix: '1' } });
+      } else if (paymentMethod === 'CREDIT_CARD' && selectedCardId && !order.checkoutUrl) {
+        // Direct charge — no redirect needed
+        alert('Pedido realizado!', `Pagamento aprovado! Numero: ${order.orderNumber}`, [
+          { text: 'Ver pedido', onPress: () => router.replace(`/order/${order.id}`) },
+        ]);
       } else {
         alert('Pedido realizado!', `Numero: ${order.orderNumber}`, [
           { text: 'Ver pedido', onPress: () => router.replace(`/order/${order.id}`) },
@@ -337,8 +345,8 @@ export default function CartScreen() {
         )}
         ListFooterComponent={
           <View style={styles.footer}>
-            {/* Warning banner when MP is not connected */}
-            {!ownerMpConnected && (
+            {/* Warning banner when payment is not connected */}
+            {!ownerPaymentConnected && (
               <View style={styles.warningBanner}>
                 <Ionicons name="alert-circle-outline" size={20} color={colors.warning} />
                 <Text style={styles.warningBannerText}>
@@ -516,6 +524,54 @@ export default function CartScreen() {
                   )}
                 </TouchableOpacity>
               ))}
+
+              {paymentMethod === 'CREDIT_CARD' && (
+                <View style={styles.savedCardsSection}>
+                  <Text style={styles.savedCardsTitle}>Cartoes salvos</Text>
+                  {(cardsData?.myCards || []).map((card: any) => (
+                    <TouchableOpacity
+                      key={card.id}
+                      style={[
+                        styles.savedCardItem,
+                        selectedCardId === card.id && styles.savedCardSelected,
+                      ]}
+                      onPress={() => setSelectedCardId(card.id)}
+                    >
+                      <Ionicons name="card" size={20} color={selectedCardId === card.id ? colors.primary : colors.gray} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.savedCardText}>
+                          {card.brand} •••• {card.lastFourDigits}
+                        </Text>
+                        {card.holderName && (
+                          <Text style={styles.savedCardHolder}>{card.holderName}</Text>
+                        )}
+                      </View>
+                      {selectedCardId === card.id && (
+                        <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    style={[
+                      styles.savedCardItem,
+                      !selectedCardId && styles.savedCardSelected,
+                    ]}
+                    onPress={() => setSelectedCardId(null)}
+                  >
+                    <Ionicons name="add-circle-outline" size={20} color={!selectedCardId ? colors.primary : colors.gray} />
+                    <Text style={[styles.savedCardText, !selectedCardId && { color: colors.primary }]}>
+                      Usar novo cartao (link de pagamento)
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.manageCardsLink}
+                    onPress={() => router.push('/cards')}
+                  >
+                    <Text style={styles.manageCardsText}>Gerenciar cartoes</Text>
+                    <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             <View style={styles.summary}>
@@ -827,4 +883,29 @@ const styles = StyleSheet.create({
   },
   checkoutDisabled: { opacity: 0.6 },
   checkoutText: { color: colors.white, fontSize: fonts.large, fontWeight: 'bold' },
+  savedCardsSection: { marginTop: 12, gap: 6 },
+  savedCardsTitle: { fontSize: fonts.small, fontWeight: '600', color: colors.textLight, marginBottom: 4 },
+  savedCardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.grayLight,
+  },
+  savedCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '08',
+  },
+  savedCardText: { fontSize: fonts.regular, fontWeight: '600', color: colors.text },
+  savedCardHolder: { fontSize: fonts.small, color: colors.textLight, marginTop: 2 },
+  manageCardsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 8,
+  },
+  manageCardsText: { fontSize: fonts.small, color: colors.primary, fontWeight: '600' },
 });

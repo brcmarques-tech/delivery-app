@@ -39,7 +39,7 @@ A plataforma e operada por BCM TECH, inscrita no CNPJ sob o n. 59.858.037/0001-0
 
 3. PEDIDOS E PAGAMENTOS
 3.1. Ao confirmar um pedido, o Cliente assume o compromisso de pagamento conforme o metodo selecionado.
-3.2. Os pagamentos sao processados pelo Mercado Pago, intermediador autorizado pelo Banco Central do Brasil.
+3.2. Os pagamentos sao processados pelo Pagar.me, intermediador autorizado pelo Banco Central do Brasil.
 3.3. Cancelamentos e estornos seguem as politicas do Codigo de Defesa do Consumidor (Lei 8.078/90).
 
 4. ENTREGAS
@@ -102,8 +102,8 @@ O cadastro como entregador NAO configura vinculo empregaticio com a plataforma (
 6.3. O entregador deve manter seus dados cadastrais atualizados.
 
 7. PAGAMENTOS
-7.1. Os valores das entregas sao repassados via Mercado Pago.
-7.2. O entregador deve conectar sua conta do Mercado Pago para receber os pagamentos.
+7.1. Os valores das entregas sao repassados via Pagar.me.
+7.2. O entregador deve conectar sua conta do Pagar.me para receber os pagamentos.
 
 8. PROTECAO DE DADOS
 As informacoes pessoais sao tratadas conforme a LGPD (Lei 13.709/18).
@@ -133,7 +133,7 @@ Operada por BCM TECH, CNPJ 59.858.037/0001-06, Arroio Grande - RS.
 
 3. PAGAMENTOS E COMISSOES
 3.1. A Empresa cobra comissao conforme o plano contratado.
-3.2. Pagamentos processados pelo Mercado Pago.
+3.2. Pagamentos processados pelo Pagar.me.
 
 4. PROTECAO DE DADOS (LGPD)
 Dados tratados conforme Lei 13.709/2018.

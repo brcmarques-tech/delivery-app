@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
@@ -100,28 +100,15 @@ export default function OrderDetailScreen() {
         </View>
       )}
 
-      {isAwaitingPayment && order.paymentMethod === 'PIX' && order.pixQrCode && (
-        <View style={styles.pixSection}>
-          <Text style={styles.pixTitle}>Pague com PIX</Text>
-          {order.pixQrCodeBase64 ? (
-            <Image
-              source={{ uri: `data:image/png;base64,${order.pixQrCodeBase64}` }}
-              style={styles.pixQrImage}
-              resizeMode="contain"
-            />
-          ) : null}
-          <Text style={styles.pixCode} selectable>{order.pixQrCode}</Text>
-          <Text style={styles.pixHint}>Copie o codigo acima e cole no app do seu banco</Text>
-        </View>
-      )}
-
-      {isAwaitingPayment && order.paymentMethod === 'MERCADO_PAGO' && order.checkoutUrl && (
+      {isAwaitingPayment && (order.paymentMethod === 'CREDIT_CARD' || order.paymentMethod === 'PIX') && order.checkoutUrl && (
         <TouchableOpacity
           style={styles.payButton}
           onPress={() => Linking.openURL(order.checkoutUrl)}
         >
-          <Ionicons name="card-outline" size={20} color={colors.white} />
-          <Text style={styles.payButtonText}>Ir para pagamento</Text>
+          <Ionicons name={order.paymentMethod === 'PIX' ? 'qr-code-outline' : 'card-outline'} size={20} color={colors.white} />
+          <Text style={styles.payButtonText}>
+            {order.paymentMethod === 'PIX' ? 'Pagar com PIX' : 'Ir para pagamento'}
+          </Text>
         </TouchableOpacity>
       )}
 
@@ -325,27 +312,6 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   paymentBannerText: { fontSize: fonts.regular, fontWeight: '600', color: '#856404' },
-  pixSection: {
-    backgroundColor: colors.white,
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    gap: 12,
-  },
-  pixTitle: { fontSize: fonts.large, fontWeight: 'bold', color: colors.text },
-  pixQrImage: { width: 200, height: 200 },
-  pixCode: {
-    fontSize: fonts.small,
-    color: colors.textLight,
-    backgroundColor: colors.background,
-    padding: 12,
-    borderRadius: 8,
-    textAlign: 'center',
-    width: '100%',
-  },
-  pixHint: { fontSize: fonts.small, color: colors.textLight, textAlign: 'center' },
   payButton: {
     flexDirection: 'row',
     alignItems: 'center',

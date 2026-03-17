@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, Modal, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useLazyQuery, useMutation, useQuery } from '@apollo/client';
+import { useMutation, useQuery } from '@apollo/client';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as staticColors, fonts } from '../../src/theme';
-import { GET_ME, GET_MP_CONNECT_URL } from '../../src/lib/graphql/queries';
-import { DISCONNECT_MP } from '../../src/lib/graphql/mutations';
+import { GET_ME } from '../../src/lib/graphql/queries';
+import { DISCONNECT_PAYMENT } from '../../src/lib/graphql/mutations';
 import AcceptTermsScreen from '../accept-terms';
 
 const roleLabels: Record<string, string> = {
@@ -31,39 +31,35 @@ export default function ProfileScreen() {
   const [showHelp, setShowHelp] = useState(false);
 
   const { data: meData } = useQuery(GET_ME, { fetchPolicy: 'network-only' });
-  const [fetchMpUrl, { loading: mpUrlLoading }] = useLazyQuery(GET_MP_CONNECT_URL);
-  const [disconnectMp, { loading: disconnectLoading }] = useMutation(DISCONNECT_MP);
+  const [disconnectPaymentMut, { loading: disconnectLoading }] = useMutation(DISCONNECT_PAYMENT);
 
-  const mpConnected = meData?.me?.mpConnected ?? user?.mpConnected ?? false;
+  const paymentConnected = meData?.meApp?.paymentConnected ?? user?.paymentConnected ?? false;
 
   useEffect(() => {
-    if (meData?.me && user) {
-      updateUser({ ...user, mpConnected: meData.me.mpConnected });
+    if (meData?.meApp && user) {
+      updateUser({ ...user, paymentConnected: meData.meApp.paymentConnected });
     }
-  }, [meData?.me?.mpConnected]);
+  }, [meData?.meApp?.paymentConnected]);
 
-  async function handleConnectMp() {
-    try {
-      const { data } = await fetchMpUrl();
-      if (data?.mpConnectUrl) {
-        await Linking.openURL(data.mpConnectUrl);
-      }
-    } catch (err) {
-      alert('Erro', 'Nao foi possivel obter o link de conexao. Tente novamente.');
-    }
+  function handleConnectPayment() {
+    alert(
+      'Conectar Pagamento',
+      'Para receber pagamentos de entregas, cadastre-se como recebedor no Pagar.me pelo painel ou entre em contato com o suporte.',
+      [{ text: 'OK' }],
+    );
   }
 
-  function handleDisconnectMp() {
-    alert('Desconectar Mercado Pago', 'Tem certeza? Voce deixara de receber pagamentos de entregas.', [
+  function handleDisconnectPayment() {
+    alert('Desconectar Pagamento', 'Tem certeza? Voce deixara de receber pagamentos de entregas.', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Desconectar',
         style: 'destructive',
         onPress: async () => {
           try {
-            await disconnectMp();
+            await disconnectPaymentMut();
             if (user) {
-              updateUser({ ...user, mpConnected: false });
+              updateUser({ ...user, paymentConnected: false });
             }
           } catch (err) {
             alert('Erro', 'Nao foi possivel desconectar. Tente novamente.');
@@ -108,7 +104,7 @@ export default function ProfileScreen() {
 
   const menuItems = [
     { icon: 'location-outline' as const, label: 'Meus enderecos', onPress: () => router.push('/addresses') },
-    { icon: 'card-outline' as const, label: 'Formas de pagamento', onPress: () => {} },
+    { icon: 'card-outline' as const, label: 'Formas de pagamento', onPress: () => router.push('/cards') },
     { icon: 'help-circle-outline' as const, label: 'Ajuda', onPress: () => setShowHelp(true) },
     { icon: 'document-text-outline' as const, label: 'Termos de uso', onPress: () => setShowTerms(true) },
   ];
@@ -188,32 +184,28 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      {isDeliverer && !mpConnected && (
-        <TouchableOpacity style={[styles.mpBanner, { backgroundColor: colors.card }]} onPress={handleConnectMp} disabled={mpUrlLoading}>
+      {isDeliverer && !paymentConnected && (
+        <TouchableOpacity style={[styles.mpBanner, { backgroundColor: colors.card }]} onPress={handleConnectPayment}>
           <View style={styles.mpBannerIcon}>
-            <Ionicons name="wallet-outline" size={28} color="#009EE3" />
+            <Ionicons name="wallet-outline" size={28} color="#65A300" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.mpBannerTitle}>Conecte seu Mercado Pago</Text>
+            <Text style={styles.mpBannerTitle}>Conectar Pagamento</Text>
             <Text style={[styles.mpBannerSubtitle, { color: colors.textLight }]}>
-              Conecte para receber os valores das entregas diretamente na sua conta
+              Cadastre-se para receber os valores das entregas diretamente na sua conta
             </Text>
           </View>
-          {mpUrlLoading ? (
-            <ActivityIndicator size="small" color="#009EE3" />
-          ) : (
-            <Ionicons name="chevron-forward" size={24} color="#009EE3" />
-          )}
+          <Ionicons name="chevron-forward" size={24} color="#65A300" />
         </TouchableOpacity>
       )}
 
-      {isDeliverer && mpConnected && (
-        <View style={styles.mpConnectedBanner}>
+      {isDeliverer && paymentConnected && (
+        <View style={styles.paymentConnectedBanner}>
           <Ionicons name="checkmark-circle" size={20} color={colors.success} />
           <Text style={[styles.delivererActiveText, { flex: 1 }]}>
-            Mercado Pago conectado
+            Pagamento conectado
           </Text>
-          <TouchableOpacity onPress={handleDisconnectMp} disabled={disconnectLoading}>
+          <TouchableOpacity onPress={handleDisconnectPayment} disabled={disconnectLoading}>
             {disconnectLoading ? (
               <ActivityIndicator size="small" color={colors.danger} />
             ) : (
@@ -324,7 +316,7 @@ export default function ProfileScreen() {
                   { q: 'Como faco um pedido?', a: 'Escolha uma loja, adicione produtos ao carrinho e finalize o pedido escolhendo a forma de pagamento.' },
                   { q: 'Como me torno entregador?', a: 'No seu perfil, clique em "Quero ser entregador" e preencha o cadastro. Apos aprovacao, voce podera fazer entregas.' },
                   { q: 'Como acompanho meu pedido?', a: 'Apos realizar o pedido, voce pode acompanhar o status em tempo real na aba "Pedidos".' },
-                  { q: 'Como conecto meu Mercado Pago?', a: 'Se voce e entregador, va no perfil e clique em "Conecte seu Mercado Pago" para receber pagamentos das entregas.' },
+                  { q: 'Como conecto meu pagamento?', a: 'Se voce e entregador, va no perfil e clique em "Conectar Pagamento" para saber como receber os valores das entregas.' },
                 ].map((item, i) => (
                   <View key={i} style={[styles.helpFaqItem, { borderBottomColor: colors.grayLight }]}>
                     <Text style={[styles.helpFaqQuestion, { color: colors.text }]}>{item.q}</Text>
@@ -481,7 +473,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: '#009EE3' + '30',
+    borderColor: '#65A300' + '30',
     borderStyle: 'dashed',
     gap: 12,
   },
@@ -489,21 +481,21 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#009EE3' + '15',
+    backgroundColor: '#65A300' + '15',
     justifyContent: 'center',
     alignItems: 'center',
   },
   mpBannerTitle: {
     fontSize: fonts.regular,
     fontWeight: 'bold',
-    color: '#009EE3',
+    color: '#65A300',
   },
   mpBannerSubtitle: {
     fontSize: fonts.small,
     color: staticColors.textLight,
     marginTop: 2,
   },
-  mpConnectedBanner: {
+  paymentConnectedBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

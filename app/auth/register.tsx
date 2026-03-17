@@ -49,7 +49,7 @@ A plataforma e operada por BCM TECH, inscrita no CNPJ sob o n. 59.858.037/0001-0
 
 3. PEDIDOS E PAGAMENTOS
 3.1. Ao confirmar um pedido, o Cliente assume o compromisso de pagamento conforme o metodo selecionado.
-3.2. Os pagamentos sao processados pelo Mercado Pago, intermediador autorizado pelo Banco Central do Brasil.
+3.2. Os pagamentos sao processados pelo Pagar.me, intermediador autorizado pelo Banco Central do Brasil.
 3.3. Cancelamentos e estornos seguem as politicas do Codigo de Defesa do Consumidor (Lei 8.078/90).
 
 4. ENTREGAS

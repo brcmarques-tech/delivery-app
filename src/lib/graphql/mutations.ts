@@ -88,8 +88,6 @@ export const CREATE_ORDER = gql`
       total
       paymentMethod
       checkoutUrl
-      pixQrCode
-      pixQrCodeBase64
       createdAt
     }
   }
@@ -182,9 +180,28 @@ export const DELETE_ADDRESS = gql`
   }
 `;
 
-export const DISCONNECT_MP = gql`
-  mutation DisconnectMercadoPago {
-    disconnectMercadoPago
+export const DISCONNECT_PAYMENT = gql`
+  mutation DisconnectPayment {
+    disconnectPayment
+  }
+`;
+
+export const SAVE_CARD = gql`
+  mutation SaveCard($token: String!) {
+    saveCard(token: $token) {
+      id
+      lastFourDigits
+      brand
+      holderName
+      expMonth
+      expYear
+    }
+  }
+`;
+
+export const DELETE_CARD = gql`
+  mutation DeleteCard($cardId: String!) {
+    deleteCard(cardId: $cardId)
   }
 `;
 

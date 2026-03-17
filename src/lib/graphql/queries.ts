@@ -46,7 +46,7 @@ export const GET_STORE = gql`
       bannerUrl
       isOpen
       hasOwnDelivery
-      ownerMpConnected
+      ownerPaymentConnected
       freeDelivery
       freeDeliveryAbove
       deliveryFee
@@ -210,7 +210,7 @@ export const GET_ME = gql`
       pendingRole
       rejectedAt
       rejectionReason
-      mpConnected
+      paymentConnected
       acceptedTermsAt
       emailVerified
       phoneVerified
@@ -224,9 +224,16 @@ export const GET_CONTRACT_CONTENT = gql`
   }
 `;
 
-export const GET_MP_CONNECT_URL = gql`
-  query MpConnectUrl {
-    mpConnectUrl(source: "app")
+export const LIST_MY_CARDS = gql`
+  query MyCards {
+    myCards {
+      id
+      lastFourDigits
+      brand
+      holderName
+      expMonth
+      expYear
+    }
   }
 `;
 
