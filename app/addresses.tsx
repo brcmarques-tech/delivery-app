@@ -15,9 +15,11 @@ import * as Location from 'expo-location';
 import { GET_MY_ADDRESSES } from '../src/lib/graphql/queries';
 import { CREATE_ADDRESS, SET_DEFAULT_ADDRESS, DELETE_ADDRESS } from '../src/lib/graphql/mutations';
 import { useAlert } from '../src/contexts/AlertContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../src/theme';
 
 export default function AddressesScreen() {
+  const insets = useSafeAreaInsets();
   const { data, loading, refetch } = useQuery(GET_MY_ADDRESSES);
   const [createAddress] = useMutation(CREATE_ADDRESS);
   const [setDefault] = useMutation(SET_DEFAULT_ADDRESS);
@@ -161,7 +163,7 @@ export default function AddressesScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>

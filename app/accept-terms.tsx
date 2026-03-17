@@ -18,6 +18,7 @@ import { ACCEPT_TERMS } from '../src/lib/graphql/mutations';
 import { GET_CONTRACT_CONTENT } from '../src/lib/graphql/queries';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useAlert } from '../src/contexts/AlertContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../src/theme';
 
 const DEFAULT_CUSTOMER_CONTRACT = `TERMOS DE USO — BCM TECH DELIVERY (CLIENTE)
@@ -177,6 +178,7 @@ interface AcceptTermsScreenProps {
 export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScreenProps) {
   const { user, updateUser } = useAuth();
   const { alert } = useAlert();
+  const insets = useSafeAreaInsets();
   const [scrolledToEnd, setScrolledToEnd] = useState(false);
   const [checked, setChecked] = useState(false);
   const [acceptTerms, { loading }] = useMutation(ACCEPT_TERMS);
@@ -254,9 +256,9 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         {readOnly && onClose && (
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <TouchableOpacity style={[styles.closeButton, { top: insets.top + 12 }]} onPress={onClose}>
             <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
         )}
@@ -272,7 +274,7 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
       {/* Contract body */}
       <ScrollView
         style={styles.contractScroll}
-        contentContainerStyle={styles.contractContent}
+        contentContainerStyle={[styles.contractContent, { paddingBottom: insets.bottom + 16 }]}
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
@@ -290,7 +292,7 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
 
       {/* Footer */}
       {readOnly ? (
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
           <TouchableOpacity style={styles.pdfButton} onPress={handleDownloadPdf}>
             <Ionicons name="download-outline" size={20} color={colors.primary} />
             <Text style={styles.pdfButtonText}>Baixar contrato em PDF</Text>
@@ -300,7 +302,7 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
           {!scrolledToEnd && (
             <Text style={styles.scrollHint}>
               Role ate o final do contrato para poder aceitar.

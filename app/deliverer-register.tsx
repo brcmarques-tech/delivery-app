@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { REGISTER_AS_DELIVERER, UPLOAD_IMAGE } from '../src/lib/graphql/mutations';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useAlert } from '../src/contexts/AlertContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../src/theme';
 
 const vehicleTypes = [
@@ -46,6 +47,7 @@ Ao se cadastrar como entregador na plataforma bcmTech Delivery, você declara es
 Ao prosseguir com o cadastro, você declara ter lido, compreendido e concordado com todos os termos acima.`;
 
 export default function DelivererRegisterScreen() {
+  const insets = useSafeAreaInsets();
   const { updateUser } = useAuth();
   const { alert } = useAlert();
   const [birthDate, setBirthDate] = useState('');
@@ -197,7 +199,7 @@ export default function DelivererRegisterScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}>
       <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/')}>
         <Ionicons name="arrow-back" size={24} color={colors.text} />
       </TouchableOpacity>

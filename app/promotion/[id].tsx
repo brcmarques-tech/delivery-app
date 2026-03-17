@@ -14,11 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { GET_ACTIVE_PROMOTIONS } from '../../src/lib/graphql/queries';
 import { useCart } from '../../src/contexts/CartContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as staticColors, fonts } from '../../src/theme';
 
 const { width } = Dimensions.get('window');
 
 export default function PromotionScreen() {
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
   const { addItem, storeId: cartStoreId, itemCount } = useCart();
@@ -29,7 +31,7 @@ export default function PromotionScreen() {
   if (!promo) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { top: insets.top + 8 }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
@@ -75,7 +77,7 @@ export default function PromotionScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Top bar */}
-      <View style={[styles.topBar, { backgroundColor: 'transparent' }]}>
+      <View style={[styles.topBar, { backgroundColor: 'transparent', top: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
           <Ionicons name="arrow-back" size={22} color="#FFF" />
         </TouchableOpacity>
@@ -226,7 +228,7 @@ export default function PromotionScreen() {
 
       {/* Bottom CTA */}
       {promo.product && promo.store?.isOpen && (
-        <View style={[styles.bottomBar, { backgroundColor: colors.card }]}>
+        <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: insets.bottom + 16 }]}>
           {canAddToCart ? (
             <TouchableOpacity style={styles.addButton} onPress={handleAddToCart}>
               <Ionicons name="cart-outline" size={20} color="#FFF" />

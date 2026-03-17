@@ -12,12 +12,14 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { GET_STORES } from '../../src/lib/graphql/queries';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as staticColors, fonts } from '../../src/theme';
 
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const { data } = useQuery(GET_STORES);
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const stores = (data?.stores || []).filter((s: any) =>
     s.name.toLowerCase().includes(query.toLowerCase()),
@@ -25,7 +27,7 @@ export default function SearchScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.white }]}>
+      <View style={[styles.header, { backgroundColor: colors.white, paddingTop: insets.top + 12 }]}>
         <Text style={[styles.title, { color: colors.text }]}>Buscar</Text>
         <View style={[styles.searchBox, { backgroundColor: colors.grayLight }]}>
           <Ionicons name="search" size={20} color={colors.gray} />
