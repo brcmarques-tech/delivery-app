@@ -34,7 +34,7 @@ export default function StoreScreen() {
     variables: { storeId: id },
     onData: () => { refetch(); },
   });
-  const { addItem, storeId, itemCount, total } = useCart();
+  const { addItem, itemCount } = useCart();
   const { alert } = useAlert();
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -69,24 +69,6 @@ export default function StoreScreen() {
   }
 
   function openProductModal(product: any) {
-    if (storeId && storeId !== id) {
-      alert(
-        'Limpar carrinho?',
-        'Voce ja tem itens de outra loja. Deseja limpar e adicionar deste?',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Limpar e adicionar',
-            onPress: () => {
-              setSelectedProduct(product);
-              setQuantity(1);
-              setWeightGrams(500);
-            },
-          },
-        ],
-      );
-      return;
-    }
     setSelectedProduct(product);
     setQuantity(1);
     setWeightGrams(500);
@@ -94,33 +76,10 @@ export default function StoreScreen() {
 
   function confirmAdd() {
     if (!selectedProduct) return;
-    const price = Number(selectedProduct.promotionalPrice || selectedProduct.price);
     if (selectedProduct.isVariableWeight) {
-      addItem(
-        {
-          productId: selectedProduct.id,
-          name: selectedProduct.name,
-          price,
-          quantity: 1,
-          imageUrl: selectedProduct.imageUrl,
-          isVariableWeight: true,
-          weightGrams,
-        },
-        id!,
-        store.name,
-      );
+      addItem(selectedProduct.id, 1, undefined, weightGrams);
     } else {
-      addItem(
-        {
-          productId: selectedProduct.id,
-          name: selectedProduct.name,
-          price,
-          quantity,
-          imageUrl: selectedProduct.imageUrl,
-        },
-        id!,
-        store.name,
-      );
+      addItem(selectedProduct.id, quantity);
     }
     setSelectedProduct(null);
   }
@@ -174,7 +133,9 @@ export default function StoreScreen() {
         renderSectionHeader={({ section }) => (
           <Text style={styles.sectionTitle}>{section.title}</Text>
         )}
-        renderItem={({ item }) => (
+        renderItem={({ item }) => {
+          const itemPrice = Number(item.promotionalPrice || item.price);
+          return (
           <TouchableOpacity
             style={styles.productCard}
             onPress={() => store.isOpen && openProductModal(item)}
@@ -187,27 +148,39 @@ export default function StoreScreen() {
               ) : null}
               <View style={styles.priceRow}>
                 {item.isVariableWeight ? (
-                  <Text style={styles.price}>R$ {Number(item.promotionalPrice || item.price).toFixed(2)}/kg</Text>
+                  <Text style={styles.price}>R$ {itemPrice.toFixed(2)}/kg</Text>
                 ) : item.promotionalPrice ? (
                   <>
                     <Text style={styles.priceOld}>R$ {Number(item.price).toFixed(2)}</Text>
-                    <Text style={styles.price}>R$ {Number(item.promotionalPrice).toFixed(2)}</Text>
+                    <Text style={styles.price}>R$ {itemPrice.toFixed(2)}</Text>
                   </>
                 ) : (
-                  <Text style={styles.price}>R$ {Number(item.price).toFixed(2)}</Text>
+                  <Text style={styles.price}>R$ {itemPrice.toFixed(2)}</Text>
                 )}
                 {!item.isVariableWeight && item.unit && <Text style={styles.unit}>/ {item.unit}</Text>}
               </View>
             </View>
-            {item.imageUrl ? (
-              <TouchableOpacity activeOpacity={0.8} onPress={() => setZoomedImage(item.imageUrl)}>
-                <Image source={{ uri: item.imageUrl }} style={styles.productImage} />
-              </TouchableOpacity>
-            ) : (
-              <View style={[styles.productImage, styles.productImagePlaceholder]}>
-                <Ionicons name="fast-food-outline" size={24} color={colors.gray} />
-              </View>
-            )}
+            <View style={styles.productRight}>
+              {item.imageUrl ? (
+                <TouchableOpacity activeOpacity={0.8} onPress={() => setZoomedImage(item.imageUrl)}>
+                  <Image source={{ uri: item.imageUrl }} style={styles.productImage} />
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.productImage, styles.productImagePlaceholder]}>
+                  <Ionicons name="fast-food-outline" size={24} color={colors.gray} />
+                </View>
+              )}
+              {store.isOpen && item.isAvailable && !item.isVariableWeight && (
+                <TouchableOpacity
+                  style={styles.quickAddBtn}
+                  onPress={() => {
+                    addItem(item.id, 1);
+                  }}
+                >
+                  <Ionicons name="add" size={20} color={colors.white} />
+                </TouchableOpacity>
+              )}
+            </View>
             {!item.isAvailable && (
               <View style={styles.unavailable}>
                 <View style={styles.unavailableBadge}>
@@ -217,16 +190,16 @@ export default function StoreScreen() {
               </View>
             )}
           </TouchableOpacity>
-        )}
+          );
+        }}
       />
 
-      {itemCount > 0 && storeId === id && (
-        <TouchableOpacity style={[styles.cartBar, { bottom: insets.bottom + 24 }]} onPress={() => router.push('/cart')}>
+      {itemCount > 0 && (
+        <TouchableOpacity style={[styles.cartBar, { bottom: insets.bottom + 24 }]} onPress={() => router.push('/(tabs)/cart')}>
           <View style={styles.cartBadge}>
             <Text style={styles.cartBadgeText}>{itemCount}</Text>
           </View>
           <Text style={styles.cartBarText}>Ver carrinho</Text>
-          <Text style={styles.cartBarTotal}>R$ {total.toFixed(2)}</Text>
         </TouchableOpacity>
       )}
 
@@ -386,8 +359,18 @@ const styles = StyleSheet.create({
   price: { fontSize: fonts.regular, fontWeight: 'bold', color: colors.primary },
   priceOld: { fontSize: fonts.small, color: colors.gray, textDecorationLine: 'line-through' },
   unit: { fontSize: fonts.small, color: colors.textLight },
-  productImage: { width: 72, height: 72, borderRadius: 8, marginLeft: 12 },
+  productRight: { alignItems: 'center', marginLeft: 12 },
+  productImage: { width: 72, height: 72, borderRadius: 8 },
   productImagePlaceholder: { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' },
+  quickAddBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 6,
+  },
   unavailable: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(255,255,255,0.75)',

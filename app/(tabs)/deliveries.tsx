@@ -23,9 +23,28 @@ import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscript
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../src/theme';
 
-function openNavigation(lat: number, lng: number, label: string) {
-  const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-  Linking.openURL(url);
+async function openNavigation(lat: number, lng: number, label: string) {
+  const googleMapsUrl = Platform.select({
+    ios: `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
+    default: `google.navigation:q=${lat},${lng}`,
+  });
+  const wazeUrl = `waze://?ll=${lat},${lng}&navigate=yes`;
+  const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+
+  const canOpenWaze = await Linking.canOpenURL(wazeUrl).catch(() => false);
+  const canOpenGoogle = await Linking.canOpenURL(googleMapsUrl).catch(() => false);
+
+  if (canOpenGoogle && canOpenWaze) {
+    // Ambos disponíveis — abre Google Maps por padrão (mais comum)
+    // O usuário pode trocar no próprio celular
+    Linking.openURL(googleMapsUrl);
+  } else if (canOpenGoogle) {
+    Linking.openURL(googleMapsUrl);
+  } else if (canOpenWaze) {
+    Linking.openURL(wazeUrl);
+  } else {
+    Linking.openURL(webUrl);
+  }
 }
 
 const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';

@@ -105,6 +105,8 @@ export const REGISTER_AS_DELIVERER = gql`
       vehicleType
       vehiclePlate
       identityPhotoUrl
+      identityPhotoBackUrl
+      profilePhotoUrl
       birthDate
       cnhNumber
       acceptedTermsAt
@@ -174,6 +176,15 @@ export const SET_DEFAULT_ADDRESS = gql`
   }
 `;
 
+export const UPDATE_ADDRESS = gql`
+  mutation UpdateAddress($input: UpdateAddressInput!) {
+    updateAddress(input: $input) {
+      id street number complement neighborhood city state zipCode
+      latitude longitude isDefault
+    }
+  }
+`;
+
 export const DELETE_ADDRESS = gql`
   mutation DeleteAddress($id: String!) {
     deleteAddress(id: $id)
@@ -202,6 +213,14 @@ export const SAVE_CARD = gql`
 export const DELETE_CARD = gql`
   mutation DeleteCard($cardId: String!) {
     deleteCard(cardId: $cardId)
+  }
+`;
+
+export const UPDATE_APP_PROFILE = gql`
+  mutation UpdateAppProfile($name: String, $phone: String, $avatarUrl: String) {
+    updateAppProfile(name: $name, phone: $phone, avatarUrl: $avatarUrl) {
+      id name phone avatarUrl
+    }
   }
 `;
 
@@ -251,6 +270,78 @@ export const GOOGLE_AUTH_APP = gql`
         rejectedAt rejectionReason acceptedTermsAt
         emailVerified phoneVerified
       }
+    }
+  }
+`;
+
+// Cart
+export const ADD_TO_CART = gql`
+  mutation AddToCart($input: AddToCartInput!) {
+    addToCart(input: $input) {
+      id
+      quantity
+      notes
+      weightGrams
+      product {
+        id
+        name
+        price
+        promotionalPrice
+        imageUrl
+        isVariableWeight
+        unit
+      }
+      store {
+        id
+        name
+      }
+    }
+  }
+`;
+
+export const UPDATE_CART_ITEM = gql`
+  mutation UpdateCartItem($input: UpdateCartItemInput!) {
+    updateCartItem(input: $input) {
+      id
+      quantity
+      notes
+      weightGrams
+    }
+  }
+`;
+
+export const REMOVE_FROM_CART = gql`
+  mutation RemoveFromCart($cartItemId: String!) {
+    removeFromCart(cartItemId: $cartItemId)
+  }
+`;
+
+export const CLEAR_CART = gql`
+  mutation ClearCart {
+    clearCart
+  }
+`;
+
+export const CLEAR_CART_BY_STORE = gql`
+  mutation ClearCartByStore($storeId: String!) {
+    clearCartByStore(storeId: $storeId)
+  }
+`;
+
+export const VALIDATE_FACE_PHOTO = gql`
+  mutation ValidateFacePhoto($imageUrl: String!) {
+    validateFacePhoto(imageUrl: $imageUrl) {
+      valid
+      message
+    }
+  }
+`;
+
+export const VALIDATE_DOCUMENT_PHOTO = gql`
+  mutation ValidateDocumentPhoto($imageUrl: String!) {
+    validateDocumentPhoto(imageUrl: $imageUrl) {
+      valid
+      message
     }
   }
 `;

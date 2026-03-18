@@ -12,7 +12,7 @@ import {
   Image,
   Platform,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation } from '@apollo/client';
 import * as Print from 'expo-print';
@@ -134,6 +134,11 @@ export default function RegisterScreen() {
   const { register, registerWithGoogle } = useAuth();
   const { alert } = useAlert();
   const insets = useSafeAreaInsets();
+  const routeParams = useLocalSearchParams<{
+    googleName?: string;
+    googleEmail?: string;
+    googleAccessToken?: string;
+  }>();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -149,6 +154,16 @@ export default function RegisterScreen() {
   const [isGoogleRegister, setIsGoogleRegister] = useState(false);
   const [googleIdToken, setGoogleIdToken] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Pick up Google data from route params (redirect from google-auth.tsx)
+  useEffect(() => {
+    if (routeParams.googleName && routeParams.googleEmail && routeParams.googleAccessToken) {
+      setName(routeParams.googleName);
+      setEmail(routeParams.googleEmail);
+      setGoogleIdToken(routeParams.googleAccessToken);
+      setIsGoogleRegister(true);
+    }
+  }, [routeParams.googleName, routeParams.googleEmail, routeParams.googleAccessToken]);
 
   async function handleGoogleRegister() {
     setGoogleLoading(true);

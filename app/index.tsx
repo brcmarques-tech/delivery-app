@@ -1,15 +1,16 @@
 import { Redirect } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useQuery } from '@apollo/client';
-import { View, ActivityIndicator } from 'react-native';
 import { GET_MY_ADDRESSES } from '../src/lib/graphql/queries';
-import { colors } from '../src/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState } from 'react';
+import * as SplashScreen from 'expo-splash-screen';
+import { useEffect, useState, useCallback } from 'react';
+import { SplashLoading } from '../src/components/SplashLoading';
 
 export default function Index() {
   const { user, loading } = useAuth();
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
+  const [splashHidden, setSplashHidden] = useState(false);
 
   const { data: addrData, loading: addrLoading, error: addrError } = useQuery(GET_MY_ADDRESSES, {
     skip: !user,
@@ -22,12 +23,16 @@ export default function Index() {
     });
   }, []);
 
+  // Hide native splash as soon as our custom splash renders
+  const onSplashReady = useCallback(() => {
+    if (!splashHidden) {
+      setSplashHidden(true);
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [splashHidden]);
+
   if (loading || onboardingDone === null) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
+    return <SplashLoading onReady={onSplashReady} />;
   }
 
   if (!user) {

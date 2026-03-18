@@ -77,6 +77,56 @@ export const GET_STORE = gql`
   }
 `;
 
+export const GET_MY_CART = gql`
+  query MyCart {
+    myCart {
+      id
+      quantity
+      notes
+      weightGrams
+      product {
+        id
+        name
+        price
+        promotionalPrice
+        imageUrl
+        isAvailable
+        isVariableWeight
+        unit
+      }
+      store {
+        id
+        name
+      }
+    }
+  }
+`;
+
+export const GET_MY_CART_BY_STORE = gql`
+  query MyCartByStore($storeId: String!) {
+    myCartByStore(storeId: $storeId) {
+      id
+      quantity
+      notes
+      weightGrams
+      product {
+        id
+        name
+        price
+        promotionalPrice
+        imageUrl
+        isAvailable
+        isVariableWeight
+        unit
+      }
+      store {
+        id
+        name
+      }
+    }
+  }
+`;
+
 export const GET_MY_ORDERS = gql`
   query MyOrders {
     myOrders {
@@ -191,6 +241,12 @@ export const CALCULATE_DELIVERY_FEE = gql`
   }
 `;
 
+export const GET_MINIMUM_ORDER_PLATFORM = gql`
+  query MinimumOrderPlatform {
+    minimumOrderPlatform
+  }
+`;
+
 export const ESTIMATE_DELIVERY_TIME = gql`
   query EstimateDeliveryTime($storeId: String!, $customerLatitude: Float!, $customerLongitude: Float!) {
     estimatedDeliveryTime(storeId: $storeId, customerLatitude: $customerLatitude, customerLongitude: $customerLongitude)
@@ -214,6 +270,7 @@ export const GET_ME = gql`
       acceptedTermsAt
       emailVerified
       phoneVerified
+      avatarUrl
     }
   }
 `;

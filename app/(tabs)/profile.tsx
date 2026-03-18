@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, Modal, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, Modal, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMutation, useQuery } from '@apollo/client';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as staticColors, fonts } from '../../src/theme';
 import { GET_ME } from '../../src/lib/graphql/queries';
-import { DISCONNECT_PAYMENT } from '../../src/lib/graphql/mutations';
+import { DISCONNECT_PAYMENT, UPLOAD_IMAGE, UPDATE_APP_PROFILE } from '../../src/lib/graphql/mutations';
 import AcceptTermsScreen from '../accept-terms';
 
 const roleLabels: Record<string, string> = {
@@ -30,9 +31,14 @@ export default function ProfileScreen() {
   const [showTerms, setShowTerms] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
-  const { data: meData } = useQuery(GET_ME, { fetchPolicy: 'network-only' });
+  const { data: meData, refetch: refetchMe } = useQuery(GET_ME, { fetchPolicy: 'network-only' });
   const [disconnectPaymentMut, { loading: disconnectLoading }] = useMutation(DISCONNECT_PAYMENT);
+  const [uploadImage] = useMutation(UPLOAD_IMAGE);
+  const [updateProfile] = useMutation(UPDATE_APP_PROFILE);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
+  const avatarUrl = meData?.meApp?.avatarUrl || null;
   const paymentConnected = meData?.meApp?.paymentConnected ?? user?.paymentConnected ?? false;
 
   useEffect(() => {
@@ -102,6 +108,71 @@ export default function ProfileScreen() {
     ]);
   }
 
+  function pickFromGallery() {
+    setShowAvatarPicker(false);
+    setTimeout(async () => {
+      try {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) return;
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.5,
+          base64: true,
+          presentationStyle: ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN,
+        });
+        if (!result.canceled && result.assets[0].base64) {
+          uploadAvatar(`data:image/jpeg;base64,${result.assets[0].base64}`);
+        }
+      } catch {}
+    }, 400);
+  }
+
+  function pickFromCamera() {
+    setShowAvatarPicker(false);
+    setTimeout(async () => {
+      try {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) return;
+        const result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.5,
+          base64: true,
+        });
+        if (!result.canceled && result.assets[0].base64) {
+          uploadAvatar(`data:image/jpeg;base64,${result.assets[0].base64}`);
+        }
+      } catch {}
+    }, 400);
+  }
+
+  async function uploadAvatar(base64: string) {
+    setUploadingAvatar(true);
+    try {
+      const { data } = await uploadImage({ variables: { base64, folder: 'avatars' } });
+      const url = data?.uploadImage;
+      if (url) {
+        await updateProfile({
+          variables: { avatarUrl: url },
+          update: (cache) => {
+            const existing: any = cache.readQuery({ query: GET_ME });
+            if (existing?.meApp) {
+              cache.writeQuery({
+                query: GET_ME,
+                data: { meApp: { ...existing.meApp, avatarUrl: url } },
+              });
+            }
+          },
+        });
+      }
+    } catch {
+      alert('Erro', 'Nao foi possivel atualizar a foto.');
+    }
+    setUploadingAvatar(false);
+  }
+
   const menuItems = [
     { icon: 'location-outline' as const, label: 'Meus enderecos', onPress: () => router.push('/addresses') },
     { icon: 'card-outline' as const, label: 'Formas de pagamento', onPress: () => router.push('/cards') },
@@ -112,11 +183,24 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.white, paddingTop: insets.top + 12 }]}>
-        <View style={[styles.avatar, isDeliverer && { backgroundColor: colors.success }]}>
-          <Text style={[styles.avatarText, { color: '#FFFFFF' }]}>
-            {user?.name?.charAt(0).toUpperCase()}
-          </Text>
-        </View>
+        <TouchableOpacity onPress={() => setShowAvatarPicker(true)} disabled={uploadingAvatar} activeOpacity={0.7}>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+          ) : (
+            <View style={[styles.avatar, isDeliverer && { backgroundColor: colors.success }]}>
+              <Text style={[styles.avatarText, { color: '#FFFFFF' }]}>
+                {user?.name?.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          <View style={[styles.avatarEditBadge, { backgroundColor: colors.primary }]}>
+            {uploadingAvatar ? (
+              <ActivityIndicator size={12} color="#FFF" />
+            ) : (
+              <Ionicons name="camera" size={14} color="#FFF" />
+            )}
+          </View>
+        </TouchableOpacity>
         <Text style={[styles.name, { color: colors.text }]}>{user?.name}</Text>
         <Text style={[styles.email, { color: colors.textLight }]}>{user?.email}</Text>
       </View>
@@ -252,6 +336,29 @@ export default function ProfileScreen() {
         <Text style={styles.logoutText}>Sair da conta</Text>
       </TouchableOpacity>
 
+      <Modal visible={showAvatarPicker} transparent animationType="fade" onRequestClose={() => setShowAvatarPicker(false)}>
+        <TouchableOpacity
+          style={styles.avatarPickerOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAvatarPicker(false)}
+        >
+          <View style={[styles.avatarPickerSheet, { backgroundColor: colors.card }]}>
+            <View style={styles.avatarPickerHandle} />
+            <View style={styles.avatarPickerOptions}>
+              <TouchableOpacity style={[styles.avatarPickerOption, { backgroundColor: colors.primary + '15' }]} onPress={pickFromGallery}>
+                <Ionicons name="images" size={28} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.avatarPickerOption, { backgroundColor: colors.primary + '15' }]} onPress={pickFromCamera}>
+                <Ionicons name="camera" size={28} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.avatarPickerOption, { backgroundColor: colors.danger + '15' }]} onPress={() => setShowAvatarPicker(false)}>
+                <Ionicons name="close" size={28} color={colors.danger} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <Modal visible={showTerms} animationType="slide">
         <AcceptTermsScreen readOnly onClose={() => setShowTerms(false)} />
       </Modal>
@@ -355,6 +462,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarText: { fontSize: 28, fontWeight: 'bold', color: staticColors.white },
+  avatarImage: { width: 72, height: 72, borderRadius: 36 },
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: staticColors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: staticColors.white,
+  },
   name: { fontSize: fonts.xlarge, fontWeight: 'bold', color: staticColors.text, marginTop: 12 },
   email: { fontSize: fonts.regular, color: staticColors.textLight, marginTop: 4 },
   roleBadge: {
@@ -544,4 +665,35 @@ const styles = StyleSheet.create({
   helpFaqAnswer: { fontSize: fonts.small, lineHeight: 20 },
   helpFooter: { marginTop: 16, alignItems: 'center' },
   helpFooterText: { fontSize: fonts.small },
+  avatarPickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  avatarPickerSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 32,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  avatarPickerHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: staticColors.grayLight,
+    marginBottom: 24,
+  },
+  avatarPickerOptions: {
+    flexDirection: 'row',
+    gap: 24,
+  },
+  avatarPickerOption: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });

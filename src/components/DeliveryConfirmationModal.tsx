@@ -6,6 +6,7 @@ import {
   Modal,
   TouchableOpacity,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useQuery, useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
@@ -109,7 +110,7 @@ export function DeliveryConfirmationModal() {
   };
 
   return (
-    <Modal visible transparent animationType="slide" statusBarTranslucent>
+    <Modal visible transparent animationType="slide" {...(Platform.OS !== 'web' && { statusBarTranslucent: true })}>
       <View style={styles.overlay}>
         <View style={styles.card}>
           <View style={styles.iconWrapper}>

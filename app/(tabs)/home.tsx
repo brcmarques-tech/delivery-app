@@ -16,7 +16,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { GET_STORES, GET_ACTIVE_PROMOTIONS, GET_NEARBY_STORES } from '../../src/lib/graphql/queries';
 import { STORE_UPDATED, PROMOTION_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { useCart } from '../../src/contexts/CartContext';
 import { useLocation } from '../../src/contexts/LocationContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -24,7 +23,6 @@ import { colors as staticColors, fonts } from '../../src/theme';
 
 export default function HomeScreen() {
   const { user } = useAuth();
-  const { itemCount } = useCart();
   const { location } = useLocation();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -114,7 +112,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       )}
       <View style={[styles.header, { backgroundColor: colors.white, paddingTop: insets.top + 12 }]}>
-        <View>
+        <View style={{ flex: 1 }}>
           <View style={styles.logoWrapper}>
             <Text style={styles.logoBcm}>BCM TECH</Text>
             <View style={styles.logoCenter}>
@@ -125,14 +123,12 @@ export default function HomeScreen() {
           <Text style={[styles.greeting, { color: colors.text }]}>Ola, {user?.name?.split(' ')[0]}!</Text>
           <Text style={[styles.headerSub, { color: colors.textLight }]}>O que vai pedir hoje?</Text>
         </View>
-        {itemCount > 0 && (
-          <TouchableOpacity style={styles.cartButton} onPress={() => router.push('/cart')}>
-            <Ionicons name="cart" size={24} color="#FFFFFF" />
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{itemCount}</Text>
-            </View>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[styles.profileButton, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/(tabs)/profile')}
+        >
+          <Ionicons name="person" size={26} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -219,26 +215,14 @@ const styles = StyleSheet.create({
   logoApp: { fontSize: 14, fontWeight: '600', color: staticColors.textLight, marginLeft: 4 },
   greeting: { fontSize: fonts.xlarge, fontWeight: 'bold', color: staticColors.text },
   headerSub: { fontSize: fonts.regular, color: staticColors.textLight, marginTop: 4 },
-  cartButton: {
-    backgroundColor: staticColors.primary,
+  profileButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    alignSelf: 'center',
   },
-  cartBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: staticColors.danger,
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cartBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: 'bold' },
   list: { padding: 16, gap: 12 },
   storeCard: {
     backgroundColor: staticColors.white,

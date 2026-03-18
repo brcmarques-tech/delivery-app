@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,21 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Modal,
+  FlatList,
+  Dimensions,
+  Platform,
 } from 'react-native';
+
+let MapView: any = View;
+let Marker: any = View;
+let PROVIDER_GOOGLE: any = undefined;
+if (Platform.OS !== 'web') {
+  const maps = require('react-native-maps');
+  MapView = maps.default;
+  Marker = maps.Marker;
+  PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
+}
 import { router } from 'expo-router';
 import { useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,12 +31,22 @@ import { CREATE_ADDRESS } from '../src/lib/graphql/mutations';
 import { useAlert } from '../src/contexts/AlertContext';
 import { colors, fonts } from '../src/theme';
 
+const ESTADOS_BR = [
+  'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
+  'PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO',
+];
+
 export default function OnboardingAddressScreen() {
   const [createAddress] = useMutation(CREATE_ADDRESS);
   const { alert } = useAlert();
 
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [fetchingCep, setFetchingCep] = useState(false);
+  const [showStatePicker, setShowStatePicker] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+  const [geocodingMap, setGeocodingMap] = useState(false);
+  const mapRef = useRef<MapView>(null);
   const [form, setForm] = useState({
     street: '',
     number: '',
@@ -34,6 +58,33 @@ export default function OnboardingAddressScreen() {
     latitude: 0,
     longitude: 0,
   });
+
+  async function handleCepChange(cep: string) {
+    const cleaned = cep.replace(/\D/g, '');
+    setForm((prev) => ({ ...prev, zipCode: cleaned }));
+
+    if (cleaned.length === 8) {
+      setFetchingCep(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`);
+        const data = await res.json();
+        if (!data.erro) {
+          setForm((prev) => ({
+            ...prev,
+            street: data.logradouro || prev.street,
+            neighborhood: data.bairro || prev.neighborhood,
+            city: data.localidade || prev.city,
+            state: data.uf || prev.state,
+            complement: data.complemento || prev.complement,
+          }));
+        }
+      } catch {
+        // silently fail - user can fill manually
+      } finally {
+        setFetchingCep(false);
+      }
+    }
+  }
 
   async function handleGetLocation() {
     setLocating(true);
@@ -74,6 +125,28 @@ export default function OnboardingAddressScreen() {
       alert('Erro', err.message || 'Nao foi possivel obter a localizacao');
     } finally {
       setLocating(false);
+    }
+  }
+
+  async function handleShowMap() {
+    if (!form.street || !form.number || !form.neighborhood || !form.city || !form.state) {
+      alert('Erro', 'Preencha os campos obrigatórios');
+      return;
+    }
+    setGeocodingMap(true);
+    try {
+      if (!form.latitude || !form.longitude) {
+        const query = `${form.street}, ${form.number}, ${form.neighborhood}, ${form.city}, ${form.state}`;
+        const results = await Location.geocodeAsync(query);
+        if (results.length > 0) {
+          setForm((prev) => ({ ...prev, latitude: results[0].latitude, longitude: results[0].longitude }));
+        }
+      }
+      setShowMap(true);
+    } catch {
+      alert('Erro', 'Não foi possível localizar o endereço');
+    } finally {
+      setGeocodingMap(false);
     }
   }
 
@@ -159,6 +232,20 @@ export default function OnboardingAddressScreen() {
       <View style={styles.form}>
         <View style={styles.formRow}>
           <TextInput
+            style={[styles.input, { flex: 1 }]}
+            placeholder="CEP"
+            placeholderTextColor={colors.gray}
+            value={form.zipCode}
+            onChangeText={handleCepChange}
+            keyboardType="numeric"
+            maxLength={8}
+          />
+          {fetchingCep && (
+            <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: -36 }} />
+          )}
+        </View>
+        <View style={styles.formRow}>
+          <TextInput
             style={[styles.input, { flex: 2 }]}
             placeholder="Rua *"
             placeholderTextColor={colors.gray}
@@ -195,37 +282,130 @@ export default function OnboardingAddressScreen() {
             value={form.city}
             onChangeText={(v) => setForm({ ...form, city: v })}
           />
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            placeholder="Estado *"
-            placeholderTextColor={colors.gray}
-            value={form.state}
-            onChangeText={(v) => setForm({ ...form, state: v })}
-          />
+          <TouchableOpacity
+            style={[styles.input, styles.stateSelector, { flex: 1 }]}
+            onPress={() => setShowStatePicker(true)}
+          >
+            <Text style={form.state ? styles.stateText : styles.statePlaceholder}>
+              {form.state || 'UF *'}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color={colors.gray} />
+          </TouchableOpacity>
         </View>
-        <TextInput
-          style={styles.input}
-          placeholder="CEP"
-          placeholderTextColor={colors.gray}
-          value={form.zipCode}
-          onChangeText={(v) => setForm({ ...form, zipCode: v })}
-          keyboardType="numeric"
-        />
       </View>
 
-      <TouchableOpacity
-        style={[styles.saveButton, saving && { opacity: 0.6 }]}
-        onPress={handleSave}
-        disabled={saving}
-      >
-        <Text style={styles.saveButtonText}>
-          {saving ? 'Salvando...' : 'Salvar e continuar'}
-        </Text>
-      </TouchableOpacity>
+      <Modal visible={showStatePicker} transparent animationType="slide">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowStatePicker(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Selecione o estado</Text>
+            <FlatList
+              data={ESTADOS_BR}
+              keyExtractor={(item) => item}
+              numColumns={4}
+              contentContainerStyle={{ gap: 8 }}
+              columnWrapperStyle={{ gap: 8 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.stateChip,
+                    form.state === item && styles.stateChipActive,
+                  ]}
+                  onPress={() => {
+                    setForm((prev) => ({ ...prev, state: item }));
+                    setShowStatePicker(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.stateChipText,
+                      form.state === item && styles.stateChipTextActive,
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
-      <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-        <Text style={styles.skipText}>Pular por enquanto</Text>
-      </TouchableOpacity>
+      {!showMap ? (
+        <>
+          <TouchableOpacity
+            style={[styles.saveButton, geocodingMap && { opacity: 0.6 }]}
+            onPress={handleShowMap}
+            disabled={geocodingMap}
+          >
+            <Text style={styles.saveButtonText}>
+              {geocodingMap ? 'Localizando...' : 'Confirmar no mapa'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+            <Text style={styles.skipText}>Pular por enquanto</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <View style={styles.mapSection}>
+          <Text style={styles.mapTitle}>Confirme a localização</Text>
+          <Text style={styles.mapAddress}>
+            {form.street}, {form.number} — {form.neighborhood}, {form.city}/{form.state}
+          </Text>
+          <Text style={styles.mapHint}>Arraste o pin para ajustar a posição exata</Text>
+
+          {form.latitude && form.longitude ? (
+            <View style={styles.mapContainer}>
+              <MapView
+                ref={mapRef}
+                style={styles.map}
+                mapType="hybrid"
+                initialRegion={{
+                  latitude: form.latitude,
+                  longitude: form.longitude,
+                  latitudeDelta: 0.002,
+                  longitudeDelta: 0.002,
+                }}
+              >
+                <Marker
+                  coordinate={{ latitude: form.latitude, longitude: form.longitude }}
+                  draggable
+                  onDragEnd={(e) => {
+                    const { latitude, longitude } = e.nativeEvent.coordinate;
+                    setForm((prev) => ({ ...prev, latitude, longitude }));
+                  }}
+                />
+              </MapView>
+            </View>
+          ) : (
+            <View style={[styles.mapContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={{ color: colors.textLight }}>Não foi possível localizar o endereço</Text>
+            </View>
+          )}
+
+          <View style={styles.mapButtons}>
+            <TouchableOpacity
+              style={styles.mapBackButton}
+              onPress={() => setShowMap(false)}
+            >
+              <Text style={styles.mapBackButtonText}>Corrigir endereço</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveButton, { flex: 1 }, saving && { opacity: 0.6 }]}
+              onPress={handleSave}
+              disabled={saving}
+            >
+              <Text style={styles.saveButtonText}>
+                {saving ? 'Salvando...' : 'Confirmar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -314,5 +494,104 @@ const styles = StyleSheet.create({
   skipText: {
     color: colors.textLight,
     fontSize: fonts.regular,
+  },
+  stateSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  stateText: {
+    fontSize: fonts.regular,
+    color: colors.text,
+  },
+  statePlaceholder: {
+    fontSize: fonts.regular,
+    color: colors.gray,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    maxHeight: '50%',
+  },
+  modalTitle: {
+    fontSize: fonts.large,
+    fontWeight: 'bold',
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  stateChip: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+  },
+  stateChipActive: {
+    backgroundColor: colors.primary,
+  },
+  stateChipText: {
+    fontSize: fonts.regular,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  stateChipTextActive: {
+    color: colors.white,
+  },
+  mapSection: {
+    marginTop: 24,
+    gap: 8,
+  },
+  mapTitle: {
+    fontSize: fonts.large,
+    fontWeight: 'bold',
+    color: colors.text,
+    textAlign: 'center',
+  },
+  mapAddress: {
+    fontSize: fonts.small,
+    color: colors.textLight,
+    textAlign: 'center',
+  },
+  mapHint: {
+    fontSize: fonts.regular,
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  mapContainer: {
+    height: 250,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: colors.grayLight,
+  },
+  map: {
+    flex: 1,
+  },
+  mapButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  mapBackButton: {
+    flex: 1,
+    borderRadius: 14,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.grayLight,
+  },
+  mapBackButtonText: {
+    fontWeight: 'bold',
+    fontSize: fonts.regular,
+    color: colors.textLight,
   },
 });

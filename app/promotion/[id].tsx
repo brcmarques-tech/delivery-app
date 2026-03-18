@@ -23,7 +23,7 @@ export default function PromotionScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
-  const { addItem, storeId: cartStoreId, itemCount } = useCart();
+  const { addItem, itemCount } = useCart();
   const { data } = useQuery(GET_ACTIVE_PROMOTIONS);
 
   const promo = (data?.activePromotions || []).find((p: any) => p.id === id);
@@ -55,23 +55,10 @@ export default function PromotionScreen() {
   const now = new Date();
   const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
 
-  const canAddToCart = !cartStoreId || cartStoreId === promo.store?.id;
-
   function handleAddToCart() {
     if (!promo.product || !promo.store) return;
-    if (!canAddToCart) return;
-    addItem(
-      {
-        productId: promo.product.id,
-        name: promo.product.name,
-        price: promoPrice,
-        quantity: 1,
-        imageUrl: promo.product.imageUrl,
-      },
-      promo.store.id,
-      promo.store.name,
-    );
-    router.push('/cart');
+    addItem(promo.product.id, 1);
+    router.push('/(tabs)/cart');
   }
 
   return (
@@ -229,19 +216,10 @@ export default function PromotionScreen() {
       {/* Bottom CTA */}
       {promo.product && promo.store?.isOpen && (
         <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: insets.bottom + 16 }]}>
-          {canAddToCart ? (
-            <TouchableOpacity style={styles.addButton} onPress={handleAddToCart}>
-              <Ionicons name="cart-outline" size={20} color="#FFF" />
-              <Text style={styles.addButtonText}>Adicionar ao carrinho - R$ {promoPrice.toFixed(2)}</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.differentStoreWarn}>
-              <Ionicons name="alert-circle-outline" size={18} color={staticColors.warning} />
-              <Text style={[styles.differentStoreText, { color: colors.textLight }]}>
-                Seu carrinho tem itens de outra loja
-              </Text>
-            </View>
-          )}
+          <TouchableOpacity style={styles.addButton} onPress={handleAddToCart}>
+            <Ionicons name="cart-outline" size={20} color="#FFF" />
+            <Text style={styles.addButtonText}>Adicionar ao carrinho - R$ {promoPrice.toFixed(2)}</Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>

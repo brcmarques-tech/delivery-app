@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,29 +7,51 @@ import {
   StyleSheet,
   TextInput,
   ActivityIndicator,
+  Modal,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+
+let MapView: any = View;
+let Marker: any = View;
+if (Platform.OS !== 'web') {
+  const maps = require('react-native-maps');
+  MapView = maps.default;
+  Marker = maps.Marker;
+}
 import { GET_MY_ADDRESSES } from '../src/lib/graphql/queries';
-import { CREATE_ADDRESS, SET_DEFAULT_ADDRESS, DELETE_ADDRESS } from '../src/lib/graphql/mutations';
+import { CREATE_ADDRESS, UPDATE_ADDRESS, SET_DEFAULT_ADDRESS, DELETE_ADDRESS } from '../src/lib/graphql/mutations';
 import { useAlert } from '../src/contexts/AlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../src/theme';
+
+const ESTADOS_BR = [
+  'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
+  'PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO',
+];
 
 export default function AddressesScreen() {
   const insets = useSafeAreaInsets();
   const { data, loading, refetch } = useQuery(GET_MY_ADDRESSES);
   const [createAddress] = useMutation(CREATE_ADDRESS);
+  const [updateAddress] = useMutation(UPDATE_ADDRESS);
   const [setDefault] = useMutation(SET_DEFAULT_ADDRESS);
   const [deleteAddress] = useMutation(DELETE_ADDRESS);
   const { alert } = useAlert();
 
   const [showForm, setShowForm] = useState(false);
+  const [showMap, setShowMap] = useState(false);
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
-  const [form, setForm] = useState({
+  const [fetchingCep, setFetchingCep] = useState(false);
+  const [showStatePicker, setShowStatePicker] = useState(false);
+  const [geocodingMap, setGeocodingMap] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const mapRef = useRef<MapView>(null);
+  const emptyForm = {
     street: '',
     number: '',
     complement: '',
@@ -39,9 +61,36 @@ export default function AddressesScreen() {
     zipCode: '',
     latitude: 0,
     longitude: 0,
-  });
+  };
+  const [form, setForm] = useState(emptyForm);
 
   const addresses = data?.myAddresses || [];
+
+  async function handleCepChange(cep: string) {
+    const cleaned = cep.replace(/\D/g, '');
+    setForm((prev) => ({ ...prev, zipCode: cleaned }));
+    if (cleaned.length === 8) {
+      setFetchingCep(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`);
+        const data = await res.json();
+        if (!data.erro) {
+          setForm((prev) => ({
+            ...prev,
+            street: data.logradouro || prev.street,
+            neighborhood: data.bairro || prev.neighborhood,
+            city: data.localidade || prev.city,
+            state: data.uf || prev.state,
+            complement: data.complemento || prev.complement,
+          }));
+        }
+      } catch {
+        // silently fail - user can fill manually
+      } finally {
+        setFetchingCep(false);
+      }
+    }
+  }
 
   async function handleGetLocation() {
     setLocating(true);
@@ -79,6 +128,52 @@ export default function AddressesScreen() {
     }
   }
 
+  async function handleShowMap() {
+    if (!form.street || !form.number || !form.neighborhood || !form.city || !form.state) {
+      alert('Erro', 'Preencha os campos obrigatórios');
+      return;
+    }
+    setGeocodingMap(true);
+    try {
+      if (!form.latitude || !form.longitude) {
+        const query = `${form.street}, ${form.number}, ${form.neighborhood}, ${form.city}, ${form.state}`;
+        const results = await Location.geocodeAsync(query);
+        if (results.length > 0) {
+          setForm((prev) => ({ ...prev, latitude: results[0].latitude, longitude: results[0].longitude }));
+        }
+      }
+      setShowMap(true);
+    } catch {
+      alert('Erro', 'Não foi possível localizar o endereço');
+    } finally {
+      setGeocodingMap(false);
+    }
+  }
+
+  function handleEdit(addr: any) {
+    setForm({
+      street: addr.street || '',
+      number: addr.number || '',
+      complement: addr.complement || '',
+      neighborhood: addr.neighborhood || '',
+      city: addr.city || '',
+      state: addr.state || '',
+      zipCode: addr.zipCode || '',
+      latitude: addr.latitude || 0,
+      longitude: addr.longitude || 0,
+    });
+    setEditingId(addr.id);
+    setShowForm(true);
+    setShowMap(false);
+  }
+
+  function handleCloseForm() {
+    setShowForm(false);
+    setShowMap(false);
+    setEditingId(null);
+    setForm(emptyForm);
+  }
+
   async function handleSave() {
     if (!form.street || !form.number || !form.neighborhood || !form.city || !form.state) {
       alert('Erro', 'Preencha os campos obrigatorios');
@@ -87,7 +182,6 @@ export default function AddressesScreen() {
 
     setSaving(true);
     try {
-      // If no coords, geocode from address
       let lat = form.latitude;
       let lng = form.longitude;
       if (!lat || !lng) {
@@ -99,25 +193,43 @@ export default function AddressesScreen() {
         }
       }
 
-      await createAddress({
-        variables: {
-          input: {
-            street: form.street,
-            number: form.number,
-            complement: form.complement || undefined,
-            neighborhood: form.neighborhood,
-            city: form.city,
-            state: form.state,
-            zipCode: form.zipCode || '',
-            latitude: lat,
-            longitude: lng,
-            isDefault: addresses.length === 0,
+      if (editingId) {
+        await updateAddress({
+          variables: {
+            input: {
+              id: editingId,
+              street: form.street,
+              number: form.number,
+              complement: form.complement || undefined,
+              neighborhood: form.neighborhood,
+              city: form.city,
+              state: form.state,
+              zipCode: form.zipCode || '',
+              latitude: lat,
+              longitude: lng,
+            },
           },
-        },
-      });
+        });
+      } else {
+        await createAddress({
+          variables: {
+            input: {
+              street: form.street,
+              number: form.number,
+              complement: form.complement || undefined,
+              neighborhood: form.neighborhood,
+              city: form.city,
+              state: form.state,
+              zipCode: form.zipCode || '',
+              latitude: lat,
+              longitude: lng,
+              isDefault: addresses.length === 0,
+            },
+          },
+        });
+      }
 
-      setForm({ street: '', number: '', complement: '', neighborhood: '', city: '', state: '', zipCode: '', latitude: 0, longitude: 0 });
-      setShowForm(false);
+      handleCloseForm();
       refetch();
     } catch (err: any) {
       alert('Erro', err.message || 'Nao foi possivel salvar');
@@ -168,13 +280,14 @@ export default function AddressesScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Meus enderecos</Text>
-        <TouchableOpacity onPress={() => setShowForm(!showForm)}>
+        <TouchableOpacity onPress={() => showForm ? handleCloseForm() : setShowForm(true)}>
           <Ionicons name={showForm ? 'close' : 'add'} size={28} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
       {showForm && (
         <View style={styles.form}>
+          <Text style={styles.formTitle}>{editingId ? 'Editar endereco' : 'Novo endereco'}</Text>
           <TouchableOpacity style={styles.gpsButton} onPress={handleGetLocation} disabled={locating}>
             {locating ? (
               <ActivityIndicator size="small" color={colors.white} />
@@ -186,6 +299,21 @@ export default function AddressesScreen() {
             )}
           </TouchableOpacity>
 
+          {/* CEP primeiro para auto-preencher */}
+          <View style={styles.formRow}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              placeholder="CEP"
+              placeholderTextColor={colors.gray}
+              value={form.zipCode}
+              onChangeText={handleCepChange}
+              keyboardType="numeric"
+              maxLength={8}
+            />
+            {fetchingCep && (
+              <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: -36 }} />
+            )}
+          </View>
           <View style={styles.formRow}>
             <TextInput
               style={[styles.input, { flex: 2 }]}
@@ -224,28 +352,110 @@ export default function AddressesScreen() {
               value={form.city}
               onChangeText={(v) => setForm({ ...form, city: v })}
             />
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              placeholder="Estado *"
-              placeholderTextColor={colors.gray}
-              value={form.state}
-              onChangeText={(v) => setForm({ ...form, state: v })}
-            />
+            <TouchableOpacity
+              style={[styles.input, styles.stateSelector, { flex: 1 }]}
+              onPress={() => setShowStatePicker(true)}
+            >
+              <Text style={form.state ? styles.stateText : styles.statePlaceholder}>
+                {form.state || 'UF *'}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={colors.gray} />
+            </TouchableOpacity>
           </View>
-          <TextInput
-            style={styles.input}
-            placeholder="CEP"
-            placeholderTextColor={colors.gray}
-            value={form.zipCode}
-            onChangeText={(v) => setForm({ ...form, zipCode: v })}
-            keyboardType="numeric"
-          />
 
-          <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-            <Text style={styles.saveButtonText}>{saving ? 'Salvando...' : 'Salvar endereco'}</Text>
-          </TouchableOpacity>
+          {!showMap ? (
+            <TouchableOpacity
+              style={[styles.saveButton, geocodingMap && { opacity: 0.6 }]}
+              onPress={handleShowMap}
+              disabled={geocodingMap}
+            >
+              <Text style={styles.saveButtonText}>
+                {geocodingMap ? 'Localizando...' : 'Confirmar no mapa'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.mapSection}>
+              <Text style={styles.mapHint}>Arraste o pin para ajustar a posição exata</Text>
+              {form.latitude && form.longitude ? (
+                <View style={styles.mapContainer}>
+                  <MapView
+                    ref={mapRef}
+                    style={styles.map}
+                    mapType="hybrid"
+                    initialRegion={{
+                      latitude: form.latitude,
+                      longitude: form.longitude,
+                      latitudeDelta: 0.002,
+                      longitudeDelta: 0.002,
+                    }}
+                  >
+                    <Marker
+                      coordinate={{ latitude: form.latitude, longitude: form.longitude }}
+                      draggable
+                      onDragEnd={(e) => {
+                        const { latitude, longitude } = e.nativeEvent.coordinate;
+                        setForm((prev) => ({ ...prev, latitude, longitude }));
+                      }}
+                    />
+                  </MapView>
+                </View>
+              ) : null}
+              <View style={styles.mapButtons}>
+                <TouchableOpacity style={styles.mapBackButton} onPress={() => setShowMap(false)}>
+                  <Text style={styles.mapBackText}>Corrigir</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.saveButton, { flex: 1 }, saving && { opacity: 0.6 }]}
+                  onPress={handleSave}
+                  disabled={saving}
+                >
+                  <Text style={styles.saveButtonText}>{saving ? 'Salvando...' : 'Salvar'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       )}
+
+      <Modal visible={showStatePicker} transparent animationType="slide">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowStatePicker(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Selecione o estado</Text>
+            <FlatList
+              data={ESTADOS_BR}
+              keyExtractor={(item) => item}
+              numColumns={4}
+              contentContainerStyle={{ gap: 8 }}
+              columnWrapperStyle={{ gap: 8 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.stateChip,
+                    form.state === item && styles.stateChipActive,
+                  ]}
+                  onPress={() => {
+                    setForm((prev) => ({ ...prev, state: item }));
+                    setShowStatePicker(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.stateChipText,
+                      form.state === item && styles.stateChipTextActive,
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <FlatList
         data={addresses}
@@ -265,6 +475,12 @@ export default function AddressesScreen() {
               ) : null}
             </View>
             <View style={styles.cardActions}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => handleEdit(item)}
+              >
+                <Ionicons name="create-outline" size={20} color={colors.primary} />
+              </TouchableOpacity>
               {!item.isDefault && (
                 <TouchableOpacity
                   style={styles.actionButton}
@@ -315,6 +531,7 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 10,
   },
+  formTitle: { fontSize: fonts.medium, fontWeight: 'bold', color: colors.text, marginBottom: 4 },
   formRow: { flexDirection: 'row', gap: 10 },
   input: {
     backgroundColor: colors.background,
@@ -375,6 +592,92 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  stateSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  stateText: {
+    fontSize: fonts.small,
+    color: colors.text,
+  },
+  statePlaceholder: {
+    fontSize: fonts.small,
+    color: colors.gray,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    maxHeight: '50%',
+  },
+  modalTitle: {
+    fontSize: fonts.large,
+    fontWeight: 'bold',
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  stateChip: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+  },
+  stateChipActive: {
+    backgroundColor: colors.primary,
+  },
+  stateChipText: {
+    fontSize: fonts.regular,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  stateChipTextActive: {
+    color: colors.white,
+  },
+  mapSection: {
+    gap: 8,
+  },
+  mapHint: {
+    fontSize: fonts.regular,
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'center',
+  },
+  mapContainer: {
+    height: 200,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: colors.grayLight,
+  },
+  map: {
+    flex: 1,
+  },
+  mapButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  mapBackButton: {
+    flex: 1,
+    borderRadius: 10,
+    padding: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.grayLight,
+  },
+  mapBackText: {
+    fontWeight: '600',
+    fontSize: fonts.small,
+    color: colors.textLight,
   },
   empty: { alignItems: 'center', marginTop: 60, gap: 8 },
   emptyText: { fontSize: fonts.regular, color: colors.textLight, fontWeight: '600' },

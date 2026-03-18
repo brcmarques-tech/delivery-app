@@ -1,6 +1,11 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useMutation, useQuery } from '@apollo/client';
+import { ADD_TO_CART, UPDATE_CART_ITEM, REMOVE_FROM_CART, CLEAR_CART } from '../lib/graphql/mutations';
+import { GET_MY_CART } from '../lib/graphql/queries';
+import { useAuth } from './AuthContext';
 
-interface CartItem {
+export interface CartItem {
+  id: string; // server cart item id
   productId: string;
   name: string;
   price: number;
@@ -9,102 +14,130 @@ interface CartItem {
   notes?: string;
   isVariableWeight?: boolean;
   weightGrams?: number;
+  storeId: string;
+  storeName: string;
 }
 
 interface CartContextData {
   items: CartItem[];
-  storeId: string | null;
-  storeName: string | null;
-  addItem: (item: CartItem, storeId: string, storeName: string) => void;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
-  updateWeight: (productId: string, weightGrams: number) => void;
+  addItem: (productId: string, quantity: number, notes?: string, weightGrams?: number) => Promise<void>;
+  removeItem: (cartItemId: string) => void;
+  updateQuantity: (cartItemId: string, quantity: number) => void;
+  updateWeight: (cartItemId: string, weightGrams: number) => void;
   clearCart: () => void;
-  total: number;
   itemCount: number;
+  loading: boolean;
+  refetch: () => void;
 }
 
 const CartContext = createContext<CartContextData>({} as CartContextData);
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
-  const [storeId, setStoreId] = useState<string | null>(null);
-  const [storeName, setStoreName] = useState<string | null>(null);
 
-  const total = items.reduce((sum, item) => {
-    if (item.isVariableWeight) {
-      return sum + (item.price * (item.weightGrams || 0)) / 1000;
+  const { data: cartData, loading: queryLoading, refetch } = useQuery(GET_MY_CART, {
+    skip: !user,
+    fetchPolicy: 'network-only',
+    onError: () => {},
+  });
+
+  const [addToCartMutation] = useMutation(ADD_TO_CART, { onError: () => {} });
+  const [updateCartItemMutation] = useMutation(UPDATE_CART_ITEM, { onError: () => {} });
+  const [removeFromCartMutation] = useMutation(REMOVE_FROM_CART, { onError: () => {} });
+  const [clearCartMutation] = useMutation(CLEAR_CART, { onError: () => {} });
+
+  // Sync server cart to local state
+  useEffect(() => {
+    if (cartData?.myCart) {
+      const serverItems: CartItem[] = cartData.myCart.map((ci: any) => ({
+        id: ci.id,
+        productId: ci.product.id,
+        name: ci.product.name,
+        price: ci.product.promotionalPrice ?? ci.product.price,
+        quantity: ci.quantity,
+        imageUrl: ci.product.imageUrl,
+        notes: ci.notes,
+        isVariableWeight: ci.product.isVariableWeight,
+        weightGrams: ci.weightGrams,
+        storeId: ci.store.id,
+        storeName: ci.store.name,
+      }));
+      setItems(serverItems);
     }
-    return sum + item.price * item.quantity;
-  }, 0);
+  }, [cartData]);
+
+  // Clear on logout
+  useEffect(() => {
+    if (!user) {
+      setItems([]);
+    }
+  }, [user]);
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
-  function addItem(item: CartItem, newStoreId: string, newStoreName: string) {
-    if (storeId && storeId !== newStoreId) {
-      setItems([item]);
-      setStoreId(newStoreId);
-      setStoreName(newStoreName);
-      return;
-    }
-
-    setStoreId(newStoreId);
-    setStoreName(newStoreName);
-
-    setItems((prev) => {
-      const existing = prev.find((i) => i.productId === item.productId);
-      if (existing) {
-        if (item.isVariableWeight) {
-          // For variable-weight items, replace the weightGrams
-          return prev.map((i) =>
-            i.productId === item.productId
-              ? { ...i, weightGrams: item.weightGrams }
-              : i,
-          );
-        }
-        return prev.map((i) =>
-          i.productId === item.productId
-            ? { ...i, quantity: i.quantity + item.quantity }
-            : i,
-        );
-      }
-      return [...prev, item];
+  async function addItem(productId: string, quantity: number, notes?: string, weightGrams?: number) {
+    if (!user) return;
+    await addToCartMutation({
+      variables: {
+        input: {
+          productId,
+          quantity,
+          notes: notes || null,
+          weightGrams: weightGrams || null,
+        },
+      },
     });
+    refetch();
   }
 
-  function removeItem(productId: string) {
-    setItems((prev) => prev.filter((i) => i.productId !== productId));
+  function removeItem(cartItemId: string) {
+    setItems((prev) => prev.filter((i) => i.id !== cartItemId));
+    if (user) {
+      removeFromCartMutation({ variables: { cartItemId } }).then(() => refetch());
+    }
   }
 
-  function updateQuantity(productId: string, quantity: number) {
+  function updateQuantity(cartItemId: string, quantity: number) {
     if (quantity <= 0) {
-      removeItem(productId);
+      removeItem(cartItemId);
       return;
     }
     setItems((prev) =>
-      prev.map((i) => (i.productId === productId ? { ...i, quantity } : i)),
+      prev.map((i) => (i.id === cartItemId ? { ...i, quantity } : i)),
     );
+    if (user) {
+      updateCartItemMutation({
+        variables: { input: { cartItemId, quantity } },
+      }).then(() => refetch());
+    }
   }
 
-  function updateWeight(productId: string, weightGrams: number) {
+  function updateWeight(cartItemId: string, weightGrams: number) {
     if (weightGrams <= 0) {
-      removeItem(productId);
+      removeItem(cartItemId);
       return;
     }
     setItems((prev) =>
-      prev.map((i) => (i.productId === productId ? { ...i, weightGrams } : i)),
+      prev.map((i) => (i.id === cartItemId ? { ...i, weightGrams } : i)),
     );
+    if (user) {
+      updateCartItemMutation({
+        variables: { input: { cartItemId, weightGrams } },
+      }).then(() => refetch());
+    }
   }
 
   function clearCart() {
     setItems([]);
-    setStoreId(null);
-    setStoreName(null);
+    if (user) {
+      clearCartMutation().then(() => refetch());
+    }
   }
 
   return (
     <CartContext.Provider
-      value={{ items, storeId, storeName, addItem, removeItem, updateQuantity, updateWeight, clearCart, total, itemCount }}
+      value={{ items, addItem, removeItem, updateQuantity, updateWeight, clearCart, itemCount, loading: queryLoading, refetch }}
     >
       {children}
     </CartContext.Provider>

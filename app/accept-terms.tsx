@@ -21,127 +21,382 @@ import { useAlert } from '../src/contexts/AlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../src/theme';
 
-const DEFAULT_CUSTOMER_CONTRACT = `TERMOS DE USO — BCM TECH DELIVERY (CLIENTE)
-Ultima atualizacao: Marco de 2026
+const DEFAULT_CUSTOMER_CONTRACT = `TERMOS DE USO DA PLATAFORMA — CLIENTE
+BCM TECH DELIVERY
 
-Estes Termos de Uso regulam o acesso e o uso da plataforma bcmTech Delivery pelo Cliente (consumidor final).
+Última atualização: Março de 2026
 
-A plataforma e operada por BCM TECH, inscrita no CNPJ sob o n. 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graca, 19, Centro, CEP 96330-000, Arroio Grande - RS.
+Estes Termos de Uso, doravante denominados "Termos", regulam o acesso e o uso da plataforma bcmTech Delivery, doravante denominada "Plataforma", operada por BCM TECH, inscrita no CNPJ sob o nº 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graça, 19, Centro, CEP 96330-000, Arroio Grande – RS, doravante denominada "Empresa".
+
+Ao criar uma conta e utilizar a Plataforma como Cliente, você declara ter lido, compreendido e concordado integralmente com estes Termos.
 
 1. OBJETO
-1.1. A Plataforma conecta consumidores finais a estabelecimentos comerciais (vendedores), oferecendo infraestrutura para visualizacao de produtos, realizacao de pedidos, pagamento online e logistica de entrega.
-1.2. A Empresa atua como intermediaria tecnologica, nao sendo parte na relacao de consumo entre o Cliente e o Vendedor.
 
-2. CADASTRO
-2.1. O Cliente declara que todas as informacoes fornecidas no cadastro sao verdadeiras e atualizadas.
-2.2. O Cliente e responsavel pela seguranca de suas credenciais de acesso.
-2.3. E vedado o cadastro de menores de 18 anos sem consentimento dos responsaveis legais.
+1.1. A Plataforma é um marketplace que conecta consumidores finais a vendedores (estabelecimentos comerciais), oferecendo infraestrutura tecnológica para visualização de produtos, realização de pedidos, pagamentos e logística de entrega.
 
-3. PEDIDOS E PAGAMENTOS
-3.1. Ao confirmar um pedido, o Cliente assume o compromisso de pagamento conforme o metodo selecionado.
-3.2. Os pagamentos sao processados pelo Pagar.me, intermediador autorizado pelo Banco Central do Brasil.
-3.3. Cancelamentos e estornos seguem as politicas do Codigo de Defesa do Consumidor (Lei 8.078/90).
+1.2. A Empresa atua exclusivamente como intermediária tecnológica. A relação de consumo é estabelecida diretamente entre o Cliente e o Vendedor responsável pelo produto adquirido.
 
-4. ENTREGAS
-4.1. Os prazos de entrega sao estimativas e podem variar conforme demanda e condicoes externas.
-4.2. O Cliente deve fornecer endereco completo e correto. A Empresa nao se responsabiliza por entregas em enderecos incorretos fornecidos pelo Cliente.
-4.3. Os entregadores sao profissionais autonomos, sem vinculo empregaticio com a Empresa.
+2. CADASTRO E CONTA
 
-5. DIREITOS DO CONSUMIDOR
-5.1. O Cliente tem direito a informacoes claras sobre produtos, precos e condicoes de entrega, nos termos do art. 6, III do CDC.
-5.2. O direito de arrependimento (art. 49 do CDC) aplica-se conforme a natureza do produto adquirido.
-5.3. Reclamacoes devem ser direcionadas primeiramente ao estabelecimento vendedor.
+2.1. O Cliente declara que todas as informações fornecidas no cadastro são verdadeiras, completas e atualizadas.
+
+2.2. O Cliente é integralmente responsável pela segurança de suas credenciais de acesso (login e senha) e por todas as atividades realizadas em sua conta.
+
+2.3. É vedado o cadastro de menores de 18 anos sem consentimento e supervisão dos responsáveis legais.
+
+3. PEDIDOS E COMPRAS
+
+3.1. Ao realizar um pedido, o Cliente se compromete a fornecer informações corretas de entrega e a estar disponível para recebimento no endereço informado.
+
+3.2. Os produtos são de inteira responsabilidade do Vendedor. A Empresa não fabrica, armazena, embala ou manipula quaisquer produtos comercializados na Plataforma.
+
+3.3. Em caso de problemas com o produto (defeito, divergência, atraso), o Cliente deve entrar em contato diretamente com o Vendedor responsável, que é o fornecedor nos termos do Código de Defesa do Consumidor (Lei nº 8.078/1990).
+
+3.4. O Cliente possui todos os direitos previstos no CDC, incluindo o direito de arrependimento (art. 49) em compras realizadas fora do estabelecimento comercial, quando aplicável.
+
+4. PAGAMENTOS
+
+4.1. Os pagamentos são processados pelo Pagar.me, intermediador de pagamentos autorizado pelo Banco Central do Brasil.
+
+4.2. A Empresa não armazena dados de cartão de crédito ou informações bancárias do Cliente.
+
+4.3. Em caso de cobrança indevida, o Cliente pode solicitar estorno diretamente ao Vendedor ou ao intermediador de pagamentos.
+
+5. ENTREGAS
+
+5.1. As entregas podem ser realizadas pelo próprio Vendedor ou por entregadores autônomos cadastrados na Plataforma.
+
+5.2. A Empresa não se responsabiliza por atrasos decorrentes de condições climáticas, trânsito, dificuldade de acesso ao endereço ou informações incorretas fornecidas pelo Cliente.
+
+5.3. Os entregadores autônomos não possuem vínculo empregatício com a Empresa.
 
 6. RESPONSABILIDADES DO CLIENTE
-6.1. Utilizar a Plataforma de forma licita e de boa-fe.
-6.2. Nao realizar pedidos fraudulentos ou com informacoes falsas.
-6.3. Confirmar o recebimento dos pedidos entregues.
 
-7. PROTECAO DE DADOS (LGPD)
-7.1. Os dados pessoais sao tratados conforme a Lei 13.709/2018 (LGPD).
-7.2. Os dados sao utilizados para prestacao dos servicos, processamento de pagamentos e comunicacoes necessarias.
-7.3. O Cliente pode exercer seus direitos (acesso, correcao, eliminacao) pelo e-mail bcmtechdev@gmail.com.
+6.1. O Cliente se compromete a:
 
-8. LIMITACAO DE RESPONSABILIDADE
-8.1. A Empresa nao se responsabiliza pela qualidade dos produtos vendidos pelos estabelecimentos.
-8.2. A Empresa nao garante disponibilidade ininterrupta da Plataforma.
+a) Utilizar a Plataforma de forma lícita e de boa-fé;
 
-9. DISPOSICOES GERAIS
-9.1. Estes Termos sao regidos pela legislacao brasileira.
-9.2. Foro: comarca de Arroio Grande - RS.
-9.3. A Empresa pode alterar estes Termos, notificando o usuario pela Plataforma.
+b) Não realizar pedidos fraudulentos ou com informações falsas;
 
-Ao aceitar, voce manifesta seu consentimento livre, informado e inequivoco com todos os termos acima.`;
+c) Tratar vendedores e entregadores com respeito e cordialidade;
 
-const DEFAULT_DELIVERER_CONTRACT = `TERMO DE COMPROMISSO DO ENTREGADOR — BCM TECH DELIVERY
-Ultima atualizacao: Marco de 2026
+d) Verificar os produtos no ato do recebimento e comunicar eventuais problemas ao Vendedor.
 
-Este Termo regula a atuacao de entregadores autonomos na plataforma bcmTech Delivery, operada por BCM TECH, CNPJ 59.858.037/0001-06, Arroio Grande - RS.
+6.2. O uso indevido da Plataforma, incluindo fraudes, assédio ou condutas abusivas, poderá resultar em suspensão ou cancelamento da conta, sem prejuízo das medidas legais cabíveis.
 
-1. OBRIGACAO DE ENTREGA
-O entregador que aceitar um pedido se compromete a realizar a entrega no endereco indicado, dentro do prazo estimado pela plataforma.
+7. RESPONSABILIDADES DA EMPRESA
 
-2. RESPONSABILIDADE SOBRE O PRODUTO
-O entregador e responsavel pela integridade do produto desde a coleta no estabelecimento ate a entrega ao destinatario, conforme Art. 14 do CDC (Lei 8.078/90).
+7.1. A Empresa se compromete a:
 
-3. PENALIDADES POR NAO ENTREGA
-O entregador que aceitar um pedido e nao realizar a entrega sem justificativa valida estara sujeito a:
-a) Suspensao temporaria da plataforma;
-b) Bloqueio permanente em caso de reincidencia;
-c) Responsabilizacao civil pelos prejuizos causados (Arts. 186 e 927 do Codigo Civil).
+a) Manter a Plataforma disponível e funcional, ressalvados períodos de manutenção programada ou eventos de força maior;
 
-4. EXTRAVIO OU DANO AO PRODUTO
-Em caso de extravio, perda ou dano ao produto, o entregador podera ser responsabilizado civil e criminalmente (Arts. 155 e 163 do Codigo Penal).
+b) Processar os pagamentos de forma segura através de intermediadores autorizados;
 
-5. RELACAO JURIDICA
-O cadastro como entregador NAO configura vinculo empregaticio com a plataforma (Art. 442-B da CLT). O entregador e profissional autonomo.
+c) Disponibilizar canais de comunicação para suporte ao Cliente.
 
-6. REQUISITOS
-6.1. O entregador deve ter pelo menos 18 anos.
-6.2. Para veiculos motorizados (moto/carro), e obrigatoria a apresentacao de CNH valida.
-6.3. O entregador deve manter seus dados cadastrais atualizados.
+7.2. A Empresa não se responsabiliza por:
 
-7. PAGAMENTOS
-7.1. Os valores das entregas sao repassados via Pagar.me.
-7.2. O entregador deve conectar sua conta do Pagar.me para receber os pagamentos.
+a) A qualidade, segurança ou conformidade dos produtos vendidos pelos Vendedores;
 
-8. PROTECAO DE DADOS
-As informacoes pessoais sao tratadas conforme a LGPD (Lei 13.709/18).
+b) Atrasos, erros ou falhas na entrega causados por Vendedores ou entregadores;
 
-9. FORO
-Fica eleito o foro da comarca de Arroio Grande - RS para dirimir quaisquer controversias.
+c) Indisponibilidade de produtos ou alterações de preço realizadas pelos Vendedores;
 
-Ao aceitar, voce declara ter lido, compreendido e concordado com todos os termos acima.`;
+d) Interrupções decorrentes de falhas de terceiros, provedores de internet ou eventos de força maior (art. 393 do Código Civil).
 
-const DEFAULT_VENDOR_CONTRACT = `TERMOS DE USO DA PLATAFORMA BCM TECH DELIVERY (VENDEDOR)
-Ultima atualizacao: Marco de 2026
+8. PROTEÇÃO DE DADOS (LGPD)
 
-Estes Termos regulam o uso da plataforma bcmTech Delivery por Vendedores (estabelecimentos comerciais).
+8.1. A Empresa trata os dados pessoais dos Clientes em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018).
 
-Operada por BCM TECH, CNPJ 59.858.037/0001-06, Arroio Grande - RS.
+8.2. Os dados coletados são utilizados exclusivamente para: prestação dos serviços da Plataforma, processamento de pedidos e pagamentos, e comunicações necessárias.
+
+8.3. O endereço de entrega é compartilhado com o Vendedor e o entregador exclusivamente para fins de entrega do pedido.
+
+8.4. O Cliente pode exercer seus direitos previstos no art. 18 da LGPD (acesso, correção, eliminação, portabilidade) mediante contato pelo e-mail bcmtechdev@gmail.com.
+
+8.5. Os dados não são vendidos ou compartilhados com terceiros para fins de marketing.
+
+9. CANCELAMENTO DE CONTA
+
+9.1. O Cliente pode cancelar sua conta a qualquer momento, desde que não possua pedidos em andamento.
+
+9.2. Após o cancelamento, os dados pessoais serão tratados conforme a LGPD, sendo mantidos pelo prazo legal quando necessário.
+
+10. DISPOSIÇÕES GERAIS
+
+10.1. Estes Termos são regidos pela legislação da República Federativa do Brasil.
+
+10.2. Fica eleito o foro da comarca de Arroio Grande, Estado do Rio Grande do Sul, para dirimir quaisquer controvérsias, com renúncia a qualquer outro, por mais privilegiado que seja, sem prejuízo do foro de domicílio do consumidor (art. 101, I, do CDC).
+
+10.3. A Empresa reserva-se o direito de alterar estes Termos a qualquer tempo, notificando o Usuário por meio da Plataforma.
+
+10.4. A Plataforma opera em conformidade com a Lei nº 12.965/2014 (Marco Civil da Internet) e o Decreto nº 7.962/2013 (Comércio Eletrônico).
+
+Ao clicar em "Aceitar e Continuar", você manifesta seu consentimento livre, informado e inequívoco com todos os termos acima.`;
+
+const DEFAULT_DELIVERER_CONTRACT = `TERMOS DE USO DA PLATAFORMA — ENTREGADOR AUTÔNOMO
+BCM TECH DELIVERY
+
+Última atualização: Março de 2026
+
+Estes Termos de Uso, doravante denominados "Termos", regulam o acesso e o uso da plataforma bcmTech Delivery, doravante denominada "Plataforma", operada por BCM TECH, inscrita no CNPJ sob o nº 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graça, 19, Centro, CEP 96330-000, Arroio Grande – RS, doravante denominada "Empresa".
+
+Ao criar uma conta e utilizar a Plataforma como Entregador, você declara ter lido, compreendido e concordado integralmente com estes Termos.
 
 1. OBJETO
-1.1. A Plataforma e um marketplace que conecta vendedores a consumidores finais.
-1.2. A Empresa atua como intermediaria tecnologica.
 
-2. RESPONSABILIDADES DO VENDEDOR
-2.1. Qualidade, seguranca e legalidade dos produtos anunciados.
-2.2. Cumprimento do CDC, normas sanitarias e fiscais.
-2.3. Veracidade das informacoes dos produtos.
-2.4. Emissao de nota fiscal conforme legislacao.
-2.5. Preparo dos pedidos dentro do prazo informado.
+1.1. A Plataforma disponibiliza infraestrutura tecnológica que conecta entregadores autônomos a vendedores e consumidores, permitindo o aceite e a realização de entregas de forma independente.
 
-3. PAGAMENTOS E COMISSOES
-3.1. A Empresa cobra comissao conforme o plano contratado.
-3.2. Pagamentos processados pelo Pagar.me.
+1.2. A Empresa atua exclusivamente como intermediária tecnológica, disponibilizando a ferramenta para conexão entre as partes.
 
-4. PROTECAO DE DADOS (LGPD)
-Dados tratados conforme Lei 13.709/2018.
+2. NATUREZA DA RELAÇÃO — PRESTAÇÃO AUTÔNOMA DE SERVIÇO
 
-5. FORO
-Comarca de Arroio Grande - RS.
+2.1. O Entregador é um profissional autônomo, sem qualquer vínculo empregatício, societário ou de subordinação com a Empresa, nos termos da Lei nº 13.467/2017 (Reforma Trabalhista) e do art. 442-B da CLT.
 
-Ao aceitar, voce manifesta seu consentimento com todos os termos acima.`;
+2.2. O Entregador possui total liberdade para:
+
+a) Aceitar ou recusar qualquer entrega oferecida pela Plataforma;
+
+b) Definir seus próprios horários e dias de trabalho;
+
+c) Utilizar simultaneamente outras plataformas ou prestar serviços a terceiros;
+
+d) Interromper o uso da Plataforma a qualquer momento, sem necessidade de aviso prévio.
+
+2.3. Não há obrigação de exclusividade, habitualidade, jornada mínima ou meta de entregas.
+
+2.4. O Entregador é responsável por seus próprios custos operacionais, incluindo combustível, manutenção do veículo, seguros e equipamentos de proteção.
+
+3. CADASTRO E REQUISITOS
+
+3.1. O Entregador declara que todas as informações fornecidas no cadastro são verdadeiras e atualizadas, incluindo:
+
+a) Dados pessoais e CPF válido;
+
+b) Tipo de veículo e placa (quando aplicável);
+
+c) Foto de documento de identidade.
+
+3.2. O Entregador declara possuir Carteira Nacional de Habilitação (CNH) válida e adequada ao veículo utilizado, quando exigido por lei.
+
+3.3. O cadastro está sujeito à aprovação pela Empresa, que poderá solicitar documentação complementar.
+
+4. RESPONSABILIDADES DO ENTREGADOR
+
+4.1. O Entregador é o único e exclusivo responsável por:
+
+a) A integridade dos produtos durante o transporte, desde a retirada no Vendedor até a entrega ao Cliente;
+
+b) O cumprimento das leis de trânsito (Código de Trânsito Brasileiro — Lei nº 9.503/1997);
+
+c) A manutenção do veículo em condições adequadas de segurança e higiene;
+
+d) O uso de equipamentos de proteção individual (capacete, colete, etc.);
+
+e) O pagamento de todos os tributos, contribuições previdenciárias e obrigações fiscais decorrentes de sua atividade autônoma;
+
+f) A contratação de seguro pessoal e do veículo, caso deseje;
+
+g) A conduta respeitosa e profissional com Vendedores e Clientes.
+
+4.2. O Entregador isenta a Empresa de toda e qualquer responsabilidade decorrente de:
+
+a) Acidentes de trânsito, multas, infrações ou danos ao veículo;
+
+b) Furto, roubo, perda ou avaria dos produtos durante o transporte;
+
+c) Lesões corporais ou danos materiais causados a terceiros;
+
+d) Descumprimento de obrigações fiscais, previdenciárias ou trabalhistas;
+
+e) Qualquer reclamação, ação judicial ou administrativa movida por terceiros em razão de sua atividade.
+
+5. REMUNERAÇÃO
+
+5.1. O Entregador receberá o valor da entrega conforme a tabela vigente na Plataforma, que leva em consideração a distância percorrida.
+
+5.2. Os pagamentos são processados pelo Pagar.me e transferidos diretamente para a conta cadastrada pelo Entregador.
+
+5.3. A Empresa não é responsável por atrasos nos pagamentos decorrentes de falhas do intermediador de pagamentos ou de informações bancárias incorretas fornecidas pelo Entregador.
+
+5.4. O Entregador é responsável pela emissão de recibos ou notas fiscais de prestação de serviço, quando aplicável.
+
+6. SUSPENSÃO E CANCELAMENTO
+
+6.1. A Empresa poderá suspender ou cancelar a conta do Entregador em caso de:
+
+a) Violação destes Termos;
+
+b) Reclamações reiteradas de Vendedores ou Clientes;
+
+c) Condutas que comprometam a segurança, a reputação ou o funcionamento da Plataforma;
+
+d) Informações falsas ou fraudulentas;
+
+e) Inatividade prolongada (superior a 180 dias).
+
+6.2. O Entregador pode encerrar sua conta a qualquer momento, desde que não possua entregas em andamento ou valores pendentes.
+
+7. PROTEÇÃO DE DADOS (LGPD)
+
+7.1. A Empresa trata os dados pessoais do Entregador em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018).
+
+7.2. Os dados coletados são utilizados exclusivamente para: cadastro, atribuição de entregas, processamento de pagamentos e comunicações necessárias.
+
+7.3. O nome e a localização aproximada do Entregador podem ser compartilhados com o Vendedor e o Cliente durante uma entrega ativa, exclusivamente para fins de acompanhamento.
+
+7.4. O Entregador pode exercer seus direitos previstos no art. 18 da LGPD mediante contato pelo e-mail bcmtechdev@gmail.com.
+
+8. PROPRIEDADE INTELECTUAL
+
+8.1. Todo o conteúdo da Plataforma é de propriedade exclusiva da Empresa. O Entregador não adquire qualquer direito sobre a marca, logotipo ou propriedade intelectual da Empresa.
+
+9. DISPOSIÇÕES GERAIS
+
+9.1. Estes Termos são regidos pela legislação da República Federativa do Brasil.
+
+9.2. Fica eleito o foro da comarca de Arroio Grande, Estado do Rio Grande do Sul, para dirimir quaisquer controvérsias.
+
+9.3. A Empresa reserva-se o direito de alterar estes Termos a qualquer tempo, notificando o Entregador por meio da Plataforma.
+
+9.4. A Plataforma opera em conformidade com a Lei nº 12.965/2014 (Marco Civil da Internet).
+
+9.5. O presente Termo não cria, nem pretende criar, qualquer vínculo empregatício entre o Entregador e a Empresa, constituindo mera relação de intermediação tecnológica para prestação de serviço autônomo.
+
+Ao clicar em "Aceitar e Continuar", você manifesta seu consentimento livre, informado e inequívoco com todos os termos acima.`;
+
+const DEFAULT_VENDOR_CONTRACT = `TERMOS DE USO DA PLATAFORMA — VENDEDOR
+BCM TECH DELIVERY
+
+Última atualização: Março de 2026
+
+Estes Termos de Uso, doravante denominados "Termos", regulam o acesso e o uso da plataforma bcmTech Delivery, doravante denominada "Plataforma", operada por BCM TECH, inscrita no CNPJ sob o nº 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graça, 19, Centro, CEP 96330-000, Arroio Grande – RS, doravante denominada "Empresa".
+
+Ao criar uma conta e utilizar a Plataforma como Vendedor, você declara ter lido, compreendido e concordado integralmente com estes Termos.
+
+1. OBJETO
+
+1.1. A Plataforma é um marketplace que conecta vendedores (estabelecimentos comerciais) a consumidores finais, oferecendo infraestrutura tecnológica para catalogação de produtos, recebimento de pedidos, processamento de pagamentos e logística de entrega.
+
+1.2. A Empresa atua exclusivamente como intermediária tecnológica, não sendo parte na relação de consumo entre o Vendedor e o Cliente.
+
+2. CADASTRO E CONTA
+
+2.1. O Vendedor declara que todas as informações fornecidas no cadastro são verdadeiras, completas e atualizadas, sob pena de suspensão ou cancelamento da conta.
+
+2.2. O Vendedor é integralmente responsável pela segurança de suas credenciais de acesso (login e senha).
+
+2.3. É vedado o cadastro de menores de 18 anos ou pessoas jurídicas sem representação legal válida.
+
+3. RESPONSABILIDADES DO VENDEDOR
+
+3.1. O Vendedor é o único e exclusivo responsável por:
+
+a) A qualidade, segurança, legalidade e procedência dos produtos e serviços anunciados;
+
+b) O cumprimento de todas as obrigações previstas no Código de Defesa do Consumidor (Lei nº 8.078/1990), incluindo garantias, trocas, devoluções e atendimento ao cliente;
+
+c) O cumprimento das normas sanitárias (ANVISA), fiscais, tributárias e regulatórias aplicáveis ao seu ramo de atividade;
+
+d) A veracidade e precisão das informações dos produtos (descrição, preço, imagens, peso, validade);
+
+e) A emissão de nota fiscal ou cupom fiscal conforme legislação vigente;
+
+f) O preparo e a disponibilização dos pedidos dentro do prazo informado;
+
+g) A resolução de quaisquer disputas, reclamações ou ações judiciais movidas por clientes.
+
+3.2. O Vendedor isenta a Empresa de toda e qualquer responsabilidade decorrente de:
+
+a) Produtos com defeito, avariados, contaminados, fora da validade ou em desacordo com a oferta;
+
+b) Atrasos, erros ou falhas na entrega causados pelo próprio Vendedor ou por entregadores autônomos;
+
+c) Descumprimento de obrigações fiscais, trabalhistas ou regulatórias;
+
+d) Danos materiais, morais ou lucros cessantes sofridos por terceiros em razão dos produtos ou serviços do Vendedor.
+
+4. RESPONSABILIDADES DA EMPRESA
+
+4.1. A Empresa se compromete a:
+
+a) Manter a Plataforma disponível e funcional, ressalvados períodos de manutenção programada ou eventos de força maior;
+
+b) Processar os pagamentos de forma segura através de intermediadores autorizados (Pagar.me);
+
+c) Repassar os valores devidos ao Vendedor conforme as regras do plano contratado.
+
+4.2. A Empresa não se responsabiliza por interrupções decorrentes de falhas de terceiros, provedores de internet ou eventos de força maior (art. 393 do Código Civil).
+
+5. ENTREGADORES AUTÔNOMOS
+
+5.1. Os entregadores que utilizam a Plataforma são profissionais autônomos, sem qualquer vínculo empregatício com a Empresa ou com o Vendedor.
+
+5.2. A Empresa não se responsabiliza por atos, omissões, atrasos ou danos causados pelos entregadores durante o transporte dos produtos.
+
+6. PAGAMENTOS E COMISSÕES
+
+6.1. A Empresa cobra comissão sobre o valor dos pedidos conforme o plano contratado pelo Vendedor.
+
+6.2. Os pagamentos dos clientes são processados pelo Pagar.me, que atua como intermediador de pagamentos nos termos da legislação vigente.
+
+6.3. A Empresa não se responsabiliza por estornos (chargebacks) decorrentes de fraudes ou disputas entre o Vendedor e o cliente.
+
+7. PROPRIEDADE INTELECTUAL
+
+7.1. Todo o conteúdo da Plataforma (código-fonte, design, marca, logotipos) é de propriedade exclusiva da Empresa, protegido pela Lei nº 9.610/1998 (Direitos Autorais) e pela Lei nº 9.279/1996 (Propriedade Industrial).
+
+7.2. O Vendedor concede à Empresa licença não exclusiva para exibir seus produtos, logotipo e informações na Plataforma para fins de divulgação.
+
+8. PROTEÇÃO DE DADOS (LGPD)
+
+8.1. A Empresa trata os dados pessoais dos Usuários em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018).
+
+8.2. Os dados coletados são utilizados exclusivamente para a prestação dos serviços da Plataforma, processamento de pagamentos e comunicações necessárias.
+
+8.3. O Vendedor se compromete a tratar os dados pessoais de seus clientes em conformidade com a LGPD, sendo responsável por eventuais violações.
+
+8.4. O Usuário pode exercer seus direitos previstos no art. 18 da LGPD (acesso, correção, eliminação, portabilidade) mediante contato pelo e-mail bcmtechdev@gmail.com.
+
+9. SUSPENSÃO E CANCELAMENTO
+
+9.1. A Empresa poderá suspender ou cancelar a conta do Vendedor, a qualquer tempo e sem aviso prévio, em caso de:
+
+a) Violação destes Termos;
+
+b) Práticas fraudulentas, ilegais ou abusivas;
+
+c) Reiteradas reclamações de clientes;
+
+d) Inatividade prolongada (superior a 180 dias).
+
+9.2. O Vendedor pode cancelar sua conta a qualquer momento, desde que não possua pedidos em andamento ou valores pendentes.
+
+10. LIMITAÇÃO DE RESPONSABILIDADE
+
+10.1. A responsabilidade da Empresa limita-se aos valores efetivamente recebidos como comissão nos últimos 12 meses, não respondendo por danos indiretos, lucros cessantes ou danos morais.
+
+10.2. A Empresa não garante resultados comerciais, volume de vendas ou lucratividade ao Vendedor.
+
+11. DISPOSIÇÕES GERAIS
+
+11.1. Estes Termos são regidos pela legislação da República Federativa do Brasil.
+
+11.2. Fica eleito o foro da comarca de Arroio Grande, Estado do Rio Grande do Sul, para dirimir quaisquer controvérsias, com renúncia a qualquer outro, por mais privilegiado que seja.
+
+11.3. A Empresa reserva-se o direito de alterar estes Termos a qualquer tempo, notificando o Usuário por meio da Plataforma. O uso continuado após a alteração implica aceitação dos novos Termos.
+
+11.4. A invalidade ou nulidade de qualquer cláusula não prejudica as demais disposições destes Termos.
+
+12. MARCO CIVIL DA INTERNET
+
+12.1. A Plataforma opera em conformidade com a Lei nº 12.965/2014 (Marco Civil da Internet) e o Decreto nº 8.771/2016, assegurando a neutralidade de rede, a proteção dos registros de acesso e a privacidade dos usuários.
+
+13. COMÉRCIO ELETRÔNICO
+
+13.1. A Plataforma cumpre as disposições do Decreto nº 7.962/2013, que regulamenta o comércio eletrônico no Brasil, fornecendo informações claras sobre os serviços, meios de contato e procedimentos para resolução de problemas.
+
+Ao clicar em "Aceitar e Continuar", você manifesta seu consentimento livre, informado e inequívoco com todos os termos acima.`;
 
 function getContractTypeForRole(role: string): string {
   switch (role) {
@@ -162,11 +417,11 @@ function getDefaultContract(role: string): string {
 function getCheckboxText(role: string): string {
   switch (role) {
     case 'VENDOR':
-      return 'Li e aceito os Termos de Uso da Plataforma e estou ciente das minhas responsabilidades como vendedor.';
+      return 'Li e aceito os Termos de Uso da Plataforma, a Política de Privacidade e estou ciente das minhas responsabilidades como vendedor.';
     case 'DELIVERER':
-      return 'Li e aceito o Termo de Compromisso do Entregador e estou ciente das minhas responsabilidades.';
+      return 'Li e aceito os Termos de Uso da Plataforma e estou ciente de que atuo como profissional autônomo, sem vínculo empregatício.';
     default:
-      return 'Li e aceito os Termos de Uso da Plataforma e a Politica de Privacidade.';
+      return 'Li e aceito os Termos de Uso da Plataforma e a Política de Privacidade.';
   }
 }
 
@@ -208,7 +463,7 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
       }
       router.replace('/');
     } catch {
-      alert('Erro', 'Nao foi possivel aceitar os termos. Tente novamente.');
+      alert('Erro', 'Não foi possível aceitar os termos. Tente novamente.');
     }
   }
 
@@ -249,7 +504,7 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
       const { uri } = await Print.printToFileAsync({ html });
       await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `${title} - bcmTech Delivery` });
     } catch {
-      alert('Erro', 'Nao foi possivel gerar o PDF.');
+      alert('Erro', 'Não foi possível gerar o PDF.');
     }
   }
 
@@ -266,7 +521,7 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.subtitle}>
           {readOnly
-            ? 'Visualizacao do contrato aceito.'
+            ? 'Visualização do contrato aceito.'
             : 'Leia atentamente antes de continuar usando a plataforma.'}
         </Text>
       </View>
@@ -305,7 +560,7 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
         <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
           {!scrolledToEnd && (
             <Text style={styles.scrollHint}>
-              Role ate o final do contrato para poder aceitar.
+              Role até o final do contrato para poder aceitar.
             </Text>
           )}
 

@@ -5,13 +5,16 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAlert } from '../contexts/AlertContext';
 
 const statusLabels: Record<string, string> = {
+  AWAITING_PAYMENT: 'Aguardando pagamento',
   PENDING: 'Pendente',
-  CONFIRMED: 'Confirmado',
-  PREPARING: 'Em preparo',
-  READY: 'Pronto para entrega',
-  OUT_FOR_DELIVERY: 'Saiu para entrega',
+  ACCEPTED: 'Aceito',
+  PREPARING: 'Preparando',
+  READY: 'Pronto',
+  PICKED_UP: 'Coletado',
+  DELIVERING: 'A caminho',
   DELIVERED: 'Entregue',
   CANCELLED: 'Cancelado',
+  EXPIRED: 'Expirado',
 };
 
 interface Order {
