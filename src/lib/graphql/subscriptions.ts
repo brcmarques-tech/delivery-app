@@ -142,3 +142,12 @@ export const DELIVERY_UPDATED = gql`
     }
   }
 `;
+
+export const SESSION_KICKED = gql`
+  subscription SessionKicked($userId: String!, $userType: String) {
+    sessionKicked(userId: $userId, userType: $userType) {
+      userId
+      userType
+    }
+  }
+`;

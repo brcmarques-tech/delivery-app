@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useApolloClient, useMutation } from '@apollo/client';
-import { AppState } from 'react-native';
+import { useApolloClient, useMutation, useSubscription } from '@apollo/client';
+import { Alert, AppState } from 'react-native';
+import { router } from 'expo-router';
 import { LOGIN, REGISTER, GOOGLE_AUTH_APP, REGISTER_APP_WITH_GOOGLE } from '../lib/graphql/mutations';
 import { GET_ME } from '../lib/graphql/queries';
+import { SESSION_KICKED } from '../lib/graphql/subscriptions';
 
 interface User {
   id: string;
@@ -48,6 +50,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [registerGoogleMutation] = useMutation(REGISTER_APP_WITH_GOOGLE);
 
   const appState = useRef(AppState.currentState);
+  const kickedRef = useRef(false);
+
+  // Listen for session kicked via WebSocket
+  useSubscription(SESSION_KICKED, {
+    variables: { userId: user?.id, userType: 'app' },
+    skip: !user?.id,
+    onData: () => {
+      if (kickedRef.current) return;
+      kickedRef.current = true;
+      forceLogout().then(() => {
+        Alert.alert(
+          'Sessao encerrada',
+          'Sua conta foi conectada em outro dispositivo. Voce foi desconectado.',
+          [{ text: 'OK', onPress: () => { kickedRef.current = false; router.replace('/auth/login'); } }],
+        );
+      });
+    },
+  });
 
   useEffect(() => {
     loadStoredAuth();
