@@ -48,11 +48,7 @@ export default function ProfileScreen() {
   }, [meData?.meApp?.paymentConnected]);
 
   function handleConnectPayment() {
-    alert(
-      'Conectar Pagamento',
-      'Para receber pagamentos de entregas, cadastre-se como recebedor no Pagar.me pelo painel ou entre em contato com o suporte.',
-      [{ text: 'OK' }],
-    );
+    router.push('/earnings');
   }
 
   function handleDisconnectPayment() {
@@ -284,19 +280,18 @@ export default function ProfileScreen() {
       )}
 
       {isDeliverer && paymentConnected && (
-        <View style={styles.paymentConnectedBanner}>
-          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-          <Text style={[styles.delivererActiveText, { flex: 1 }]}>
-            Pagamento conectado
-          </Text>
-          <TouchableOpacity onPress={handleDisconnectPayment} disabled={disconnectLoading}>
-            {disconnectLoading ? (
-              <ActivityIndicator size="small" color={colors.danger} />
-            ) : (
-              <Text style={styles.mpDisconnectText}>Desconectar</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={[styles.mpBanner, { backgroundColor: colors.card }]} onPress={() => router.push('/earnings')}>
+          <View style={styles.mpBannerIcon}>
+            <Ionicons name="wallet-outline" size={28} color={colors.success} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.mpBannerTitle}>Meus Recebimentos</Text>
+            <Text style={[styles.mpBannerSubtitle, { color: colors.textLight }]}>
+              Veja seus ganhos, saldo e antecipacao
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color={colors.success} />
+        </TouchableOpacity>
       )}
 
       <View style={[styles.menu, { backgroundColor: colors.card }]}>

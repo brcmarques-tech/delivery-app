@@ -346,6 +346,33 @@ export const VALIDATE_DOCUMENT_PHOTO = gql`
   }
 `;
 
+// ─── Recipient / Earnings ───
+
+export const REGISTER_RECIPIENT = gql`
+  mutation RegisterRecipient($recipientData: String!) {
+    registerRecipient(recipientData: $recipientData)
+  }
+`;
+
+export const REQUEST_ANTICIPATION = gql`
+  mutation RequestAnticipation {
+    requestAnticipation {
+      id
+      status
+      requestedAmount
+      approvedAmount
+      fee
+      createdAt
+    }
+  }
+`;
+
+export const TOGGLE_AUTO_ANTICIPATION = gql`
+  mutation ToggleAutoAnticipation($enabled: Boolean!) {
+    toggleAutoAnticipation(enabled: $enabled)
+  }
+`;
+
 export const REGISTER_APP_WITH_GOOGLE = gql`
   mutation RegisterAppWithGoogle($idToken: String!, $phone: String!, $cpf: String!) {
     registerAppWithGoogle(idToken: $idToken, phone: $phone, cpf: $cpf) {

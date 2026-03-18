@@ -387,3 +387,26 @@ export const GET_MY_DELIVERIES = gql`
     }
   }
 `;
+
+// ─── Recipient / Earnings ───
+
+export const MY_BALANCE = gql`
+  query MyBalance {
+    myBalance {
+      availableAmount
+      waitingFundsAmount
+      transferredAmount
+    }
+  }
+`;
+
+export const SIMULATE_ANTICIPATION = gql`
+  query SimulateAnticipation {
+    simulateAnticipation {
+      originalAmount
+      anticipatedAmount
+      fee
+      feePercentage
+    }
+  }
+`;
