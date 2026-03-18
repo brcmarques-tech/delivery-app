@@ -24,59 +24,17 @@ export default function GoogleAuthScreen() {
   }, []);
 
   async function handleResult() {
-    console.log('[GOOGLE-AUTH-SCREEN] handleResult chamado');
-    console.log('[GOOGLE-AUTH-SCREEN] Params:', JSON.stringify(params));
+    // Login mode: NÃO processar aqui — o handleGoogleLogin no login.tsx
+    // já trata via openAuthSessionAsync. Processar nos dois causa duas mutations.
+    if (params.mode === 'login') return;
 
     if (params.error) {
-      console.log('[GOOGLE-AUTH-SCREEN] Erro:', params.error);
-      const error = params.error;
-      if (error === 'GOOGLE_NO_ACCOUNT') {
-        alert('Conta nao encontrada', 'Nenhuma conta encontrada com este email Google. Cadastre-se primeiro.');
-      } else {
-        alert('Erro', 'Erro ao entrar com Google. Tente novamente.');
-      }
+      alert('Erro', 'Erro ao entrar com Google. Tente novamente.');
       router.replace('/auth/login');
       return;
     }
 
-    if (params.mode === 'login' && params.accessToken) {
-      // Novo formato: Google access token → autenticar via GraphQL
-      console.log('[GOOGLE-AUTH-SCREEN] Login mode com accessToken, chamando loginWithGoogle...');
-      try {
-        await loginWithGoogle(params.accessToken);
-        console.log('[GOOGLE-AUTH-SCREEN] loginWithGoogle OK, navegando para /');
-        router.replace('/');
-      } catch (err: any) {
-        console.log('[GOOGLE-AUTH-SCREEN] ERRO loginWithGoogle:', err?.message, err);
-        const msg = err?.message || '';
-        if (msg.includes('GOOGLE_NO_ACCOUNT')) {
-          alert('Conta nao encontrada', 'Nenhuma conta encontrada com este email Google. Cadastre-se primeiro.');
-        } else {
-          alert('Erro', 'Erro ao processar login com Google.');
-        }
-        router.replace('/auth/login');
-      }
-      return;
-    }
-
-    if (params.mode === 'login' && params.token && params.user) {
-      // Formato antigo: JWT + user direto da API
-      console.log('[GOOGLE-AUTH-SCREEN] Login mode com token+user (formato antigo), chamando setAuthData...');
-      try {
-        const userData = JSON.parse(params.user);
-        await setAuthData(params.token, userData);
-        console.log('[GOOGLE-AUTH-SCREEN] setAuthData OK, navegando para /');
-        router.replace('/');
-      } catch (err: any) {
-        console.log('[GOOGLE-AUTH-SCREEN] ERRO setAuthData:', err?.message);
-        alert('Erro', 'Erro ao processar login com Google.');
-        router.replace('/auth/login');
-      }
-      return;
-    }
-
     if (params.mode === 'register' && params.name && params.email) {
-      console.log('[GOOGLE-AUTH-SCREEN] Register mode, redirecionando para register');
       router.replace({
         pathname: '/auth/register',
         params: {
@@ -89,9 +47,6 @@ export default function GoogleAuthScreen() {
       return;
     }
 
-    // Fallback
-    console.log('[GOOGLE-AUTH-SCREEN] FALLBACK - nenhuma condição matched, voltando para login');
-    console.log('[GOOGLE-AUTH-SCREEN] mode:', params.mode, 'accessToken?', !!params.accessToken, 'name?', !!params.name);
     router.replace('/auth/login');
   }
 

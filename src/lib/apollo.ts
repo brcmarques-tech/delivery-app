@@ -41,29 +41,22 @@ try {
         const token = await AsyncStorage.getItem('token');
         return { authorization: token ? `Bearer ${token}` : '' };
       },
-      on: {
-        connected: () => console.log('[WS] Connected'),
-        error: (err) => console.log('[WS] Error', err),
-        closed: () => console.log('[WS] Closed'),
-      },
+      on: {},
     }),
   );
-} catch (err) {
-  console.log('[WS] Failed to create wsLink', err);
+} catch {
+  // WebSocket not available
 }
 
 let sessionExpiredHandled = false;
-const errorLink = onError(({ graphQLErrors, operation }) => {
-  console.log('[APOLLO-ERROR] operacao:', operation.operationName, 'erros:', graphQLErrors?.map(e => e.message));
+const errorLink = onError(({ graphQLErrors }) => {
   const sessionExpired = graphQLErrors?.some(
     (e) => e.message?.includes('SESSION_EXPIRED') || e.extensions?.code === 'UNAUTHENTICATED'
   );
   if (sessionExpired && !sessionExpiredHandled) {
-    console.log('[APOLLO-ERROR] SESSION_EXPIRED detectado! Fazendo silent logout...');
     sessionExpiredHandled = true;
     // Silent logout — the subscription handles the user-facing alert
     AsyncStorage.multiRemove(['token', 'user']).then(() => {
-      console.log('[APOLLO-ERROR] AsyncStorage limpo, redirecionando para login');
       sessionExpiredHandled = false;
       router.replace('/auth/login');
     });
