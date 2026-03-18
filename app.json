@@ -24,6 +24,11 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.bcmtech.deliveryapp",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDGljwvMZdnnPAJNKar0ipOEpWKykD9s28"
+        }
+      },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
