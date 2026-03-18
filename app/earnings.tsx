@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import { useQuery, useMutation } from '@apollo/client';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { fonts } from '../src/theme';
+
 import { MY_BALANCE, SIMULATE_ANTICIPATION } from '../src/lib/graphql/queries';
 import { GET_ME } from '../src/lib/graphql/queries';
 import { REGISTER_RECIPIENT, REQUEST_ANTICIPATION, DISCONNECT_PAYMENT } from '../src/lib/graphql/mutations';
@@ -120,15 +120,15 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
       <View style={{ gap: 12, marginBottom: 24 }}>
         <View style={[styles.balanceCard, { backgroundColor: '#dcfce7', borderColor: '#bbf7d0' }]}>
           <Text style={{ fontSize: 13, color: '#166534' }}>Disponivel para saque</Text>
-          <Text style={{ fontSize: 28, fontFamily: fonts.bold, color: '#166534' }}>R$ {(balance?.availableAmount || 0).toFixed(2)}</Text>
+          <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#166534' }}>R$ {(balance?.availableAmount || 0).toFixed(2)}</Text>
         </View>
         <View style={[styles.balanceCard, { backgroundColor: '#fff7ed', borderColor: '#fed7aa' }]}>
           <Text style={{ fontSize: 13, color: '#9a3412' }}>A receber</Text>
-          <Text style={{ fontSize: 28, fontFamily: fonts.bold, color: '#9a3412' }}>R$ {(balance?.waitingFundsAmount || 0).toFixed(2)}</Text>
+          <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#9a3412' }}>R$ {(balance?.waitingFundsAmount || 0).toFixed(2)}</Text>
         </View>
         <View style={[styles.balanceCard, { backgroundColor: '#dbeafe', borderColor: '#bfdbfe' }]}>
           <Text style={{ fontSize: 13, color: '#1e40af' }}>Ja transferido</Text>
-          <Text style={{ fontSize: 28, fontFamily: fonts.bold, color: '#1e40af' }}>R$ {(balance?.transferredAmount || 0).toFixed(2)}</Text>
+          <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#1e40af' }}>R$ {(balance?.transferredAmount || 0).toFixed(2)}</Text>
         </View>
       </View>
 
@@ -143,16 +143,16 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
           <View style={{ gap: 6, marginBottom: 16 }}>
             <View style={styles.simRow}>
               <Text style={{ fontSize: 13, color: colors.textSecondary }}>Valor pendente:</Text>
-              <Text style={{ fontSize: 13, fontFamily: fonts.semiBold, color: colors.text }}>R$ {sim.originalAmount.toFixed(2)}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>R$ {sim.originalAmount.toFixed(2)}</Text>
             </View>
             <View style={styles.simRow}>
               <Text style={{ fontSize: 13, color: '#dc2626' }}>Taxa (~{sim.feePercentage}%):</Text>
-              <Text style={{ fontSize: 13, fontFamily: fonts.semiBold, color: '#dc2626' }}>- R$ {sim.fee.toFixed(2)}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#dc2626' }}>- R$ {sim.fee.toFixed(2)}</Text>
             </View>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <View style={styles.simRow}>
-              <Text style={{ fontSize: 14, fontFamily: fonts.semiBold, color: '#16a34a' }}>Voce receberia:</Text>
-              <Text style={{ fontSize: 18, fontFamily: fonts.bold, color: '#16a34a' }}>R$ {sim.anticipatedAmount.toFixed(2)}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: '#16a34a' }}>Voce receberia:</Text>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#16a34a' }}>R$ {sim.anticipatedAmount.toFixed(2)}</Text>
             </View>
           </View>
 
@@ -173,21 +173,21 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
           <View style={styles.infoRow}>
             <Text style={{ fontSize: 20 }}>💳</Text>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontFamily: fonts.semiBold, color: colors.text }}>Cartao de credito</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Cartao de credito</Text>
               <Text style={{ fontSize: 12, color: colors.textSecondary }}>Disponivel em 30 dias. Com antecipacao, ~2 dias (com taxa).</Text>
             </View>
           </View>
           <View style={styles.infoRow}>
             <Text style={{ fontSize: 20 }}>📱</Text>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontFamily: fonts.semiBold, color: colors.text }}>PIX</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>PIX</Text>
               <Text style={{ fontSize: 12, color: colors.textSecondary }}>Disponivel em 2 dias uteis (D+2).</Text>
             </View>
           </View>
           <View style={styles.infoRow}>
             <Text style={{ fontSize: 20 }}>🏦</Text>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontFamily: fonts.semiBold, color: colors.text }}>Transferencia automatica</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Transferencia automatica</Text>
               <Text style={{ fontSize: 12, color: colors.textSecondary }}>Quando disponivel, transfere automaticamente todo dia.</Text>
             </View>
           </View>
@@ -270,9 +270,9 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
           {['Dados Pessoais', 'Endereco', 'Conta Bancaria'].map((label, i) => (
             <TouchableOpacity key={i} onPress={() => setStep(i)} style={styles.stepItem}>
               <View style={[styles.stepDot, { backgroundColor: step === i ? '#f97316' : colors.border }]}>
-                <Text style={{ fontSize: 12, color: step === i ? '#fff' : colors.textSecondary, fontFamily: fonts.bold }}>{i + 1}</Text>
+                <Text style={{ fontSize: 12, color: step === i ? '#fff' : colors.textSecondary, fontWeight: 'bold' }}>{i + 1}</Text>
               </View>
-              <Text style={{ fontSize: 10, color: step === i ? '#f97316' : colors.textSecondary, fontFamily: step === i ? fonts.semiBold : fonts.regular }}>{label}</Text>
+              <Text style={{ fontSize: 10, color: step === i ? '#f97316' : colors.textSecondary, fontWeight: step === i ? '600' : 'normal' }}>{label}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -361,7 +361,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
             </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <TouchableOpacity style={[styles.secondaryBtn, { borderColor: colors.border }]} onPress={() => setStep(0)}>
-                <Text style={{ color: colors.text, fontFamily: fonts.semiBold, fontSize: 14 }}>Voltar</Text>
+                <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>Voltar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.primaryBtn, { flex: 1 }]} onPress={() => setStep(2)}>
                 <Text style={styles.primaryBtnText}>Proximo</Text>
@@ -383,7 +383,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
                       onPress={() => set('bank', b.code)}
                       style={[styles.bankChip, { backgroundColor: form.bank === b.code ? '#f97316' : colors.card, borderColor: form.bank === b.code ? '#f97316' : colors.border }]}
                     >
-                      <Text style={{ fontSize: 11, color: form.bank === b.code ? '#fff' : colors.text, fontFamily: form.bank === b.code ? fonts.semiBold : fonts.regular }}>
+                      <Text style={{ fontSize: 11, color: form.bank === b.code ? '#fff' : colors.text, fontWeight: form.bank === b.code ? '600' : 'normal' }}>
                         {b.name}
                       </Text>
                     </TouchableOpacity>
@@ -400,13 +400,13 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
                 onPress={() => set('accountType', 'checking')}
                 style={[styles.typeBtn, { backgroundColor: form.accountType === 'checking' ? '#f97316' : colors.card, borderColor: form.accountType === 'checking' ? '#f97316' : colors.border }]}
               >
-                <Text style={{ fontSize: 13, color: form.accountType === 'checking' ? '#fff' : colors.text, fontFamily: fonts.semiBold }}>Corrente</Text>
+                <Text style={{ fontSize: 13, color: form.accountType === 'checking' ? '#fff' : colors.text, fontWeight: '600' }}>Corrente</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => set('accountType', 'savings')}
                 style={[styles.typeBtn, { backgroundColor: form.accountType === 'savings' ? '#f97316' : colors.card, borderColor: form.accountType === 'savings' ? '#f97316' : colors.border }]}
               >
-                <Text style={{ fontSize: 13, color: form.accountType === 'savings' ? '#fff' : colors.text, fontFamily: fonts.semiBold }}>Poupanca</Text>
+                <Text style={{ fontSize: 13, color: form.accountType === 'savings' ? '#fff' : colors.text, fontWeight: '600' }}>Poupanca</Text>
               </TouchableOpacity>
             </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -431,7 +431,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
             </View>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
               <TouchableOpacity style={[styles.secondaryBtn, { borderColor: colors.border }]} onPress={() => setStep(1)}>
-                <Text style={{ color: colors.text, fontFamily: fonts.semiBold, fontSize: 14 }}>Voltar</Text>
+                <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>Voltar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.primaryBtn, { flex: 1, opacity: loading ? 0.5 : 1 }]} onPress={handleSubmit} disabled={loading}>
                 <Text style={styles.primaryBtnText}>{loading ? 'Cadastrando...' : 'Cadastrar'}</Text>
@@ -450,20 +450,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 18, fontFamily: fonts.bold },
+  headerTitle: { fontSize: 18, fontWeight: 'bold' },
   balanceCard: {
     borderRadius: 16, padding: 16, borderWidth: 1,
   },
   section: {
     borderRadius: 16, padding: 16, borderWidth: 1, marginBottom: 16,
   },
-  sectionTitle: { fontSize: 16, fontFamily: fonts.bold, marginBottom: 8 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 8 },
   simRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   divider: { height: 1, marginVertical: 4 },
   primaryBtn: {
     backgroundColor: '#f97316', borderRadius: 12, paddingVertical: 14, alignItems: 'center',
   },
-  primaryBtnText: { color: '#fff', fontSize: 15, fontFamily: fonts.bold },
+  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
   secondaryBtn: {
     borderRadius: 12, paddingVertical: 14, paddingHorizontal: 20, alignItems: 'center', borderWidth: 1,
   },
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14,
   },
-  label: { fontSize: 12, fontFamily: fonts.medium, marginBottom: 4 },
+  label: { fontSize: 12, fontWeight: '500', marginBottom: 4 },
   bankChip: {
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
   },
