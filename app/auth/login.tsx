@@ -26,7 +26,7 @@ const RETURN_URL = Constants.appOwnership === 'expo'
   : 'delivery-app://google-auth';
 
 export default function LoginScreen() {
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle, setAuthData } = useAuth();
   const { alert } = useAlert();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,18 +35,24 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
 
   async function handleGoogleLogin() {
+    console.log('[GOOGLE-LOGIN] Iniciando fluxo Google OAuth');
+    console.log('[GOOGLE-LOGIN] API_BASE:', API_BASE);
+    console.log('[GOOGLE-LOGIN] RETURN_URL:', RETURN_URL);
     setGoogleLoading(true);
     try {
-      const result = await WebBrowser.openAuthSessionAsync(
-        `${API_BASE}/auth/google/mobile?mode=login&userType=app&returnUrl=${encodeURIComponent(RETURN_URL)}`,
-        RETURN_URL,
-      );
+      const url = `${API_BASE}/auth/google/mobile?mode=login&userType=app&returnUrl=${encodeURIComponent(RETURN_URL)}`;
+      console.log('[GOOGLE-LOGIN] Abrindo browser:', url);
+      const result = await WebBrowser.openAuthSessionAsync(url, RETURN_URL);
+      console.log('[GOOGLE-LOGIN] Browser retornou, type:', result.type);
 
       if (result.type === 'success' && result.url) {
+        console.log('[GOOGLE-LOGIN] URL completa:', result.url);
         const parsed = Linking.parse(result.url);
         const params = parsed.queryParams || {};
+        console.log('[GOOGLE-LOGIN] Params parseados:', JSON.stringify(params));
 
         if (params.error) {
+          console.log('[GOOGLE-LOGIN] Erro retornado:', params.error);
           const error = params.error as string;
           if (error === 'GOOGLE_NO_ACCOUNT') {
             alert('Conta nao encontrada', 'Nenhuma conta encontrada com este email Google. Cadastre-se primeiro.');
@@ -57,11 +63,26 @@ export default function LoginScreen() {
         }
 
         if (params.accessToken) {
+          // Novo formato: Google access token → autenticar via GraphQL
+          console.log('[GOOGLE-LOGIN] accessToken recebido, chamando loginWithGoogle...');
           await loginWithGoogle(params.accessToken as string);
+          console.log('[GOOGLE-LOGIN] loginWithGoogle OK, navegando para /');
           router.replace('/');
+        } else if (params.token && params.user) {
+          // Formato antigo: JWT + user direto da API
+          console.log('[GOOGLE-LOGIN] token+user recebidos (formato antigo), chamando setAuthData...');
+          const userData = JSON.parse(params.user as string);
+          await setAuthData(params.token as string, userData);
+          console.log('[GOOGLE-LOGIN] setAuthData OK, navegando para /');
+          router.replace('/');
+        } else {
+          console.log('[GOOGLE-LOGIN] SEM accessToken E SEM token+user! Keys:', Object.keys(params));
         }
+      } else {
+        console.log('[GOOGLE-LOGIN] Browser nao retornou success. Result:', JSON.stringify(result));
       }
     } catch (err: any) {
+      console.log('[GOOGLE-LOGIN] ERRO CATCH:', err?.message, err);
       const msg = err?.message || '';
       if (msg.includes('GOOGLE_NO_ACCOUNT')) {
         alert('Conta nao encontrada', 'Nenhuma conta encontrada com este email Google. Cadastre-se primeiro.');
@@ -69,6 +90,7 @@ export default function LoginScreen() {
         alert('Erro', 'Erro ao entrar com Google. Tente novamente.');
       }
     } finally {
+      console.log('[GOOGLE-LOGIN] Finally - setGoogleLoading(false)');
       setGoogleLoading(false);
     }
   }

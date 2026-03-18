@@ -230,6 +230,12 @@ export const REGISTER_PUSH_TOKEN = gql`
   }
 `;
 
+export const LOGOUT = gql`
+  mutation Logout {
+    logout
+  }
+`;
+
 export const ACCEPT_TERMS = gql`
   mutation AcceptAppTerms {
     acceptAppTerms {
