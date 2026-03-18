@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   Image,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -69,17 +70,29 @@ export default function LoginScreen() {
     }
   }
 
-  async function handleLogin() {
+  async function handleLogin(forceLogin: boolean = false) {
     if (!email || !password) {
       alert('Erro', 'Preencha todos os campos');
       return;
     }
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, forceLogin);
       router.replace('/');
-    } catch {
-      alert('Erro', 'Email ou senha invalidos');
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('ACTIVE_SESSION')) {
+        Alert.alert(
+          'Sessao ativa',
+          'Esta conta ja esta logada em outro dispositivo. Deseja desconectar o outro e entrar aqui?',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Sim, entrar aqui', onPress: () => handleLogin(true) },
+          ],
+        );
+      } else {
+        alert('Erro', 'Email ou senha invalidos');
+      }
     } finally {
       setLoading(false);
     }

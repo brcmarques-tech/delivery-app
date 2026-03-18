@@ -58,8 +58,8 @@ export const CONFIRM_EMAIL_VERIFICATION = gql`
 `;
 
 export const LOGIN = gql`
-  mutation LoginApp($input: LoginInput!) {
-    loginApp(input: $input) {
+  mutation LoginApp($input: LoginInput!, $forceLogin: Boolean) {
+    loginApp(input: $input, forceLogin: $forceLogin) {
       accessToken
       user {
         id

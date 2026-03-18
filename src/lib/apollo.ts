@@ -1,10 +1,12 @@
 import { ApolloClient, InMemoryCache, createHttpLink, split } from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
+import { onError } from '@apollo/client/link/error';
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient } from 'graphql-ws';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
+import { router } from 'expo-router';
 
 const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
 const PROD_URL = 'https://delivery-api-fdc4.onrender.com';
@@ -50,6 +52,23 @@ try {
   console.log('[WS] Failed to create wsLink', err);
 }
 
+let sessionExpiredHandled = false;
+const errorLink = onError(({ graphQLErrors }) => {
+  const sessionExpired = graphQLErrors?.some(
+    (e) => e.message?.includes('SESSION_EXPIRED') || e.extensions?.code === 'UNAUTHENTICATED'
+  );
+  if (sessionExpired && !sessionExpiredHandled) {
+    sessionExpiredHandled = true;
+    AsyncStorage.multiRemove(['token', 'user']).then(() => {
+      Alert.alert(
+        'Sessao encerrada',
+        'Sua conta foi conectada em outro dispositivo. Voce foi desconectado.',
+        [{ text: 'OK', onPress: () => { sessionExpiredHandled = false; router.replace('/auth/login'); } }],
+      );
+    });
+  }
+});
+
 const link = wsLink
   ? split(
       ({ query }) => {
@@ -65,6 +84,6 @@ const link = wsLink
   : authLink.concat(httpLink);
 
 export const apolloClient = new ApolloClient({
-  link,
+  link: errorLink.concat(link),
   cache: new InMemoryCache(),
 });

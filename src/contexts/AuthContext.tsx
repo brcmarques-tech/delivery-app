@@ -25,7 +25,7 @@ interface AuthContextData {
   user: User | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, forceLogin?: boolean) => Promise<void>;
   loginWithGoogle: (idToken: string) => Promise<void>;
   registerWithGoogle: (idToken: string, phone: string, cpf: string) => Promise<void>;
   register: (name: string, email: string, password: string, phone: string, role?: string, cpf?: string) => Promise<void>;
@@ -116,9 +116,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }
 
-  async function login(email: string, password: string) {
+  async function login(email: string, password: string, forceLogin: boolean = false) {
     const { data } = await loginMutation({
-      variables: { input: { email, password } },
+      variables: { input: { email, password }, forceLogin },
     });
     const { accessToken, user: userData } = data.loginApp;
     await AsyncStorage.setItem('token', accessToken);
