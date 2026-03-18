@@ -262,8 +262,8 @@ export const RESET_PASSWORD = gql`
 `;
 
 export const GOOGLE_AUTH_APP = gql`
-  mutation GoogleAuthApp($idToken: String!, $forceLogin: Boolean) {
-    googleAuthApp(idToken: $idToken, forceLogin: $forceLogin) {
+  mutation GoogleAuthApp($idToken: String!) {
+    googleAuthApp(idToken: $idToken) {
       accessToken
       user {
         id name email cpf role isDeliverer pendingRole
