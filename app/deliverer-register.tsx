@@ -9,6 +9,8 @@ import {
   Image,
   ActivityIndicator,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useMutation } from '@apollo/client';
@@ -566,7 +568,8 @@ export default function DelivererRegisterScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]} keyboardShouldPersistTaps="handled">
       <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/')}>
         <Ionicons name="arrow-back" size={24} color={colors.text} />
       </TouchableOpacity>
@@ -822,6 +825,7 @@ export default function DelivererRegisterScreen() {
         </TouchableOpacity>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

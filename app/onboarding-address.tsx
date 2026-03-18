@@ -11,6 +11,7 @@ import {
   FlatList,
   Dimensions,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 
 let MapView: any = View;
@@ -201,7 +202,8 @@ export default function OnboardingAddressScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
         <View style={styles.iconCircle}>
           <Ionicons name="location" size={40} color={colors.primary} />
@@ -407,6 +409,7 @@ export default function OnboardingAddressScreen() {
         </View>
       )}
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

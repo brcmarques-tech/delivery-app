@@ -11,6 +11,7 @@ import {
   NativeScrollEvent,
   Image,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -385,7 +386,8 @@ export default function RegisterScreen() {
   // Step 1: Registration form
   if (step === 1) {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled">
         {/* Step indicator */}
         <View style={styles.stepIndicator}>
           <View style={[styles.stepDot, styles.stepActive]} />
@@ -542,14 +544,15 @@ export default function RegisterScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
   // Step 2: WhatsApp verification
   if (step === 2) {
     return (
-      <View style={styles.container}>
-        <ScrollView contentContainerStyle={[styles.otpContent, { paddingTop: insets.top + 16 }]}>
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView contentContainerStyle={[styles.otpContent, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled">
           {/* Step indicator */}
           <View style={styles.stepIndicator}>
             <View style={[styles.stepDot, styles.stepDone]} />
@@ -613,7 +616,7 @@ export default function RegisterScreen() {
             </Text>
           </TouchableOpacity>
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 

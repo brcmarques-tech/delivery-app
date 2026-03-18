@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useMutation } from '@apollo/client';
@@ -274,7 +276,10 @@ export default function AddressesScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -286,6 +291,7 @@ export default function AddressesScreen() {
       </View>
 
       {showForm && (
+        <ScrollView style={styles.formScroll} keyboardShouldPersistTaps="handled">
         <View style={styles.form}>
           <Text style={styles.formTitle}>{editingId ? 'Editar endereco' : 'Novo endereco'}</Text>
           <TouchableOpacity style={styles.gpsButton} onPress={handleGetLocation} disabled={locating}>
@@ -415,6 +421,7 @@ export default function AddressesScreen() {
             </View>
           )}
         </View>
+        </ScrollView>
       )}
 
       <Modal visible={showStatePicker} transparent animationType="slide">
@@ -508,7 +515,7 @@ export default function AddressesScreen() {
           </View>
         }
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -531,6 +538,7 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 10,
   },
+  formScroll: { maxHeight: '70%' },
   formTitle: { fontSize: fonts.medium, fontWeight: 'bold', color: colors.text, marginBottom: 4 },
   formRow: { flexDirection: 'row', gap: 10 },
   input: {
