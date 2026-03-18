@@ -34,11 +34,12 @@ export default function LoginScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  async function handleGoogleLogin() {
+  async function handleGoogleLogin(forceLogin: boolean = false) {
     setGoogleLoading(true);
     try {
+      const forceParam = forceLogin ? '&forceLogin=true' : '';
       const result = await WebBrowser.openAuthSessionAsync(
-        `${API_BASE}/auth/google/mobile?mode=login&userType=app&returnUrl=${encodeURIComponent(RETURN_URL)}`,
+        `${API_BASE}/auth/google/mobile?mode=login&userType=app&returnUrl=${encodeURIComponent(RETURN_URL)}${forceParam}`,
         RETURN_URL,
       );
 
@@ -50,6 +51,15 @@ export default function LoginScreen() {
           const error = params.error as string;
           if (error === 'GOOGLE_NO_ACCOUNT') {
             alert('Conta nao encontrada', 'Nenhuma conta encontrada com este email Google. Cadastre-se primeiro.');
+          } else if (error === 'ACTIVE_SESSION') {
+            Alert.alert(
+              'Sessao ativa',
+              'Esta conta ja esta logada em outro dispositivo. Deseja desconectar o outro e entrar aqui?',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Sim, entrar aqui', onPress: () => handleGoogleLogin(true) },
+              ],
+            );
           } else {
             alert('Erro', 'Erro ao entrar com Google. Tente novamente.');
           }

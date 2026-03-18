@@ -195,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function setAuthData(accessToken: string, userData: User) {
+    markJustLoggedIn();
     await AsyncStorage.setItem('token', accessToken);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);

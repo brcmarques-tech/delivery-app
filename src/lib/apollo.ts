@@ -59,12 +59,10 @@ const errorLink = onError(({ graphQLErrors }) => {
   );
   if (sessionExpired && !sessionExpiredHandled) {
     sessionExpiredHandled = true;
+    // Silent logout — the subscription handles the user-facing alert
     AsyncStorage.multiRemove(['token', 'user']).then(() => {
-      Alert.alert(
-        'Sessao encerrada',
-        'Sua conta foi conectada em outro dispositivo. Voce foi desconectado.',
-        [{ text: 'OK', onPress: () => { sessionExpiredHandled = false; router.replace('/auth/login'); } }],
-      );
+      sessionExpiredHandled = false;
+      router.replace('/auth/login');
     });
   }
 });
