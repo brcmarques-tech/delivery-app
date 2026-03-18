@@ -26,7 +26,7 @@ const RETURN_URL = Constants.appOwnership === 'expo'
   : 'delivery-app://google-auth';
 
 export default function LoginScreen() {
-  const { login, setAuthData } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const { alert } = useAlert();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -56,15 +56,18 @@ export default function LoginScreen() {
           return;
         }
 
-        if (params.token && params.user) {
-          const token = params.token as string;
-          const user = JSON.parse(params.user as string);
-          await setAuthData(token, user);
+        if (params.accessToken) {
+          await loginWithGoogle(params.accessToken as string);
           router.replace('/');
         }
       }
-    } catch {
-      alert('Erro', 'Erro ao entrar com Google. Tente novamente.');
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('GOOGLE_NO_ACCOUNT')) {
+        alert('Conta nao encontrada', 'Nenhuma conta encontrada com este email Google. Cadastre-se primeiro.');
+      } else {
+        alert('Erro', 'Erro ao entrar com Google. Tente novamente.');
+      }
     } finally {
       setGoogleLoading(false);
     }
@@ -151,7 +154,7 @@ export default function LoginScreen() {
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleLogin}
+          onPress={() => handleLogin()}
           disabled={loading}
         >
           <Text style={styles.buttonText}>
