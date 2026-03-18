@@ -51,13 +51,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const appState = useRef(AppState.currentState);
   const kickedRef = useRef(false);
+  const justLoggedInRef = useRef(false);
 
   // Listen for session kicked via WebSocket
   useSubscription(SESSION_KICKED, {
     variables: { userId: user?.id, userType: 'app' },
     skip: !user?.id,
     onData: () => {
-      if (kickedRef.current) return;
+      // Ignore kick events right after login (forceLogin triggers kick for same userId)
+      if (justLoggedInRef.current || kickedRef.current) return;
       kickedRef.current = true;
       forceLogout().then(() => {
         Alert.alert(
@@ -136,7 +138,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }
 
+  function markJustLoggedIn() {
+    justLoggedInRef.current = true;
+    setTimeout(() => { justLoggedInRef.current = false; }, 3000);
+  }
+
   async function login(email: string, password: string, forceLogin: boolean = false) {
+    if (forceLogin) markJustLoggedIn();
     const { data } = await loginMutation({
       variables: { input: { email, password }, forceLogin },
     });
@@ -148,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function loginWithGoogle(idToken: string) {
+    markJustLoggedIn();
     const { data } = await googleAuthMutation({
       variables: { idToken },
     });
