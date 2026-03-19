@@ -52,10 +52,13 @@ async function registerForPushNotifications(): Promise<string | null> {
 
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
+        name: 'Entregas e Pedidos',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#FF6B35',
+        sound: 'default',
+        enableVibrate: true,
+        showBadge: true,
       });
     }
 
