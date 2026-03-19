@@ -391,6 +391,24 @@ export const TOGGLE_AUTO_ANTICIPATION = gql`
   }
 `;
 
+export const CUSTOMER_DENY_DELIVERY = gql`
+  mutation CustomerDenyDelivery($orderId: String!, $reason: String!) {
+    customerDenyDelivery(orderId: $orderId, reason: $reason) {
+      id
+      status
+    }
+  }
+`;
+
+export const CANCEL_ORDER = gql`
+  mutation CancelOrder($orderId: String!) {
+    cancelOrder(orderId: $orderId) {
+      id
+      status
+    }
+  }
+`;
+
 export const REGISTER_APP_WITH_GOOGLE = gql`
   mutation RegisterAppWithGoogle($idToken: String!, $phone: String!, $cpf: String!) {
     registerAppWithGoogle(idToken: $idToken, phone: $phone, cpf: $cpf) {
