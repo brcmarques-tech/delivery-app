@@ -9,7 +9,9 @@ import {
   Linking,
   Platform,
   Vibration,
+  AppState,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -75,6 +77,8 @@ export default function DeliveriesScreen() {
   const [offerCountdown, setOfferCountdown] = useState(0);
   const socketRef = useRef<Socket | null>(null);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
+  const isOnlineRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
 
   const statusLabels: Record<string, { label: string; color: string }> = {
     VENDOR_CONFIRMED_PICKUP: { label: 'Aguardando coleta', color: colors.warning },
@@ -121,34 +125,21 @@ export default function DeliveriesScreen() {
   const { data: meData } = useQuery(GET_ME, { fetchPolicy: 'cache-and-network' });
   const paymentConnected = meData?.meApp?.paymentConnected ?? user?.paymentConnected ?? false;
 
-  // Go online/offline
-  const toggleOnline = useCallback(async () => {
-    if (!paymentConnected) {
-      alert('Conta nao conectada', 'Conecte sua conta de pagamento para comecar a fazer entregas.');
-      return;
+  // Connect socket and location tracking
+  const connectSocket = useCallback(async () => {
+    // Disconnect existing socket if any
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    if (locationSubRef.current) {
+      locationSubRef.current.remove();
+      locationSubRef.current = null;
     }
 
-    if (isOnline) {
-      // Go offline
-      if (socketRef.current) {
-        socketRef.current.emit('delivererOffline', { userId: user?.id });
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-      if (locationSubRef.current) {
-        locationSubRef.current.remove();
-        locationSubRef.current = null;
-      }
-      setIsOnline(false);
-      setCurrentOffer(null);
-      return;
-    }
-
-    // Go online
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
-      alert('Erro', 'Permissao de localizacao necessaria para receber entregas');
-      return;
+      return false;
     }
 
     const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
@@ -185,8 +176,97 @@ export default function DeliveriesScreen() {
       },
     );
 
+    return true;
+  }, [user]);
+
+  // Go online/offline (only via button)
+  const toggleOnline = useCallback(async () => {
+    if (!paymentConnected) {
+      alert('Conta nao conectada', 'Conecte sua conta de pagamento para comecar a fazer entregas.');
+      return;
+    }
+
+    if (isOnline) {
+      // Go offline - only here we send delivererOffline
+      if (socketRef.current) {
+        socketRef.current.emit('delivererOffline', { userId: user?.id });
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      if (locationSubRef.current) {
+        locationSubRef.current.remove();
+        locationSubRef.current = null;
+      }
+      setIsOnline(false);
+      isOnlineRef.current = false;
+      AsyncStorage.setItem('deliverer_online', 'false');
+      setCurrentOffer(null);
+      return;
+    }
+
+    // Go online
+    const connected = await connectSocket();
+    if (!connected) {
+      alert('Erro', 'Permissao de localizacao necessaria para receber entregas');
+      return;
+    }
+
     setIsOnline(true);
-  }, [isOnline, user]);
+    isOnlineRef.current = true;
+    AsyncStorage.setItem('deliverer_online', 'true');
+  }, [isOnline, user, connectSocket]);
+
+  // Clear online status on logout
+  useEffect(() => {
+    if (!user) {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      if (locationSubRef.current) {
+        locationSubRef.current.remove();
+        locationSubRef.current = null;
+      }
+      setIsOnline(false);
+      isOnlineRef.current = false;
+      AsyncStorage.setItem('deliverer_online', 'false');
+    }
+  }, [user]);
+
+  // Auto-reconnect: restore online status on mount
+  useEffect(() => {
+    if (!user || !paymentConnected) return;
+    AsyncStorage.getItem('deliverer_online').then((val) => {
+      if (val === 'true') {
+        connectSocket().then((connected) => {
+          if (connected) {
+            setIsOnline(true);
+            isOnlineRef.current = true;
+          }
+        });
+      }
+    });
+  }, [user, paymentConnected]);
+
+  // Auto-reconnect: when app comes back from background
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        nextAppState === 'active' &&
+        isOnlineRef.current
+      ) {
+        // App came back to foreground and deliverer was online - reconnect
+        connectSocket().then((connected) => {
+          if (connected) {
+            setIsOnline(true);
+          }
+        });
+      }
+      appStateRef.current = nextAppState;
+    });
+    return () => subscription.remove();
+  }, [connectSocket]);
 
   // Offer countdown timer
   useEffect(() => {
@@ -222,14 +302,18 @@ export default function DeliveriesScreen() {
     setCurrentOffer(null);
   }
 
-  // Cleanup on unmount
+  // Cleanup on unmount - disconnect socket but do NOT send delivererOffline
+  // (deliverer stays "online" until they explicitly press the button)
   useEffect(() => {
     return () => {
       if (socketRef.current) {
-        socketRef.current.emit('delivererOffline', { userId: user?.id });
         socketRef.current.disconnect();
+        socketRef.current = null;
       }
-      if (locationSubRef.current) locationSubRef.current.remove();
+      if (locationSubRef.current) {
+        locationSubRef.current.remove();
+        locationSubRef.current = null;
+      }
     };
   }, []);
 
