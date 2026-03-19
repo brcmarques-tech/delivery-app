@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Alert } from 'react-native';
-import { useMutation, useQuery } from '@apollo/client';
+import { useMutation, useQuery, useSubscription } from '@apollo/client';
 import { ADD_TO_CART, UPDATE_CART_ITEM, REMOVE_FROM_CART, CLEAR_CART } from '../lib/graphql/mutations';
 import { GET_MY_CART } from '../lib/graphql/queries';
+import { PRODUCT_UPDATED } from '../lib/graphql/subscriptions';
 import { useAuth } from './AuthContext';
 
 export interface CartItem {
@@ -67,6 +68,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setItems(serverItems);
     }
   }, [cartData]);
+
+  // Refetch cart when a product price changes so cart totals stay current
+  useSubscription(PRODUCT_UPDATED, {
+    skip: !user || items.length === 0,
+    onData: ({ data: subData }) => {
+      const updated = subData?.data?.productUpdated;
+      if (!updated?.id) return;
+      const inCart = items.some((i) => i.productId === updated.id);
+      if (inCart) refetch();
+    },
+  });
 
   // Clear on logout
   useEffect(() => {
