@@ -256,6 +256,7 @@ export default function DeliveriesScreen() {
   const [acceptDelivery] = useMutation(ACCEPT_DELIVERY);
   const [confirmPickup] = useMutation(CONFIRM_PICKUP);
   const [confirmDeliveryMut] = useMutation(CONFIRM_DELIVERY);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const availableOrders = availableData?.availableDeliveries || [];
   const myDeliveries = myData?.myDeliveries || [];
@@ -283,6 +284,7 @@ export default function DeliveriesScreen() {
   useDeliveryTracking(activeDeliveryForTracking);
 
   async function handleAccept(orderId: string, orderNumber: string) {
+    if (actionLoading) return;
     if (!paymentConnected) {
       alert('Conta nao conectada', 'Conecte sua conta de pagamento para aceitar entregas.');
       return;
@@ -292,6 +294,8 @@ export default function DeliveriesScreen() {
       {
         text: 'Aceitar',
         onPress: async () => {
+          if (actionLoading) return;
+          setActionLoading(orderId);
           try {
             await acceptDelivery({ variables: { orderId } });
             refetchAvailable();
@@ -300,6 +304,8 @@ export default function DeliveriesScreen() {
             alert('Sucesso', 'Entrega aceita! Va ate a loja para coletar.');
           } catch {
             alert('Erro', 'Nao foi possivel aceitar a entrega.');
+          } finally {
+            setActionLoading(null);
           }
         },
       },
@@ -307,16 +313,21 @@ export default function DeliveriesScreen() {
   }
 
   async function handleConfirmPickup(deliveryId: string) {
+    if (actionLoading) return;
     alert('Confirmar coleta', 'Voce ja retirou o pedido na loja?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Sim, coletei',
         onPress: async () => {
+          if (actionLoading) return;
+          setActionLoading(deliveryId);
           try {
             await confirmPickup({ variables: { deliveryId } });
             refetchMy();
           } catch {
             alert('Erro', 'Nao foi possivel confirmar a coleta.');
+          } finally {
+            setActionLoading(null);
           }
         },
       },
@@ -324,17 +335,22 @@ export default function DeliveriesScreen() {
   }
 
   async function handleConfirmDelivery(deliveryId: string) {
+    if (actionLoading) return;
     alert('Confirmar entrega', 'O pedido foi entregue ao cliente?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Sim, entreguei',
         onPress: async () => {
+          if (actionLoading) return;
+          setActionLoading(deliveryId);
           try {
             await confirmDeliveryMut({ variables: { deliveryId } });
             refetchMy();
             refetchAvailable();
           } catch {
             alert('Erro', 'Nao foi possivel confirmar a entrega.');
+          } finally {
+            setActionLoading(null);
           }
         },
       },
@@ -386,11 +402,12 @@ export default function DeliveriesScreen() {
             <Text style={[styles.feeValue, { color: colors.success }]}>R$ {Number(item.deliveryFee).toFixed(2)}</Text>
           </View>
           <TouchableOpacity
-            style={[styles.acceptButton, { backgroundColor: colors.success }]}
+            style={[styles.acceptButton, { backgroundColor: actionLoading ? colors.gray : colors.success }]}
             onPress={() => handleAccept(item.id, item.orderNumber)}
+            disabled={!!actionLoading}
           >
-            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-            <Text style={styles.acceptButtonText}>Aceitar</Text>
+            <Ionicons name={actionLoading === item.id ? 'hourglass' : 'checkmark-circle'} size={20} color="#FFFFFF" />
+            <Text style={styles.acceptButtonText}>{actionLoading === item.id ? 'Aceitando...' : 'Aceitar'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -480,20 +497,22 @@ export default function DeliveriesScreen() {
               <Text style={[styles.totalText, { color: colors.text }]}>R$ {Number(order.total).toFixed(2)}</Text>
               {order.status === 'PICKED_UP' && (
                 <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: colors.primary }]}
+                  style={[styles.actionButton, { backgroundColor: actionLoading ? colors.gray : colors.primary }]}
                   onPress={() => handleConfirmPickup(item.id)}
+                  disabled={!!actionLoading}
                 >
-                  <Ionicons name="bag-check" size={18} color="#FFFFFF" />
-                  <Text style={styles.actionButtonText}>Confirmar coleta</Text>
+                  <Ionicons name={actionLoading === item.id ? 'hourglass' : 'bag-check'} size={18} color="#FFFFFF" />
+                  <Text style={styles.actionButtonText}>{actionLoading === item.id ? 'Confirmando...' : 'Confirmar coleta'}</Text>
                 </TouchableOpacity>
               )}
               {order.status === 'DELIVERING' && (
                 <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: colors.success }]}
+                  style={[styles.actionButton, { backgroundColor: actionLoading ? colors.gray : colors.success }]}
                   onPress={() => handleConfirmDelivery(item.id)}
+                  disabled={!!actionLoading}
                 >
-                  <Ionicons name="checkmark-done" size={18} color="#FFFFFF" />
-                  <Text style={styles.actionButtonText}>Confirmar entrega</Text>
+                  <Ionicons name={actionLoading === item.id ? 'hourglass' : 'checkmark-done'} size={18} color="#FFFFFF" />
+                  <Text style={styles.actionButtonText}>{actionLoading === item.id ? 'Confirmando...' : 'Confirmar entrega'}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -556,9 +575,9 @@ export default function DeliveriesScreen() {
               <TouchableOpacity style={[styles.offerDecline, { backgroundColor: colors.grayLight }]} onPress={handleDeclineOffer}>
                 <Text style={[styles.offerDeclineText, { color: colors.textLight }]}>Recusar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.offerAccept, { backgroundColor: colors.success }]} onPress={handleAcceptOffer}>
-                <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                <Text style={styles.offerAcceptText}>Aceitar</Text>
+              <TouchableOpacity style={[styles.offerAccept, { backgroundColor: actionLoading ? colors.gray : colors.success }]} onPress={handleAcceptOffer} disabled={!!actionLoading}>
+                <Ionicons name={actionLoading ? 'hourglass' : 'checkmark-circle'} size={20} color="#FFFFFF" />
+                <Text style={styles.offerAcceptText}>{actionLoading ? 'Aceitando...' : 'Aceitar'}</Text>
               </TouchableOpacity>
             </View>
           </View>
