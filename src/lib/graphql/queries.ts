@@ -517,6 +517,11 @@ export const GET_MY_DELIVERIES = gql`
         notes
         deliveryLatitude
         deliveryLongitude
+        delivererConfirmedDeliveryAt
+        customerConfirmedAt
+        completedAt
+        disputedAt
+        disputeReason
         store {
           name
           street
