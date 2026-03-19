@@ -271,12 +271,13 @@ export default function CheckoutScreen() {
       }
       refetchCart();
 
-      if ((paymentMethod === 'CREDIT_CARD' || paymentMethod === 'PIX') && order.checkoutUrl) {
+      if (paymentMethod === 'PIX') {
+        // Go straight to order screen where PIX QR code is shown inline
+        router.replace(`/order/${order.id}`);
+      } else if (paymentMethod === 'CREDIT_CARD' && order.checkoutUrl) {
         alert(
           'Pedido criado!',
-          paymentMethod === 'PIX'
-            ? 'Voce sera redirecionado para pagar com PIX.'
-            : 'Voce sera redirecionado para o pagamento.',
+          'Voce sera redirecionado para o pagamento.',
           [
             {
               text: 'Pagar agora',

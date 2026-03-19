@@ -400,6 +400,15 @@ export const CUSTOMER_DENY_DELIVERY = gql`
   }
 `;
 
+export const DISPUTE_COMPLETED_ORDER = gql`
+  mutation DisputeCompletedOrder($orderId: String!, $reason: String!) {
+    disputeCompletedOrder(orderId: $orderId, reason: $reason) {
+      id
+      status
+    }
+  }
+`;
+
 export const CANCEL_ORDER = gql`
   mutation CancelOrder($orderId: String!) {
     cancelOrder(orderId: $orderId) {

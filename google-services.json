@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "701403852576",
+    "project_id": "bcmtech-delivery-91b27",
+    "storage_bucket": "bcmtech-delivery-91b27.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:701403852576:android:18834c0713366ff62bf145",
+        "android_client_info": {
+          "package_name": "com.bcmtech.deliveryapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyArhaXPJrzmHZYPaiAQXL4gSH91LqzXeQY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

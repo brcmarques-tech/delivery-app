@@ -283,17 +283,28 @@ export default function DeliveriesScreen() {
     return () => clearInterval(timer);
   }, [currentOffer, offerCountdown]);
 
-  function handleAcceptOffer() {
+  async function handleAcceptOffer() {
     if (!currentOffer || !socketRef.current) return;
     if (!paymentConnected) {
       alert('Conta nao conectada', 'Conecte sua conta de pagamento para aceitar entregas.');
       setCurrentOffer(null);
       return;
     }
-    socketRef.current.emit('acceptOffer', { orderId: currentOffer.orderId, delivererId: user?.id });
-    // Now accept via GraphQL too
-    handleAccept(currentOffer.orderId, currentOffer.orderNumber);
+    const { orderId } = currentOffer;
     setCurrentOffer(null);
+    socketRef.current.emit('acceptOffer', { orderId, delivererId: user?.id });
+    setActionLoading(orderId);
+    try {
+      await acceptDelivery({ variables: { orderId } });
+      refetchAvailable();
+      refetchMy();
+      setTab('my');
+      alert('Sucesso', 'Entrega aceita! Va ate a loja para coletar.');
+    } catch {
+      alert('Erro', 'Nao foi possivel aceitar a entrega.');
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   function handleDeclineOffer() {

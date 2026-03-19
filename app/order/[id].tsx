@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator, Alert, Modal, TextInput, Share, Image } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { GET_ORDER } from '../../src/lib/graphql/queries';
-import { CONFIRM_RECEIPT, CONFIRM_PICKUP, CONFIRM_DELIVERY, CUSTOMER_DENY_DELIVERY, CANCEL_ORDER } from '../../src/lib/graphql/mutations';
+import { CONFIRM_RECEIPT, CONFIRM_PICKUP, CONFIRM_DELIVERY, CUSTOMER_DENY_DELIVERY, CANCEL_ORDER, DISPUTE_COMPLETED_ORDER } from '../../src/lib/graphql/mutations';
 import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -58,11 +59,18 @@ export default function OrderDetailScreen() {
   const [confirmPickup, { loading: pickingUp }] = useMutation(CONFIRM_PICKUP);
   const [confirmDelivery, { loading: delivering }] = useMutation(CONFIRM_DELIVERY);
   const [cancelOrder, { loading: cancelling }] = useMutation(CANCEL_ORDER);
+  const [disputeCompleted, { loading: disputing }] = useMutation(DISPUTE_COMPLETED_ORDER);
 
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [denyModalVisible, setDenyModalVisible] = useState(false);
   const [selectedDenyReason, setSelectedDenyReason] = useState<string | null>(null);
   const [customDenyReason, setCustomDenyReason] = useState('');
+  const [disputeModalVisible, setDisputeModalVisible] = useState(false);
+  const [selectedDisputeReason, setSelectedDisputeReason] = useState<string | null>(null);
+  const [customDisputeReason, setCustomDisputeReason] = useState('');
+  const [pixModalVisible, setPixModalVisible] = useState(false);
+  const [pixCopied, setPixCopied] = useState(false);
+  const [pixTimeLeft, setPixTimeLeft] = useState(600); // 10 min
 
   const order = data?.order;
   const isDeliverer = user?.role === 'DELIVERER' || user?.isDeliverer;
@@ -87,6 +95,45 @@ export default function OrderDetailScreen() {
     const interval = setInterval(calcRemaining, 1000);
     return () => clearInterval(interval);
   }, [needsCustomerAction, delivererConfirmedAt]);
+
+  // Auto-open PIX modal when arriving at order with pending PIX payment
+  useEffect(() => {
+    if (order?.status === 'AWAITING_PAYMENT' && order?.paymentMethod === 'PIX' && order?.pixQrCode) {
+      setPixModalVisible(true);
+      setPixTimeLeft(600);
+    }
+  }, [order?.status, order?.paymentMethod, order?.pixQrCode]);
+
+  // PIX countdown timer (10 min)
+  useEffect(() => {
+    if (!pixModalVisible || pixTimeLeft <= 0) return;
+    const timer = setInterval(() => {
+      setPixTimeLeft((prev) => {
+        if (prev <= 1) {
+          setPixModalVisible(false);
+          Alert.alert('PIX expirado', 'O tempo para pagamento expirou. Gere um novo PIX.');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [pixModalVisible, pixTimeLeft]);
+
+  const handleCopyPixCode = async () => {
+    if (!order?.pixQrCode) return;
+    await Clipboard.setStringAsync(order.pixQrCode);
+    setPixCopied(true);
+    setTimeout(() => setPixCopied(false), 3000);
+  };
+
+  const handleSharePixCode = async () => {
+    if (!order?.pixQrCode) return;
+    await Share.share({
+      message: order.pixQrCode,
+      title: `PIX - Pedido #${order.orderNumber}`,
+    });
+  };
 
   const handleConfirmReceipt = async () => {
     try {
@@ -161,6 +208,37 @@ export default function OrderDetailScreen() {
     );
   };
 
+  const disputeReasonOptions = [
+    'Pedido não chegou',
+    'Pedido incompleto',
+    'Pedido errado',
+    'Produto danificado',
+    'Produto com defeito',
+    'Outro',
+  ];
+
+  const handleDisputeCompleted = async () => {
+    const reason = selectedDisputeReason === 'Outro' ? customDisputeReason.trim() : selectedDisputeReason;
+    if (!reason) {
+      Alert.alert('Erro', 'Selecione ou digite um motivo.');
+      return;
+    }
+    try {
+      await disputeCompleted({ variables: { orderId: id, reason } });
+      setDisputeModalVisible(false);
+      setSelectedDisputeReason(null);
+      setCustomDisputeReason('');
+      Alert.alert('Enviado', 'Sua reclamação foi registrada. Analisaremos em breve.');
+      refetch();
+    } catch (err: any) {
+      Alert.alert('Erro', err.message);
+    }
+  };
+
+  // Check if dispute is within 48h window
+  const canDisputeCompleted = order?.status === 'COMPLETED' && order?.completedAt && !isDeliverer &&
+    (Date.now() - new Date(order.completedAt).getTime()) < 48 * 60 * 60 * 1000;
+
   if (loading || !order) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
@@ -195,15 +273,23 @@ export default function OrderDetailScreen() {
         </View>
       )}
 
-      {isAwaitingPayment && (order.paymentMethod === 'CREDIT_CARD' || order.paymentMethod === 'PIX') && order.checkoutUrl && (
+      {isAwaitingPayment && order.paymentMethod === 'PIX' && order.pixQrCode && (
+        <TouchableOpacity
+          style={[styles.payButton, { backgroundColor: '#00B4D8' }]}
+          onPress={() => setPixModalVisible(true)}
+        >
+          <Ionicons name="qr-code-outline" size={20} color="#FFFFFF" />
+          <Text style={[styles.payButtonText, { color: '#FFFFFF' }]}>Pagar com PIX</Text>
+        </TouchableOpacity>
+      )}
+
+      {isAwaitingPayment && order.paymentMethod === 'CREDIT_CARD' && order.checkoutUrl && (
         <TouchableOpacity
           style={[styles.payButton, { backgroundColor: colors.primary }]}
           onPress={() => Linking.openURL(order.checkoutUrl)}
         >
-          <Ionicons name={order.paymentMethod === 'PIX' ? 'qr-code-outline' : 'card-outline'} size={20} color="#FFFFFF" />
-          <Text style={[styles.payButtonText, { color: '#FFFFFF' }]}>
-            {order.paymentMethod === 'PIX' ? 'Pagar com PIX' : 'Ir para pagamento'}
-          </Text>
+          <Ionicons name="card-outline" size={20} color="#FFFFFF" />
+          <Text style={[styles.payButtonText, { color: '#FFFFFF' }]}>Ir para pagamento</Text>
         </TouchableOpacity>
       )}
 
@@ -389,6 +475,17 @@ export default function OrderDetailScreen() {
         </View>
       )}
 
+      {/* Dispute button - 48h after COMPLETED */}
+      {canDisputeCompleted && (
+        <TouchableOpacity
+          style={[styles.cancelButton, { borderColor: colors.warning }]}
+          onPress={() => setDisputeModalVisible(true)}
+        >
+          <Ionicons name="alert-circle-outline" size={20} color={colors.warning} />
+          <Text style={[styles.cancelButtonText, { color: colors.warning }]}>Tive um problema</Text>
+        </TouchableOpacity>
+      )}
+
       <View style={[styles.section, { backgroundColor: colors.card }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Itens</Text>
         {order.items.map((item: any) => {
@@ -427,8 +524,8 @@ export default function OrderDetailScreen() {
         </View>
       </View>
 
-      {/* Cancel button - only for PENDING */}
-      {order.status === 'PENDING' && !isDeliverer && (
+      {/* Cancel button - PENDING or ACCEPTED (before PREPARING) */}
+      {(order.status === 'PENDING' || order.status === 'ACCEPTED') && !isDeliverer && (
         <TouchableOpacity
           style={[styles.cancelButton, { borderColor: colors.danger }]}
           onPress={handleCancelOrder}
@@ -446,6 +543,78 @@ export default function OrderDetailScreen() {
       )}
 
       <View style={{ height: insets.bottom + 24 }} />
+
+      {/* PIX payment modal */}
+      <Modal
+        visible={pixModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPixModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.pixModalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Pagar com PIX</Text>
+              <TouchableOpacity onPress={() => setPixModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Timer */}
+            <View style={[styles.pixTimerBar, { backgroundColor: pixTimeLeft < 60 ? '#FEE2E2' : isDark ? '#1A2A1A' : '#ECFDF5' }]}>
+              <Ionicons name="time-outline" size={18} color={pixTimeLeft < 60 ? '#DC2626' : '#10B981'} />
+              <Text style={[styles.pixTimerText, { color: pixTimeLeft < 60 ? '#DC2626' : '#10B981' }]}>
+                {Math.floor(pixTimeLeft / 60)}:{(pixTimeLeft % 60).toString().padStart(2, '0')}
+              </Text>
+            </View>
+
+            {/* QR Code */}
+            {order?.pixQrCodeBase64 ? (
+              <View style={styles.pixQrContainer}>
+                <Image
+                  source={{ uri: order.pixQrCodeBase64 }}
+                  style={styles.pixQrImage}
+                  resizeMode="contain"
+                />
+              </View>
+            ) : null}
+
+            {/* Amount */}
+            <Text style={[styles.pixAmount, { color: colors.text }]}>
+              R$ {Number(order?.total || 0).toFixed(2)}
+            </Text>
+            <Text style={[styles.pixLabel, { color: colors.textLight }]}>
+              Pedido #{order?.orderNumber}
+            </Text>
+
+            {/* Copy button */}
+            <TouchableOpacity
+              style={[styles.pixCopyButton, { backgroundColor: pixCopied ? '#10B981' : '#00B4D8' }]}
+              onPress={handleCopyPixCode}
+            >
+              <Ionicons name={pixCopied ? 'checkmark-circle' : 'copy-outline'} size={20} color="#FFFFFF" />
+              <Text style={styles.pixCopyButtonText}>
+                {pixCopied ? 'Codigo copiado!' : 'Copiar codigo PIX'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Share button */}
+            <TouchableOpacity
+              style={[styles.pixShareButton, { backgroundColor: isDark ? '#333' : '#F3F4F6' }]}
+              onPress={handleSharePixCode}
+            >
+              <Ionicons name="share-outline" size={20} color={colors.text} />
+              <Text style={[styles.pixShareButtonText, { color: colors.text }]}>
+                Enviar para app do banco
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={[styles.pixHint, { color: colors.gray }]}>
+              Abra o app do seu banco e cole o codigo PIX, ou escaneie o QR Code acima.
+            </Text>
+          </View>
+        </View>
+      </Modal>
 
       {/* Deny delivery modal */}
       <Modal
@@ -502,6 +671,67 @@ export default function OrderDetailScreen() {
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.modalConfirmButtonText}>Enviar contestação</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Dispute completed order modal */}
+      <Modal
+        visible={disputeModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDisputeModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Relatar problema</Text>
+              <TouchableOpacity onPress={() => setDisputeModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.modalSubtitle, { color: colors.textLight }]}>
+              O que aconteceu com seu pedido?
+            </Text>
+            {disputeReasonOptions.map((reason) => (
+              <TouchableOpacity
+                key={reason}
+                style={[
+                  styles.reasonOption,
+                  { borderColor: colors.grayLight },
+                  selectedDisputeReason === reason && { borderColor: colors.primary, backgroundColor: isDark ? '#3A2A1A' : '#FFF5F0' },
+                ]}
+                onPress={() => setSelectedDisputeReason(reason)}
+              >
+                <Ionicons
+                  name={selectedDisputeReason === reason ? 'radio-button-on' : 'radio-button-off'}
+                  size={20}
+                  color={selectedDisputeReason === reason ? colors.primary : colors.gray}
+                />
+                <Text style={[styles.reasonText, { color: colors.text }]}>{reason}</Text>
+              </TouchableOpacity>
+            ))}
+            {selectedDisputeReason === 'Outro' && (
+              <TextInput
+                style={[styles.reasonInput, { borderColor: colors.grayLight, color: colors.text, backgroundColor: isDark ? '#2D2D2D' : '#F9F9F9' }]}
+                placeholder="Descreva o problema..."
+                placeholderTextColor={colors.gray}
+                value={customDisputeReason}
+                onChangeText={setCustomDisputeReason}
+                multiline
+              />
+            )}
+            <TouchableOpacity
+              style={[styles.modalConfirmButton, { backgroundColor: colors.warning }]}
+              onPress={handleDisputeCompleted}
+              disabled={disputing || (!selectedDisputeReason || (selectedDisputeReason === 'Outro' && !customDisputeReason.trim()))}
+            >
+              {disputing ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.modalConfirmButtonText}>Enviar reclamação</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -727,4 +957,80 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   modalConfirmButtonText: { fontSize: fonts.regular, fontWeight: 'bold', color: '#FFFFFF' },
+  // PIX modal styles
+  pixModalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  pixTimerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+  },
+  pixTimerText: {
+    fontSize: fonts.large,
+    fontWeight: 'bold',
+  },
+  pixQrContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+  },
+  pixQrImage: {
+    width: 200,
+    height: 200,
+  },
+  pixAmount: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  pixLabel: {
+    fontSize: fonts.small,
+    marginBottom: 20,
+  },
+  pixCopyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignSelf: 'stretch',
+    marginBottom: 10,
+  },
+  pixCopyButtonText: {
+    fontSize: fonts.regular,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  pixShareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignSelf: 'stretch',
+    marginBottom: 16,
+  },
+  pixShareButtonText: {
+    fontSize: fonts.regular,
+    fontWeight: '600',
+  },
+  pixHint: {
+    fontSize: fonts.small,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
 });
