@@ -27,6 +27,17 @@ import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscript
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../src/theme';
 
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000; // meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 async function openNavigation(lat: number, lng: number, label: string) {
   const googleMapsUrl = Platform.select({
     ios: `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
@@ -79,6 +90,7 @@ export default function DeliveriesScreen() {
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
   const isOnlineRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
+  const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   const statusLabels: Record<string, { label: string; color: string }> = {
     VENDOR_CONFIRMED_PICKUP: { label: 'Aguardando coleta', color: colors.warning },
@@ -168,6 +180,7 @@ export default function DeliveriesScreen() {
     locationSubRef.current = await Location.watchPositionAsync(
       { accuracy: Location.Accuracy.High, distanceInterval: 50, timeInterval: 15000 },
       (loc) => {
+        setCurrentLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
         socket.emit('delivererLocationUpdate', {
           userId: user?.id,
           latitude: loc.coords.latitude,
@@ -554,29 +567,31 @@ export default function DeliveriesScreen() {
               </View>
             </View>
 
+            {order.status === 'VENDOR_CONFIRMED_PICKUP' && (
+              <TouchableOpacity
+                style={styles.navigateButton}
+                onPress={() => openNavigation(
+                  Number(order.store.latitude),
+                  Number(order.store.longitude),
+                  order.store.name,
+                )}
+              >
+                <Ionicons name="navigate" size={18} color="#FFFFFF" />
+                <Text style={styles.navigateButtonText}>Navegar ate a loja</Text>
+              </TouchableOpacity>
+            )}
+
             {(order.status === 'PICKED_UP' || order.status === 'DELIVERING') && (
               <TouchableOpacity
                 style={styles.navigateButton}
-                onPress={() => {
-                  if (order.status === 'PICKED_UP') {
-                    openNavigation(
-                      Number(order.store.latitude),
-                      Number(order.store.longitude),
-                      order.store.name,
-                    );
-                  } else {
-                    openNavigation(
-                      Number(order.deliveryLatitude),
-                      Number(order.deliveryLongitude),
-                      'Cliente',
-                    );
-                  }
-                }}
+                onPress={() => openNavigation(
+                  Number(order.deliveryLatitude),
+                  Number(order.deliveryLongitude),
+                  'Cliente',
+                )}
               >
                 <Ionicons name="navigate" size={18} color="#FFFFFF" />
-                <Text style={styles.navigateButtonText}>
-                  {order.status === 'PICKED_UP' ? 'Navegar ate a loja' : 'Navegar ate o cliente'}
-                </Text>
+                <Text style={styles.navigateButtonText}>Navegar ate o cliente</Text>
               </TouchableOpacity>
             )}
 
@@ -590,17 +605,29 @@ export default function DeliveriesScreen() {
 
             <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
               <Text style={[styles.totalText, { color: colors.text }]}>R$ {Number(order.total).toFixed(2)}</Text>
-              {order.status === 'PICKED_UP' && (
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: actionLoading ? colors.gray : colors.primary }]}
-                  onPress={() => handleConfirmPickup(item.id)}
-                  disabled={!!actionLoading}
-                >
-                  <Ionicons name={actionLoading === item.id ? 'hourglass' : 'bag-check'} size={18} color="#FFFFFF" />
-                  <Text style={styles.actionButtonText}>{actionLoading === item.id ? 'Confirmando...' : 'Confirmar coleta'}</Text>
-                </TouchableOpacity>
-              )}
-              {order.status === 'DELIVERING' && (
+              {order.status === 'VENDOR_CONFIRMED_PICKUP' && (() => {
+                const storeLat = Number(order.store.latitude);
+                const storeLng = Number(order.store.longitude);
+                const nearStore = currentLocation
+                  ? haversineDistance(currentLocation.latitude, currentLocation.longitude, storeLat, storeLng) <= 200
+                  : false;
+                return nearStore ? (
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: actionLoading ? colors.gray : colors.primary }]}
+                    onPress={() => handleConfirmPickup(item.id)}
+                    disabled={!!actionLoading}
+                  >
+                    <Ionicons name={actionLoading === item.id ? 'hourglass' : 'bag-check'} size={18} color="#FFFFFF" />
+                    <Text style={styles.actionButtonText}>{actionLoading === item.id ? 'Confirmando...' : 'Coletei'}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={[styles.actionButton, { backgroundColor: colors.gray }]}>
+                    <Ionicons name="location" size={18} color="#FFFFFF" />
+                    <Text style={styles.actionButtonText}>Aproxime-se da loja</Text>
+                  </View>
+                );
+              })()}
+              {(order.status === 'PICKED_UP' || order.status === 'DELIVERING') && (
                 <TouchableOpacity
                   style={[styles.actionButton, { backgroundColor: actionLoading ? colors.gray : colors.success }]}
                   onPress={() => handleConfirmDelivery(item.id)}
