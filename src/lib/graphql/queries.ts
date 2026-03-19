@@ -9,8 +9,15 @@ export const GET_STORES = gql`
       logoUrl
       bannerUrl
       isOpen
+      latitude
+      longitude
+      hasOwnDelivery
+      freeDelivery
+      freeDeliveryAbove
       deliveryFee
       estimatedDeliveryMinutes
+      deliveryStartTime
+      deliveryEndTime
       minimumOrder
       verificationLevel
       verificationScore
@@ -27,12 +34,26 @@ export const GET_NEARBY_STORES = gql`
       logoUrl
       bannerUrl
       isOpen
+      latitude
+      longitude
+      hasOwnDelivery
+      freeDelivery
+      freeDeliveryAbove
       deliveryFee
       estimatedDeliveryMinutes
+      deliveryStartTime
+      deliveryEndTime
       minimumOrder
       verificationLevel
       verificationScore
     }
+  }
+`;
+
+export const GET_DELIVERY_PRICING = gql`
+  query DeliveryPricing {
+    deliveryBasePrice
+    deliveryPricePerKm
   }
 `;
 

@@ -1,5 +1,6 @@
-import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
+import { useEffect } from 'react';
+import { Tabs, usePathname, router } from 'expo-router';
+import { View, Text, StyleSheet, BackHandler } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -7,6 +8,19 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCart } from '../../src/contexts/CartContext';
 
 export default function TabsLayout() {
+  const pathname = usePathname();
+
+  // Back button: if on home tab, do nothing (don't exit/logout). Otherwise, go to home.
+  useEffect(() => {
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (pathname === '/' || pathname === '/home' || pathname === '/(tabs)/home') {
+        return true; // block — already on home
+      }
+      router.replace('/(tabs)/home');
+      return true; // handled
+    });
+    return () => handler.remove();
+  }, [pathname]);
   const { user } = useAuth();
   const { colors } = useTheme();
   const { itemCount } = useCart();

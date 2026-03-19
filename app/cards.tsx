@@ -1,23 +1,16 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  FlatList,
-  TextInput,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
+  View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput,
+  ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../src/contexts/ThemeContext';
 import { LIST_MY_CARDS } from '../src/lib/graphql/queries';
 import { SAVE_CARD, DELETE_CARD } from '../src/lib/graphql/mutations';
 import { useAlert } from '../src/contexts/AlertContext';
-import { colors, fonts } from '../src/theme';
 
 const PAGARME_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAGARME_PUBLIC_KEY || '';
 
@@ -32,10 +25,27 @@ function formatExpiry(text: string) {
   return digits;
 }
 
+function getBrandIcon(brand: string): string {
+  const b = (brand || '').toLowerCase();
+  if (b.includes('visa')) return 'card';
+  if (b.includes('master')) return 'card';
+  if (b.includes('elo')) return 'card';
+  return 'card-outline';
+}
+
+function getBrandColor(brand: string): string {
+  const b = (brand || '').toLowerCase();
+  if (b.includes('visa')) return '#1a1f71';
+  if (b.includes('master')) return '#eb001b';
+  if (b.includes('elo')) return '#00a4e0';
+  return '#6b7280';
+}
+
 export default function CardsScreen() {
   const insets = useSafeAreaInsets();
+  const { colors: themeColors, isDark } = useTheme();
   const { alert } = useAlert();
-  const { data, loading, refetch } = useQuery(LIST_MY_CARDS);
+  const { data, loading, refetch, error: fetchError } = useQuery(LIST_MY_CARDS);
   const [saveCardMut, { loading: saving }] = useMutation(SAVE_CARD);
   const [deleteCardMut] = useMutation(DELETE_CARD);
 
@@ -44,11 +54,16 @@ export default function CardsScreen() {
   const [holderName, setHolderName] = useState('');
   const [expiry, setExpiry] = useState('');
   const [cvv, setCvv] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const cards = data?.myCards || [];
 
+  function clearErrors(field: string) {
+    if (errors[field]) setErrors((prev) => { const n = { ...prev }; delete n[field]; return n; });
+  }
+
   async function handleDeleteCard(cardId: string) {
-    alert('Remover cartao', 'Tem certeza que deseja remover este cartao?', [
+    alert('Remover Cartao', 'Tem certeza que deseja remover este cartao?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Remover',
@@ -58,7 +73,8 @@ export default function CardsScreen() {
             await deleteCardMut({ variables: { cardId } });
             refetch();
           } catch (err: any) {
-            alert('Erro', err.message || 'Nao foi possivel remover o cartao');
+            const msg = err.message?.includes('network') ? 'Sem conexao com a internet.' : err.message || 'Nao foi possivel remover o cartao.';
+            alert('Erro', msg);
           }
         },
       },
@@ -66,32 +82,29 @@ export default function CardsScreen() {
   }
 
   async function handleSaveCard() {
+    const e: Record<string, string> = {};
     const digits = cardNumber.replace(/\D/g, '');
-    if (digits.length < 13) {
-      alert('Erro', 'Numero do cartao invalido');
-      return;
-    }
-    if (!holderName.trim()) {
-      alert('Erro', 'Informe o nome do titular');
-      return;
-    }
+
+    if (digits.length < 13) e.cardNumber = 'Numero do cartao invalido';
+    if (!holderName.trim()) e.holderName = 'Informe o nome do titular';
     const expiryParts = expiry.split('/');
     if (expiryParts.length !== 2 || expiryParts[0].length !== 2 || expiryParts[1].length !== 2) {
-      alert('Erro', 'Validade invalida (MM/AA)');
-      return;
+      e.expiry = 'Validade invalida';
+    } else {
+      const month = parseInt(expiryParts[0]);
+      if (month < 1 || month > 12) e.expiry = 'Mes invalido';
     }
-    if (cvv.length < 3) {
-      alert('Erro', 'CVV invalido');
-      return;
-    }
+    if (cvv.length < 3) e.cvv = 'CVV invalido';
+
+    setErrors(e);
+    if (Object.keys(e).length > 0) return;
 
     if (!PAGARME_PUBLIC_KEY) {
-      alert('Erro', 'Chave publica do Pagar.me nao configurada');
+      alert('Erro de Configuracao', 'Sistema de pagamento nao configurado. Entre em contato com o suporte.');
       return;
     }
 
     try {
-      // Tokenize card via Pagar.me public API
       const tokenResponse = await fetch(
         `https://api.pagar.me/core/v5/tokens?appId=${PAGARME_PUBLIC_KEY}`,
         {
@@ -101,7 +114,7 @@ export default function CardsScreen() {
             type: 'card',
             card: {
               number: digits,
-              holder_name: holderName.trim(),
+              holder_name: holderName.trim().toUpperCase(),
               exp_month: parseInt(expiryParts[0]),
               exp_year: parseInt('20' + expiryParts[1]),
               cvv,
@@ -112,101 +125,147 @@ export default function CardsScreen() {
 
       if (!tokenResponse.ok) {
         const errorData = await tokenResponse.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Erro ao tokenizar cartao');
+        if (tokenResponse.status === 400) {
+          throw new Error('Dados do cartao invalidos. Verifique o numero, validade e CVV.');
+        }
+        throw new Error(errorData.message || 'Erro ao processar cartao. Tente novamente.');
       }
 
       const tokenData = await tokenResponse.json();
-
-      // Save card via GraphQL
       await saveCardMut({ variables: { token: tokenData.id } });
       refetch();
 
-      // Reset form
       setCardNumber('');
       setHolderName('');
       setExpiry('');
       setCvv('');
+      setErrors({});
       setShowForm(false);
 
-      alert('Sucesso', 'Cartao salvo com sucesso!');
+      alert('Cartao Salvo', 'Seu cartao foi adicionado com sucesso!');
     } catch (err: any) {
-      alert('Erro', err.message || 'Nao foi possivel salvar o cartao');
+      let msg = 'Nao foi possivel salvar o cartao. Tente novamente.';
+      if (err.message?.includes('network') || err.message?.includes('Network')) msg = 'Sem conexao com a internet. Verifique e tente novamente.';
+      else if (err.message) msg = err.message;
+      alert('Erro', msg);
     }
   }
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: themeColors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: themeColors.card, borderBottomColor: themeColors.border, borderBottomWidth: 1 }]}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <Ionicons name="arrow-back" size={24} color={themeColors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Meus Cartoes</Text>
-        <TouchableOpacity onPress={() => setShowForm(!showForm)}>
-          <Ionicons name={showForm ? 'close' : 'add'} size={24} color={colors.primary} />
+        <Text style={[styles.title, { color: themeColors.text }]}>Meus Cartoes</Text>
+        <TouchableOpacity onPress={() => { setShowForm(!showForm); setErrors({}); }}>
+          <Ionicons name={showForm ? 'close' : 'add-circle-outline'} size={24} color="#f97316" />
         </TouchableOpacity>
       </View>
 
       {showForm && (
-        <View style={styles.formCard}>
-          <Text style={styles.formTitle}>Adicionar cartao</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Numero do cartao"
-            placeholderTextColor={colors.gray}
-            keyboardType="numeric"
-            value={cardNumber}
-            onChangeText={(t) => setCardNumber(formatCardNumber(t))}
-            maxLength={19}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Nome do titular"
-            placeholderTextColor={colors.gray}
-            autoCapitalize="characters"
-            value={holderName}
-            onChangeText={setHolderName}
-          />
-          <View style={styles.formRow}>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              placeholder="MM/AA"
-              placeholderTextColor={colors.gray}
-              keyboardType="numeric"
-              value={expiry}
-              onChangeText={(t) => setExpiry(formatExpiry(t))}
-              maxLength={5}
-            />
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              placeholder="CVV"
-              placeholderTextColor={colors.gray}
-              keyboardType="numeric"
-              secureTextEntry
-              value={cvv}
-              onChangeText={(t) => setCvv(t.replace(/\D/g, '').substring(0, 4))}
-              maxLength={4}
-            />
+        <View style={[styles.formCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Ionicons name="card" size={20} color="#f97316" />
+            <Text style={[styles.formTitle, { color: themeColors.text }]}>Novo Cartao</Text>
           </View>
+
+          <View>
+            <TextInput
+              style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.cardNumber ? '#ef4444' : themeColors.border }]}
+              placeholder="Numero do cartao"
+              placeholderTextColor={themeColors.textSecondary}
+              keyboardType="numeric"
+              value={cardNumber}
+              onChangeText={(t) => { setCardNumber(formatCardNumber(t)); clearErrors('cardNumber'); }}
+              maxLength={19}
+            />
+            {errors.cardNumber && <Text style={styles.fieldError}>{errors.cardNumber}</Text>}
+          </View>
+
+          <View>
+            <TextInput
+              style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.holderName ? '#ef4444' : themeColors.border }]}
+              placeholder="Nome do titular (como no cartao)"
+              placeholderTextColor={themeColors.textSecondary}
+              autoCapitalize="characters"
+              value={holderName}
+              onChangeText={(t) => { setHolderName(t); clearErrors('holderName'); }}
+            />
+            {errors.holderName && <Text style={styles.fieldError}>{errors.holderName}</Text>}
+          </View>
+
+          <View style={styles.formRow}>
+            <View style={{ flex: 1 }}>
+              <TextInput
+                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.expiry ? '#ef4444' : themeColors.border }]}
+                placeholder="MM/AA"
+                placeholderTextColor={themeColors.textSecondary}
+                keyboardType="numeric"
+                value={expiry}
+                onChangeText={(t) => { setExpiry(formatExpiry(t)); clearErrors('expiry'); }}
+                maxLength={5}
+              />
+              {errors.expiry && <Text style={styles.fieldError}>{errors.expiry}</Text>}
+            </View>
+            <View style={{ flex: 1 }}>
+              <TextInput
+                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.cvv ? '#ef4444' : themeColors.border }]}
+                placeholder="CVV"
+                placeholderTextColor={themeColors.textSecondary}
+                keyboardType="numeric"
+                secureTextEntry
+                value={cvv}
+                onChangeText={(t) => { setCvv(t.replace(/\D/g, '').substring(0, 4)); clearErrors('cvv'); }}
+                maxLength={4}
+              />
+              {errors.cvv && <Text style={styles.fieldError}>{errors.cvv}</Text>}
+            </View>
+          </View>
+
           <TouchableOpacity
-            style={[styles.saveButton, saving && { opacity: 0.6 }]}
+            style={[styles.saveButton, saving && { opacity: 0.5 }]}
             onPress={handleSaveCard}
             disabled={saving}
           >
             {saving ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.saveButtonText}>Salvar cartao</Text>
+              <>
+                <Ionicons name="lock-closed" size={16} color="#fff" />
+                <Text style={styles.saveButtonText}>Salvar cartao</Text>
+              </>
             )}
           </TouchableOpacity>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+            <Ionicons name="shield-checkmark" size={12} color={themeColors.textSecondary} />
+            <Text style={{ fontSize: 11, color: themeColors.textSecondary }}>Seus dados sao criptografados e protegidos</Text>
+          </View>
         </View>
       )}
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <ActivityIndicator size="large" color="#f97316" />
+          <Text style={{ color: themeColors.textSecondary, marginTop: 12, fontSize: 14 }}>Carregando cartoes...</Text>
+        </View>
+      ) : fetchError ? (
+        <View style={styles.loadingContainer}>
+          <Ionicons name="cloud-offline-outline" size={48} color={themeColors.textSecondary} />
+          <Text style={{ color: themeColors.textSecondary, marginTop: 12, fontSize: 14, textAlign: 'center' }}>
+            Nao foi possivel carregar seus cartoes.{'\n'}Verifique sua conexao.
+          </Text>
+          <TouchableOpacity
+            style={[styles.retryBtn, { borderColor: themeColors.border }]}
+            onPress={() => refetch()}
+          >
+            <Ionicons name="refresh" size={16} color="#f97316" />
+            <Text style={{ color: '#f97316', fontWeight: '600', fontSize: 14 }}>Tentar novamente</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -214,36 +273,44 @@ export default function CardsScreen() {
           keyExtractor={(item: any) => item.id}
           contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
           renderItem={({ item }: { item: any }) => (
-            <View style={styles.cardItem}>
-              <Ionicons name="card" size={28} color={colors.primary} />
+            <View style={[styles.cardItem, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+              <View style={[styles.cardIconBg, { backgroundColor: getBrandColor(item.brand) + '15' }]}>
+                <Ionicons name={getBrandIcon(item.brand) as any} size={22} color={getBrandColor(item.brand)} />
+              </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardBrand}>
-                  {item.brand} •••• {item.lastFourDigits}
+                <Text style={[styles.cardBrand, { color: themeColors.text }]}>
+                  {(item.brand || 'Cartao').charAt(0).toUpperCase() + (item.brand || 'cartao').slice(1)} **** {item.lastFourDigits}
                 </Text>
                 {item.holderName && (
-                  <Text style={styles.cardHolder}>{item.holderName}</Text>
+                  <Text style={[styles.cardHolder, { color: themeColors.textSecondary }]}>{item.holderName}</Text>
                 )}
                 {item.expMonth && item.expYear && (
-                  <Text style={styles.cardExpiry}>
+                  <Text style={[styles.cardExpiry, { color: themeColors.textSecondary }]}>
                     Validade: {String(item.expMonth).padStart(2, '0')}/{item.expYear}
                   </Text>
                 )}
               </View>
-              <TouchableOpacity onPress={() => handleDeleteCard(item.id)}>
-                <Ionicons name="trash-outline" size={22} color={colors.danger} />
+              <TouchableOpacity
+                onPress={() => handleDeleteCard(item.id)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={styles.deleteBtn}
+              >
+                <Ionicons name="trash-outline" size={18} color="#ef4444" />
               </TouchableOpacity>
             </View>
           )}
           ListEmptyComponent={
             !showForm ? (
               <View style={styles.emptyContainer}>
-                <Ionicons name="card-outline" size={64} color={colors.grayLight} />
-                <Text style={styles.emptyText}>Nenhum cartao salvo</Text>
-                <TouchableOpacity
-                  style={styles.addButton}
-                  onPress={() => setShowForm(true)}
-                >
-                  <Ionicons name="add" size={20} color={colors.white} />
+                <View style={[styles.emptyIcon, { backgroundColor: isDark ? '#431407' : '#fff7ed' }]}>
+                  <Ionicons name="card-outline" size={40} color="#f97316" />
+                </View>
+                <Text style={[styles.emptyTitle, { color: themeColors.text }]}>Nenhum cartao salvo</Text>
+                <Text style={[styles.emptySubtitle, { color: themeColors.textSecondary }]}>
+                  Adicione um cartao para facilitar seus pagamentos
+                </Text>
+                <TouchableOpacity style={styles.addButton} onPress={() => setShowForm(true)}>
+                  <Ionicons name="add" size={20} color="#fff" />
                   <Text style={styles.addButtonText}>Adicionar cartao</Text>
                 </TouchableOpacity>
               </View>
@@ -256,63 +323,51 @@ export default function CardsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 24,
-    paddingTop: 56,
-    backgroundColor: colors.white,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingBottom: 14,
   },
-  title: { fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text },
+  title: { fontSize: 18, fontWeight: 'bold' },
   formCard: {
-    backgroundColor: colors.white,
-    margin: 16,
-    borderRadius: 16,
-    padding: 20,
-    gap: 12,
+    margin: 16, borderRadius: 16, padding: 16, gap: 12, borderWidth: 1,
   },
-  formTitle: { fontSize: fonts.large, fontWeight: '600', color: colors.text },
+  formTitle: { fontSize: 16, fontWeight: '600' },
   input: {
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: fonts.regular,
-    color: colors.text,
+    borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14,
   },
   formRow: { flexDirection: 'row', gap: 12 },
   saveButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 4,
+    backgroundColor: '#f97316', borderRadius: 12, padding: 14,
+    alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6,
   },
-  saveButtonText: { color: colors.white, fontSize: fonts.regular, fontWeight: 'bold' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  saveButtonText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
+  fieldError: { fontSize: 11, color: '#ef4444', marginTop: 3 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  retryBtn: {
+    flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 16,
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1,
+  },
   list: { padding: 16, gap: 12 },
   cardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 18,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: 16, padding: 16, borderWidth: 1,
   },
-  cardBrand: { fontSize: fonts.regular, fontWeight: '600', color: colors.text },
-  cardHolder: { fontSize: fonts.small, color: colors.textLight, marginTop: 2 },
-  cardExpiry: { fontSize: fonts.small, color: colors.gray, marginTop: 2 },
-  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 16 },
-  emptyText: { fontSize: fonts.large, color: colors.textLight },
+  cardIconBg: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  cardBrand: { fontSize: 14, fontWeight: '600' },
+  cardHolder: { fontSize: 12, marginTop: 2 },
+  cardExpiry: { fontSize: 11, marginTop: 2 },
+  deleteBtn: {
+    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(239,68,68,0.08)',
+  },
+  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 12, paddingHorizontal: 32 },
+  emptyIcon: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  emptyTitle: { fontSize: 18, fontWeight: '600' },
+  emptySubtitle: { fontSize: 14, textAlign: 'center' },
   addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#f97316', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 14, marginTop: 4,
   },
-  addButtonText: { color: colors.white, fontWeight: 'bold', fontSize: fonts.regular },
+  addButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 });

@@ -13,7 +13,7 @@ import {
 import { useQuery, useSubscription } from '@apollo/client';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { GET_STORES, GET_ACTIVE_PROMOTIONS, GET_NEARBY_STORES } from '../../src/lib/graphql/queries';
+import { GET_STORES, GET_ACTIVE_PROMOTIONS, GET_NEARBY_STORES, GET_DELIVERY_PRICING } from '../../src/lib/graphql/queries';
 import { STORE_UPDATED, PROMOTION_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useLocation } from '../../src/contexts/LocationContext';
@@ -26,6 +26,7 @@ export default function HomeScreen() {
   const { location } = useLocation();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+
   const { data: nearbyData, loading: nearbyLoading, refetch: refetchNearby } = useQuery(GET_NEARBY_STORES, {
     variables: { latitude: location?.latitude || 0, longitude: location?.longitude || 0, radiusKm: 30 },
     skip: !location,
@@ -37,6 +38,25 @@ export default function HomeScreen() {
   const { data: promosData, refetch: refetchPromos } = useQuery(GET_ACTIVE_PROMOTIONS, {
     pollInterval: 30000,
   });
+  const { data: pricingData } = useQuery(GET_DELIVERY_PRICING);
+
+  const basePrice = pricingData?.deliveryBasePrice ?? 3;
+  const pricePerKm = pricingData?.deliveryPricePerKm ?? 1.5;
+
+  function calcDeliveryFee(storeLat: number, storeLng: number): number | null {
+    if (!location) return null;
+    const R = 6371;
+    const dLat = (location.latitude - storeLat) * Math.PI / 180;
+    const dLng = (location.longitude - storeLng) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(storeLat * Math.PI / 180) *
+        Math.cos(location.latitude * Math.PI / 180) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distanceKm = R * c;
+    return Math.round((basePrice + distanceKm * pricePerKm) * 100) / 100;
+  }
 
   // Real-time: refresh when stores or promotions change
   useSubscription(STORE_UPDATED, {
@@ -77,14 +97,28 @@ export default function HomeScreen() {
             <Text style={[styles.storeDesc, { color: colors.textLight }]} numberOfLines={1}>{item.description}</Text>
           ) : null}
           <View style={styles.storeDetails}>
+            {item.hasOwnDelivery && item.deliveryStartTime && item.deliveryEndTime ? (
+              <View style={styles.detailRow}>
+                <Ionicons name="time-outline" size={14} color={colors.gray} />
+                <Text style={[styles.detailText, { color: colors.gray }]}>Entrega {item.deliveryStartTime} às {item.deliveryEndTime}</Text>
+              </View>
+            ) : item.hasOwnDelivery && item.estimatedDeliveryMinutes > 0 ? (
+              <View style={styles.detailRow}>
+                <Ionicons name="timer-outline" size={14} color={colors.gray} />
+                <Text style={[styles.detailText, { color: colors.gray }]}>{item.estimatedDeliveryMinutes} min</Text>
+              </View>
+            ) : null}
             <View style={styles.detailRow}>
-              <Ionicons name="time-outline" size={14} color={colors.gray} />
-              <Text style={[styles.detailText, { color: colors.gray }]}>{item.estimatedDeliveryMinutes} min</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Ionicons name="bicycle-outline" size={14} color={colors.gray} />
-              <Text style={[styles.detailText, { color: colors.gray }]}>
-                {Number(item.deliveryFee) > 0 ? `R$ ${Number(item.deliveryFee).toFixed(2)}` : 'Gratis'}
+              <Ionicons name="bicycle-outline" size={14} color={item.hasOwnDelivery && item.freeDelivery ? colors.success : colors.gray} />
+              <Text style={[styles.detailText, { color: item.hasOwnDelivery && item.freeDelivery ? colors.success : colors.gray, fontWeight: item.hasOwnDelivery && item.freeDelivery ? '600' : 'normal' }]}>
+                {item.hasOwnDelivery && item.freeDelivery
+                  ? 'Frete grátis'
+                  : item.hasOwnDelivery && Number(item.deliveryFee) > 0
+                    ? `R$ ${Number(item.deliveryFee).toFixed(2)}`
+                    : (() => {
+                        const fee = calcDeliveryFee(Number(item.latitude), Number(item.longitude));
+                        return fee !== null ? `R$ ${fee.toFixed(2)}` : 'A calcular';
+                      })()}
               </Text>
             </View>
             {item.minimumOrder > 0 && (

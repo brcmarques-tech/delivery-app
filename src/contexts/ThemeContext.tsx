@@ -16,6 +16,9 @@ const lightColors = {
   warning: '#F39C12',
   text: '#2D3436',
   textLight: '#7F8C8D',
+  textSecondary: '#6B7280',
+  inputBg: '#FFFFFF',
+  border: '#E5E7EB',
 };
 
 const darkColors = {
@@ -33,6 +36,9 @@ const darkColors = {
   warning: '#F39C12',
   text: '#F9FAFB',
   textLight: '#D1D5DB',
+  textSecondary: '#9CA3AF',
+  inputBg: '#374151',
+  border: '#4B5563',
 };
 
 interface ThemeContextData {
