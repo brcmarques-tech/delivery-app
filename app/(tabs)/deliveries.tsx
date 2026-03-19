@@ -77,10 +77,45 @@ export default function DeliveriesScreen() {
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
 
   const statusLabels: Record<string, { label: string; color: string }> = {
+    VENDOR_CONFIRMED_PICKUP: { label: 'Aguardando coleta', color: colors.warning },
     PICKED_UP: { label: 'Coletado', color: colors.warning },
     DELIVERING: { label: 'A caminho', color: colors.primary },
-    DELIVERED: { label: 'Entregue', color: colors.success },
+    DELIVERER_CONFIRMED_DELIVERY: { label: 'Aguardando cliente', color: colors.warning },
+    COMPLETED: { label: 'Concluido', color: colors.success },
+    DISPUTED: { label: 'Disputado', color: colors.danger },
+    CANCELLED: { label: 'Cancelado', color: colors.danger },
   };
+
+  const CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos
+
+  function getReceiptStatus(order: any): { label: string; color: string; icon: string; detail?: string } {
+    if (order.disputedAt) {
+      return {
+        label: 'Cliente negou',
+        color: colors.danger,
+        icon: 'close-circle',
+        detail: order.disputeReason || undefined,
+      };
+    }
+    if (order.customerConfirmedAt || order.status === 'COMPLETED') {
+      return { label: 'Cliente confirmou', color: colors.success, icon: 'checkmark-circle' };
+    }
+    if (order.delivererConfirmedDeliveryAt) {
+      const elapsed = Date.now() - new Date(order.delivererConfirmedDeliveryAt).getTime();
+      const remaining = Math.max(0, CONFIRMATION_TIMEOUT_MS - elapsed);
+      if (remaining <= 0) {
+        return { label: 'Auto-confirmado', color: colors.success, icon: 'timer' };
+      }
+      const mins = Math.floor(remaining / 60000);
+      const secs = Math.floor((remaining % 60000) / 1000);
+      return {
+        label: `Aguardando (${mins}:${secs.toString().padStart(2, '0')})`,
+        color: colors.warning,
+        icon: 'time',
+      };
+    }
+    return { label: 'Entregue', color: colors.success, icon: 'checkmark' };
+  }
 
   // Check payment connection status
   const { data: meData } = useQuery(GET_ME, { fetchPolicy: 'cache-and-network' });
@@ -226,6 +261,17 @@ export default function DeliveriesScreen() {
   const myDeliveries = myData?.myDeliveries || [];
   const activeDeliveries = myDeliveries.filter((d: any) => !d.deliveredAt);
   const completedDeliveries = myDeliveries.filter((d: any) => d.deliveredAt);
+
+  // Timer tick para atualizar countdown de confirmação do cliente
+  const [, setTick] = useState(0);
+  const hasWaitingConfirmation = completedDeliveries.some(
+    (d: any) => d.order.delivererConfirmedDeliveryAt && !d.order.customerConfirmedAt && !d.order.disputedAt && d.order.status !== 'COMPLETED',
+  );
+  useEffect(() => {
+    if (!hasWaitingConfirmation || tab !== 'my') return;
+    const timer = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(timer);
+  }, [hasWaitingConfirmation, tab]);
 
   // Background location tracking for active delivery
   const activeDeliveryForTracking = useMemo(() => {
@@ -454,16 +500,30 @@ export default function DeliveriesScreen() {
           </>
         )}
 
-        {!isActive && (
-          <View style={styles.completedInfo}>
-            <Text style={[styles.completedText, { color: colors.textLight }]}>
-              {order.items.length} {order.items.length === 1 ? 'item' : 'itens'} - R$ {Number(order.total).toFixed(2)}
-            </Text>
-            <Text style={[styles.completedDate, { color: colors.gray }]}>
-              {new Date(item.deliveredAt).toLocaleDateString('pt-BR')}
-            </Text>
-          </View>
-        )}
+        {!isActive && (() => {
+          const receipt = getReceiptStatus(order);
+          return (
+            <View style={styles.completedSection}>
+              <View style={styles.completedInfo}>
+                <Text style={[styles.completedText, { color: colors.textLight }]}>
+                  {order.items.length} {order.items.length === 1 ? 'item' : 'itens'} - R$ {Number(order.total).toFixed(2)}
+                </Text>
+                <Text style={[styles.completedDate, { color: colors.gray }]}>
+                  {new Date(item.deliveredAt).toLocaleDateString('pt-BR')}
+                </Text>
+              </View>
+              <View style={[styles.receiptBadge, { backgroundColor: receipt.color + '15' }]}>
+                <Ionicons name={receipt.icon as any} size={16} color={receipt.color} />
+                <Text style={[styles.receiptText, { color: receipt.color }]}>{receipt.label}</Text>
+              </View>
+              {receipt.detail && (
+                <Text style={[styles.receiptDetail, { color: colors.textLight }]}>
+                  Motivo: {receipt.detail}
+                </Text>
+              )}
+            </View>
+          );
+        })()}
       </View>
     );
   }
@@ -812,6 +872,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: fonts.regular,
   },
+  completedSection: {
+    gap: 8,
+  },
   completedInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -819,6 +882,23 @@ const styles = StyleSheet.create({
   },
   completedText: { fontSize: fonts.small },
   completedDate: { fontSize: fonts.small },
+  receiptBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  receiptText: {
+    fontSize: fonts.tiny,
+    fontWeight: '600',
+  },
+  receiptDetail: {
+    fontSize: fonts.tiny,
+    fontStyle: 'italic',
+  },
   emptyContainer: { alignItems: 'center', marginTop: 48, gap: 12, paddingHorizontal: 32 },
   emptyText: { fontSize: fonts.large, fontWeight: '600' },
   emptySubtext: { fontSize: fonts.regular, textAlign: 'center', lineHeight: 22 },

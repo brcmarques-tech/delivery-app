@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { GET_ORDER } from '../../src/lib/graphql/queries';
-import { CONFIRM_RECEIPT } from '../../src/lib/graphql/mutations';
+import { CONFIRM_RECEIPT, CONFIRM_PICKUP, CONFIRM_DELIVERY, CUSTOMER_DENY_DELIVERY, CANCEL_ORDER } from '../../src/lib/graphql/mutations';
 import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { fonts } from '../../src/theme';
 
 const statusSteps = [
@@ -16,13 +17,26 @@ const statusSteps = [
   { key: 'PREPARING', label: 'Preparando', icon: 'restaurant-outline' as const },
   { key: 'READY', label: 'Pronto', icon: 'bag-check-outline' as const },
   { key: 'PICKED_UP', label: 'Coletado', icon: 'bicycle-outline' as const },
+  { key: 'VENDOR_CONFIRMED_PICKUP', label: 'Saiu da loja', icon: 'storefront-outline' as const },
   { key: 'DELIVERING', label: 'A caminho', icon: 'navigate-outline' as const },
-  { key: 'DELIVERED', label: 'Entregue', icon: 'checkmark-done-outline' as const },
+  { key: 'DELIVERER_CONFIRMED_DELIVERY', label: 'Entregue', icon: 'checkmark-done-outline' as const },
+  { key: 'COMPLETED', label: 'Finalizado', icon: 'checkmark-circle' as const },
+];
+
+const terminalStatuses = ['REJECTED', 'DISPUTED', 'CANCELLED'];
+
+const denyReasonOptions = [
+  'Pedido não chegou',
+  'Pedido incompleto',
+  'Pedido errado',
+  'Produto danificado',
+  'Outro',
 ];
 
 export default function OrderDetailScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
+  const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, loading, refetch } = useQuery(GET_ORDER, {
     variables: { id },
@@ -38,23 +52,33 @@ export default function OrderDetailScreen() {
     variables: { orderId: id },
     onData: () => { refetch(); },
   });
+
   const [confirmReceipt, { loading: confirming }] = useMutation(CONFIRM_RECEIPT);
+  const [customerDenyDelivery, { loading: denying }] = useMutation(CUSTOMER_DENY_DELIVERY);
+  const [confirmPickup, { loading: pickingUp }] = useMutation(CONFIRM_PICKUP);
+  const [confirmDelivery, { loading: delivering }] = useMutation(CONFIRM_DELIVERY);
+  const [cancelOrder, { loading: cancelling }] = useMutation(CANCEL_ORDER);
+
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [denyModalVisible, setDenyModalVisible] = useState(false);
+  const [selectedDenyReason, setSelectedDenyReason] = useState<string | null>(null);
+  const [customDenyReason, setCustomDenyReason] = useState('');
 
   const order = data?.order;
+  const isDeliverer = user?.role === 'DELIVERER' || user?.isDeliverer;
 
-  // Countdown timer for delivery confirmation
-  const needsConfirmation = order?.status === 'DELIVERED' && !order?.customerConfirmedAt;
-  const deliveredAt = order?.delivery?.deliveredAt;
+  // Countdown timer for delivery confirmation (customer)
+  const needsCustomerAction = order?.status === 'DELIVERER_CONFIRMED_DELIVERY';
+  const delivererConfirmedAt = order?.delivererConfirmedDeliveryAt;
 
   useEffect(() => {
-    if (!needsConfirmation || !deliveredAt) {
+    if (!needsCustomerAction || !delivererConfirmedAt) {
       setTimeLeft(null);
       return;
     }
 
     const calcRemaining = () => {
-      const elapsed = Date.now() - new Date(deliveredAt).getTime();
+      const elapsed = Date.now() - new Date(delivererConfirmedAt).getTime();
       const remaining = Math.max(0, 10 * 60 * 1000 - elapsed);
       setTimeLeft(Math.ceil(remaining / 1000));
     };
@@ -62,7 +86,7 @@ export default function OrderDetailScreen() {
     calcRemaining();
     const interval = setInterval(calcRemaining, 1000);
     return () => clearInterval(interval);
-  }, [needsConfirmation, deliveredAt]);
+  }, [needsCustomerAction, delivererConfirmedAt]);
 
   const handleConfirmReceipt = async () => {
     try {
@@ -74,6 +98,69 @@ export default function OrderDetailScreen() {
     }
   };
 
+  const handleDenyDelivery = async () => {
+    const reason = selectedDenyReason === 'Outro' ? customDenyReason.trim() : selectedDenyReason;
+    if (!reason) {
+      Alert.alert('Erro', 'Selecione ou digite um motivo.');
+      return;
+    }
+    try {
+      await customerDenyDelivery({ variables: { orderId: id, reason } });
+      setDenyModalVisible(false);
+      setSelectedDenyReason(null);
+      setCustomDenyReason('');
+      Alert.alert('Enviado', 'Sua contestação foi registrada.');
+      refetch();
+    } catch (err: any) {
+      Alert.alert('Erro', err.message);
+    }
+  };
+
+  const handleConfirmPickup = async () => {
+    if (!order?.delivery?.id) return;
+    try {
+      await confirmPickup({ variables: { deliveryId: order.delivery.id } });
+      Alert.alert('Confirmado!', 'Retirada confirmada.');
+      refetch();
+    } catch (err: any) {
+      Alert.alert('Erro', err.message);
+    }
+  };
+
+  const handleConfirmDelivery = async () => {
+    if (!order?.delivery?.id) return;
+    try {
+      await confirmDelivery({ variables: { deliveryId: order.delivery.id } });
+      Alert.alert('Confirmado!', 'Entrega confirmada.');
+      refetch();
+    } catch (err: any) {
+      Alert.alert('Erro', err.message);
+    }
+  };
+
+  const handleCancelOrder = () => {
+    Alert.alert(
+      'Cancelar pedido',
+      'Tem certeza que deseja cancelar este pedido?',
+      [
+        { text: 'Não', style: 'cancel' },
+        {
+          text: 'Sim, cancelar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelOrder({ variables: { orderId: id } });
+              Alert.alert('Cancelado', 'Pedido cancelado com sucesso.');
+              refetch();
+            } catch (err: any) {
+              Alert.alert('Erro', err.message);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   if (loading || !order) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
@@ -83,7 +170,13 @@ export default function OrderDetailScreen() {
   }
 
   const isAwaitingPayment = order.status === 'AWAITING_PAYMENT';
+  const isTerminal = terminalStatuses.includes(order.status);
   const currentStepIndex = statusSteps.findIndex((s) => s.key === order.status);
+
+  // ETA calculation
+  const etaMinutes = order.estimatedDeliveryEta
+    ? Math.max(0, Math.ceil((new Date(order.estimatedDeliveryEta).getTime() - Date.now()) / 60000))
+    : null;
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -107,43 +200,85 @@ export default function OrderDetailScreen() {
           style={[styles.payButton, { backgroundColor: colors.primary }]}
           onPress={() => Linking.openURL(order.checkoutUrl)}
         >
-          <Ionicons name={order.paymentMethod === 'PIX' ? 'qr-code-outline' : 'card-outline'} size={20} color={isDark ? '#FFFFFF' : '#FFFFFF'} />
+          <Ionicons name={order.paymentMethod === 'PIX' ? 'qr-code-outline' : 'card-outline'} size={20} color="#FFFFFF" />
           <Text style={[styles.payButtonText, { color: '#FFFFFF' }]}>
             {order.paymentMethod === 'PIX' ? 'Pagar com PIX' : 'Ir para pagamento'}
           </Text>
         </TouchableOpacity>
       )}
 
-      <View style={[styles.statusContainer, { backgroundColor: colors.card }]}>
-        {statusSteps.map((step, idx) => {
-          const isActive = idx <= currentStepIndex;
-          const isCurrent = idx === currentStepIndex;
-          return (
-            <View key={step.key} style={styles.stepRow}>
-              <View style={styles.stepIndicator}>
-                <View style={[
-                  styles.stepDot,
-                  { backgroundColor: colors.grayLight },
-                  isActive && { backgroundColor: colors.success },
-                  isCurrent && { backgroundColor: colors.primary },
-                ]}>
-                  <Ionicons
-                    name={step.icon}
-                    size={16}
-                    color={isActive ? '#FFFFFF' : colors.gray}
-                  />
-                </View>
-                {idx < statusSteps.length - 1 && (
-                  <View style={[styles.stepLine, { backgroundColor: colors.grayLight }, isActive && { backgroundColor: colors.success }]} />
-                )}
-              </View>
-              <Text style={[styles.stepLabel, { color: colors.gray }, isActive && { color: colors.text, fontWeight: '600' }]}>
-                {step.label}
+      {/* Terminal status banners */}
+      {order.status === 'REJECTED' && (
+        <View style={[styles.terminalBanner, { backgroundColor: isDark ? '#3A1A1A' : '#F8D7DA' }]}>
+          <Ionicons name="close-circle" size={24} color={colors.danger} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.terminalBannerTitle, { color: isDark ? '#FCA5A5' : '#721C24' }]}>Pedido rejeitado</Text>
+            {order.rejectionReason && (
+              <Text style={[styles.terminalBannerSub, { color: isDark ? '#FCA5A5' : '#721C24' }]}>
+                Motivo: {order.rejectionReason}
               </Text>
-            </View>
-          );
-        })}
-      </View>
+            )}
+          </View>
+        </View>
+      )}
+
+      {order.status === 'DISPUTED' && (
+        <View style={[styles.terminalBanner, { backgroundColor: isDark ? '#4A3A1A' : '#FFF3CD' }]}>
+          <Ionicons name="warning" size={24} color={colors.warning} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.terminalBannerTitle, { color: isDark ? '#FBBF24' : '#856404' }]}>Em disputa</Text>
+            {order.disputeReason && (
+              <Text style={[styles.terminalBannerSub, { color: isDark ? '#FBBF24' : '#856404' }]}>
+                Motivo: {order.disputeReason}
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* Status tracker - only show for non-terminal statuses */}
+      {!isTerminal && (
+        <View style={[styles.statusContainer, { backgroundColor: colors.card }]}>
+          {statusSteps.map((step, idx) => {
+            const isActive = idx <= currentStepIndex;
+            const isCurrent = idx === currentStepIndex;
+            return (
+              <View key={step.key} style={styles.stepRow}>
+                <View style={styles.stepIndicator}>
+                  <View style={[
+                    styles.stepDot,
+                    { backgroundColor: colors.grayLight },
+                    isActive && { backgroundColor: colors.success },
+                    isCurrent && { backgroundColor: colors.primary },
+                  ]}>
+                    <Ionicons
+                      name={step.icon}
+                      size={16}
+                      color={isActive ? '#FFFFFF' : colors.gray}
+                    />
+                  </View>
+                  {idx < statusSteps.length - 1 && (
+                    <View style={[styles.stepLine, { backgroundColor: colors.grayLight }, isActive && { backgroundColor: colors.success }]} />
+                  )}
+                </View>
+                <Text style={[styles.stepLabel, { color: colors.gray }, isActive && { color: colors.text, fontWeight: '600' }]}>
+                  {step.label}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      {/* ETA display */}
+      {etaMinutes !== null && etaMinutes > 0 && !isTerminal && order.status !== 'COMPLETED' && (
+        <View style={[styles.etaBanner, { backgroundColor: isDark ? '#1A2A3A' : '#D1ECF1' }]}>
+          <Ionicons name="time-outline" size={20} color={colors.primary} />
+          <Text style={[styles.etaText, { color: isDark ? '#93C5FD' : '#0C5460' }]}>
+            Chega em ~{etaMinutes} min
+          </Text>
+        </View>
+      )}
 
       {order.delivery?.deliverer && (
         <View style={[styles.delivererCard, { backgroundColor: colors.card }]}>
@@ -158,7 +293,43 @@ export default function OrderDetailScreen() {
         </View>
       )}
 
-      {needsConfirmation && (
+      {/* Deliverer action buttons */}
+      {isDeliverer && order.status === 'VENDOR_CONFIRMED_PICKUP' && (
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: colors.primary }]}
+          onPress={handleConfirmPickup}
+          disabled={pickingUp}
+        >
+          {pickingUp ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="bag-check-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.actionButtonText}>Confirmar Retirada</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      )}
+
+      {isDeliverer && order.status === 'DELIVERING' && (
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: colors.success }]}
+          onPress={handleConfirmDelivery}
+          disabled={delivering}
+        >
+          {delivering ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-done-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.actionButtonText}>Confirmar Entrega</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      )}
+
+      {/* Customer confirmation card when deliverer confirmed delivery */}
+      {needsCustomerAction && !isDeliverer && (
         <View style={[styles.confirmCard, { backgroundColor: colors.card, borderColor: colors.success }]}>
           <View style={styles.confirmHeader}>
             <Ionicons name="checkmark-circle" size={32} color={colors.success} />
@@ -169,7 +340,7 @@ export default function OrderDetailScreen() {
           </Text>
           {timeLeft !== null && timeLeft > 0 && (
             <Text style={[styles.confirmTimer, { color: colors.primary }]}>
-              Confirmacao automatica em {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+              Confirme em {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
             </Text>
           )}
           {timeLeft === 0 && (
@@ -185,18 +356,35 @@ export default function OrderDetailScreen() {
             ) : (
               <>
                 <Ionicons name="checkmark-done" size={20} color="#FFFFFF" />
-                <Text style={[styles.confirmButtonText, { color: '#FFFFFF' }]}>Confirmar recebimento</Text>
+                <Text style={[styles.confirmButtonText, { color: '#FFFFFF' }]}>Confirmar Recebimento</Text>
               </>
             )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.denyButton, { borderColor: colors.danger }]}
+            onPress={() => setDenyModalVisible(true)}
+            disabled={denying}
+          >
+            <Ionicons name="close-circle-outline" size={20} color={colors.danger} />
+            <Text style={[styles.denyButtonText, { color: colors.danger }]}>Não recebi o pedido</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {order.customerConfirmedAt && order.status === 'DELIVERED' && (
+      {order.customerConfirmedAt && (order.status === 'COMPLETED' || order.status === 'DELIVERED') && (
         <View style={[styles.confirmedBanner, { backgroundColor: isDark ? '#1A3A2A' : '#D4EDDA' }]}>
           <Ionicons name="checkmark-circle" size={20} color={colors.success} />
           <Text style={[styles.confirmedText, { color: isDark ? '#6EE7B7' : '#155724' }]}>
             Recebimento confirmado em {new Date(order.customerConfirmedAt).toLocaleString('pt-BR')}
+          </Text>
+        </View>
+      )}
+
+      {order.completedAt && order.status === 'COMPLETED' && (
+        <View style={[styles.confirmedBanner, { backgroundColor: isDark ? '#1A3A2A' : '#D4EDDA' }]}>
+          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+          <Text style={[styles.confirmedText, { color: isDark ? '#6EE7B7' : '#155724' }]}>
+            Pedido finalizado em {new Date(order.completedAt).toLocaleString('pt-BR')}
           </Text>
         </View>
       )}
@@ -238,6 +426,87 @@ export default function OrderDetailScreen() {
           <Text style={[styles.grandTotalValue, { color: colors.primary }]}>R$ {Number(order.total).toFixed(2)}</Text>
         </View>
       </View>
+
+      {/* Cancel button - only for PENDING */}
+      {order.status === 'PENDING' && !isDeliverer && (
+        <TouchableOpacity
+          style={[styles.cancelButton, { borderColor: colors.danger }]}
+          onPress={handleCancelOrder}
+          disabled={cancelling}
+        >
+          {cancelling ? (
+            <ActivityIndicator color={colors.danger} />
+          ) : (
+            <>
+              <Ionicons name="close-circle-outline" size={20} color={colors.danger} />
+              <Text style={[styles.cancelButtonText, { color: colors.danger }]}>Cancelar pedido</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      )}
+
+      <View style={{ height: insets.bottom + 24 }} />
+
+      {/* Deny delivery modal */}
+      <Modal
+        visible={denyModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDenyModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Contestar entrega</Text>
+              <TouchableOpacity onPress={() => setDenyModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.modalSubtitle, { color: colors.textLight }]}>
+              Selecione o motivo da contestação:
+            </Text>
+            {denyReasonOptions.map((reason) => (
+              <TouchableOpacity
+                key={reason}
+                style={[
+                  styles.reasonOption,
+                  { borderColor: colors.grayLight },
+                  selectedDenyReason === reason && { borderColor: colors.primary, backgroundColor: isDark ? '#3A2A1A' : '#FFF5F0' },
+                ]}
+                onPress={() => setSelectedDenyReason(reason)}
+              >
+                <Ionicons
+                  name={selectedDenyReason === reason ? 'radio-button-on' : 'radio-button-off'}
+                  size={20}
+                  color={selectedDenyReason === reason ? colors.primary : colors.gray}
+                />
+                <Text style={[styles.reasonText, { color: colors.text }]}>{reason}</Text>
+              </TouchableOpacity>
+            ))}
+            {selectedDenyReason === 'Outro' && (
+              <TextInput
+                style={[styles.reasonInput, { borderColor: colors.grayLight, color: colors.text, backgroundColor: isDark ? '#2D2D2D' : '#F9F9F9' }]}
+                placeholder="Descreva o motivo..."
+                placeholderTextColor={colors.gray}
+                value={customDenyReason}
+                onChangeText={setCustomDenyReason}
+                multiline
+              />
+            )}
+            <TouchableOpacity
+              style={[styles.modalConfirmButton, { backgroundColor: colors.danger }]}
+              onPress={handleDenyDelivery}
+              disabled={denying || (!selectedDenyReason || (selectedDenyReason === 'Outro' && !customDenyReason.trim()))}
+            >
+              {denying ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.modalConfirmButtonText}>Enviar contestação</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -354,4 +623,108 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   confirmedText: { fontSize: fonts.small, fontWeight: '600' },
+  terminalBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 12,
+    padding: 16,
+  },
+  terminalBannerTitle: { fontSize: fonts.regular, fontWeight: '700' },
+  terminalBannerSub: { fontSize: fonts.small, marginTop: 2 },
+  etaBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    padding: 14,
+  },
+  etaText: { fontSize: fonts.regular, fontWeight: '600' },
+  denyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    width: '100%',
+    borderWidth: 2,
+  },
+  denyButtonText: { fontSize: fonts.regular, fontWeight: 'bold' },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    paddingVertical: 16,
+  },
+  actionButtonText: { fontSize: fonts.regular, fontWeight: 'bold', color: '#FFFFFF' },
+  cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    paddingVertical: 14,
+    borderWidth: 2,
+  },
+  cancelButtonText: { fontSize: fonts.regular, fontWeight: 'bold' },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalTitle: { fontSize: fonts.xlarge, fontWeight: 'bold' },
+  modalSubtitle: { fontSize: fonts.regular, marginBottom: 16 },
+  reasonOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  reasonText: { fontSize: fonts.regular },
+  reasonInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: fonts.regular,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    marginBottom: 8,
+  },
+  modalConfirmButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    paddingVertical: 16,
+    marginTop: 8,
+  },
+  modalConfirmButtonText: { fontSize: fonts.regular, fontWeight: 'bold', color: '#FFFFFF' },
 });

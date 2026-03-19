@@ -24,9 +24,12 @@ export default function GoogleAuthScreen() {
   }, []);
 
   async function handleResult() {
-    // Login mode: NÃO processar aqui — o handleGoogleLogin no login.tsx
-    // já trata via openAuthSessionAsync. Processar nos dois causa duas mutations.
-    if (params.mode === 'login') return;
+    // Login mode: o handleGoogleLogin no login.tsx já trata via openAuthSessionAsync.
+    // Apenas redireciona de volta para o login para não ficar preso nesta tela.
+    if (params.mode === 'login') {
+      router.replace('/auth/login');
+      return;
+    }
 
     if (params.error) {
       alert('Erro', 'Erro ao entrar com Google. Tente novamente.');

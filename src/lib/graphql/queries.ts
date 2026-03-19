@@ -195,6 +195,14 @@ export const GET_ORDER = gql`
       notes
       deliveryAddress
       customerConfirmedAt
+      vendorConfirmedPickupAt
+      delivererConfirmedDeliveryAt
+      completedAt
+      disputedAt
+      disputeReason
+      estimatedDeliveryEta
+      rejectedAt
+      rejectionReason
       createdAt
       store {
         name
@@ -509,6 +517,11 @@ export const GET_MY_DELIVERIES = gql`
         notes
         deliveryLatitude
         deliveryLongitude
+        delivererConfirmedDeliveryAt
+        customerConfirmedAt
+        completedAt
+        disputedAt
+        disputeReason
         store {
           name
           street
