@@ -333,6 +333,132 @@ export const GET_MY_ADDRESSES = gql`
   }
 `;
 
+export const GET_POPULAR_PRODUCTS = gql`
+  query PopularProducts($limit: Int) {
+    popularProducts(limit: $limit) {
+      id
+      name
+      description
+      price
+      promotionalPrice
+      imageUrl
+      isAvailable
+      storeId
+      storeName
+      storeLogoUrl
+      storeIsOpen
+      categoryName
+      totalSold
+    }
+  }
+`;
+
+export const GET_REORDER_SUGGESTIONS = gql`
+  query ReorderSuggestions($limit: Int) {
+    reorderSuggestions(limit: $limit) {
+      id
+      name
+      description
+      price
+      promotionalPrice
+      imageUrl
+      isAvailable
+      storeId
+      storeName
+      storeLogoUrl
+      storeIsOpen
+      lastOrderedAt
+    }
+  }
+`;
+
+export const GET_FREQUENT_STORES = gql`
+  query FrequentStores($limit: Int) {
+    frequentStores(limit: $limit) {
+      id
+      name
+      description
+      logoUrl
+      bannerUrl
+      isOpen
+      freeDelivery
+      deliveryFee
+      verificationLevel
+      orderCount
+      lastOrderAt
+    }
+  }
+`;
+
+export const GET_TOP_STORES_WEEKLY = gql`
+  query TopStoresWeekly($limit: Int) {
+    topStoresWeekly(limit: $limit) {
+      id
+      name
+      description
+      logoUrl
+      isOpen
+      freeDelivery
+      deliveryFee
+      verificationLevel
+      orderCount
+      totalRevenue
+    }
+  }
+`;
+
+export const GET_FOLLOWED_STORES = gql`
+  query FollowedStores {
+    followedStores {
+      id
+      name
+      description
+      logoUrl
+      bannerUrl
+      isOpen
+      freeDelivery
+      deliveryFee
+      verificationLevel
+    }
+  }
+`;
+
+export const IS_FOLLOWING_STORE = gql`
+  query IsFollowingStore($storeId: String!) {
+    isFollowingStore(storeId: $storeId)
+  }
+`;
+
+export const GET_FOLLOWER_COUNT = gql`
+  query FollowerCount($storeId: String!) {
+    followerCount(storeId: $storeId)
+  }
+`;
+
+export const SEARCH_PRODUCTS = gql`
+  query SearchProducts($query: String!, $limit: Int) {
+    searchProducts(query: $query, limit: $limit) {
+      id
+      name
+      description
+      price
+      promotionalPrice
+      imageUrl
+      isAvailable
+      store {
+        id
+        name
+        logoUrl
+        isOpen
+      }
+      category {
+        id
+        name
+      }
+    }
+  }
+`;
+
 export const GET_AVAILABLE_DELIVERIES = gql`
   query AvailableDeliveries {
     availableDeliveries {

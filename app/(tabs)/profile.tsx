@@ -24,7 +24,7 @@ const roleLabels: Record<string, string> = {
 export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
   const { alert } = useAlert();
-  const { isDark, toggleTheme, colors } = useTheme();
+  const { isDark, mode, toggleTheme, colors } = useTheme();
   const insets = useSafeAreaInsets();
   const isDeliverer = user?.isDeliverer || user?.role === 'DELIVERER';
   const [retryCountdown, setRetryCountdown] = useState(0);
@@ -178,6 +178,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
       <View style={[styles.header, { backgroundColor: colors.white, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => setShowAvatarPicker(true)} disabled={uploadingAvatar} activeOpacity={0.7}>
           {avatarUrl ? (
@@ -307,21 +308,26 @@ export default function ProfileScreen() {
       {/* Dark mode toggle */}
       <View style={[styles.menu, { backgroundColor: colors.card, marginTop: 12 }]}>
         <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0, borderBottomColor: colors.grayLight }]} onPress={toggleTheme}>
-          <Ionicons name={isDark ? 'moon' : 'sunny-outline'} size={22} color={colors.text} />
-          <Text style={[styles.menuLabel, { color: colors.text }]}>
-            {isDark ? 'Modo escuro' : 'Modo claro'}
-          </Text>
+          <Ionicons
+            name={mode === 'system' ? 'phone-portrait-outline' : mode === 'dark' ? 'moon' : 'sunny-outline'}
+            size={22}
+            color={colors.text}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.menuLabel, { color: colors.text }]}>
+              {mode === 'system' ? 'Automatico' : mode === 'dark' ? 'Modo escuro' : 'Modo claro'}
+            </Text>
+            <Text style={{ fontSize: 11, color: colors.textLight, marginTop: 2 }}>
+              {mode === 'system' ? 'Segue o sistema e luminosidade' : 'Toque para alternar'}
+            </Text>
+          </View>
           <View style={{
-            width: 48, height: 24, borderRadius: 12,
-            backgroundColor: isDark ? '#FF6B35' : '#95A5A6',
-            justifyContent: 'center',
-            paddingHorizontal: 2,
+            paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
+            backgroundColor: colors.primary + '15',
           }}>
-            <View style={{
-              width: 20, height: 20, borderRadius: 10,
-              backgroundColor: '#FFFFFF',
-              transform: [{ translateX: isDark ? 24 : 0 }],
-            }} />
+            <Text style={{ fontSize: 11, fontWeight: '600', color: colors.primary }}>
+              {mode === 'system' ? 'AUTO' : mode === 'dark' ? 'ESCURO' : 'CLARO'}
+            </Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -330,6 +336,7 @@ export default function ProfileScreen() {
         <Ionicons name="log-out-outline" size={22} color={colors.danger} />
         <Text style={styles.logoutText}>Sair da conta</Text>
       </TouchableOpacity>
+    </ScrollView>
 
       <Modal visible={showAvatarPicker} transparent animationType="fade" onRequestClose={() => setShowAvatarPicker(false)}>
         <TouchableOpacity

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Alert } from 'react-native';
 import { useMutation, useQuery } from '@apollo/client';
 import { ADD_TO_CART, UPDATE_CART_ITEM, REMOVE_FROM_CART, CLEAR_CART } from '../lib/graphql/mutations';
 import { GET_MY_CART } from '../lib/graphql/queries';
@@ -77,18 +78,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   async function addItem(productId: string, quantity: number, notes?: string, weightGrams?: number) {
-    if (!user) return;
-    await addToCartMutation({
-      variables: {
-        input: {
-          productId,
-          quantity,
-          notes: notes || null,
-          weightGrams: weightGrams || null,
+    if (!user) {
+      Alert.alert('Erro', 'Faça login para adicionar itens ao carrinho.');
+      return;
+    }
+    try {
+      await addToCartMutation({
+        variables: {
+          input: {
+            productId,
+            quantity,
+            notes: notes || null,
+            weightGrams: weightGrams || null,
+          },
         },
-      },
-    });
-    refetch();
+      });
+      await refetch();
+    } catch (err: any) {
+      Alert.alert('Erro', err.message || 'Não foi possível adicionar ao carrinho.');
+    }
   }
 
   function removeItem(cartItemId: string) {

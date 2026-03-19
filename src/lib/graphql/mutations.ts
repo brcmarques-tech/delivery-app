@@ -216,6 +216,18 @@ export const DELETE_CARD = gql`
   }
 `;
 
+export const FOLLOW_STORE = gql`
+  mutation FollowStore($storeId: String!) {
+    followStore(storeId: $storeId)
+  }
+`;
+
+export const UNFOLLOW_STORE = gql`
+  mutation UnfollowStore($storeId: String!) {
+    unfollowStore(storeId: $storeId)
+  }
+`;
+
 export const UPDATE_APP_PROFILE = gql`
   mutation UpdateAppProfile($name: String, $phone: String, $avatarUrl: String) {
     updateAppProfile(name: $name, phone: $phone, avatarUrl: $avatarUrl) {

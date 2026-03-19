@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import { io, Socket } from 'socket.io-client';
 import { GET_AVAILABLE_DELIVERIES, GET_MY_DELIVERIES, GET_ME } from '../../src/lib/graphql/queries';
@@ -19,9 +20,10 @@ import { ACCEPT_DELIVERY, CONFIRM_PICKUP, CONFIRM_DELIVERY } from '../../src/lib
 import { useDeliveryTracking } from '../../src/hooks/useDeliveryTracking';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts } from '../../src/theme';
+import { fonts } from '../../src/theme';
 
 async function openNavigation(lat: number, lng: number, label: string) {
   const googleMapsUrl = Platform.select({
@@ -50,12 +52,6 @@ async function openNavigation(lat: number, lng: number, label: string) {
 const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
 const WS_URL = __DEV__ ? `http://${DEV_HOST}:3000` : 'https://delivery-api-fdc4.onrender.com';
 
-const statusLabels: Record<string, { label: string; color: string }> = {
-  PICKED_UP: { label: 'Coletado', color: colors.warning },
-  DELIVERING: { label: 'A caminho', color: colors.primary },
-  DELIVERED: { label: 'Entregue', color: colors.success },
-};
-
 type Tab = 'available' | 'my';
 
 interface DeliveryOffer {
@@ -72,12 +68,19 @@ export default function DeliveriesScreen() {
   const insets = useSafeAreaInsets();
   const { alert } = useAlert();
   const { user } = useAuth();
+  const { colors, isDark } = useTheme();
   const [tab, setTab] = useState<Tab>('available');
   const [isOnline, setIsOnline] = useState(false);
   const [currentOffer, setCurrentOffer] = useState<DeliveryOffer | null>(null);
   const [offerCountdown, setOfferCountdown] = useState(0);
   const socketRef = useRef<Socket | null>(null);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
+
+  const statusLabels: Record<string, { label: string; color: string }> = {
+    PICKED_UP: { label: 'Coletado', color: colors.warning },
+    DELIVERING: { label: 'A caminho', color: colors.primary },
+    DELIVERED: { label: 'Entregue', color: colors.success },
+  };
 
   // Check payment connection status
   const { data: meData } = useQuery(GET_ME, { fetchPolicy: 'cache-and-network' });
@@ -294,53 +297,53 @@ export default function DeliveriesScreen() {
 
   function renderAvailableOrder({ item }: { item: any }) {
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: colors.card }]}>
         <View style={styles.cardHeader}>
           <View style={styles.storeInfo}>
             <Ionicons name="storefront" size={20} color={colors.primary} />
-            <Text style={styles.storeName}>{item.store.name}</Text>
+            <Text style={[styles.storeName, { color: colors.text }]}>{item.store.name}</Text>
           </View>
-          <Text style={styles.orderNumber}>#{item.orderNumber}</Text>
+          <Text style={[styles.orderNumber, { color: colors.textLight }]}>#{item.orderNumber}</Text>
         </View>
 
-        <View style={styles.addressSection}>
+        <View style={[styles.addressSection, { backgroundColor: colors.grayLight }]}>
           <View style={styles.addressRow}>
             <Ionicons name="location" size={16} color={colors.success} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.addressLabel}>Retirar em</Text>
-              <Text style={styles.addressText}>
+              <Text style={[styles.addressLabel, { color: colors.textLight }]}>Retirar em</Text>
+              <Text style={[styles.addressText, { color: colors.text }]}>
                 {item.store.street}, {item.store.number} - {item.store.neighborhood}
               </Text>
             </View>
           </View>
-          <View style={styles.addressDivider} />
+          <View style={[styles.addressDivider, { borderLeftColor: colors.gray }]} />
           <View style={styles.addressRow}>
             <Ionicons name="flag" size={16} color={colors.danger} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.addressLabel}>Entregar em</Text>
-              <Text style={styles.addressText}>{item.deliveryAddress}</Text>
+              <Text style={[styles.addressLabel, { color: colors.textLight }]}>Entregar em</Text>
+              <Text style={[styles.addressText, { color: colors.text }]}>{item.deliveryAddress}</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.itemsList}>
           {item.items.map((oi: any) => (
-            <Text key={oi.id} style={styles.itemText}>
+            <Text key={oi.id} style={[styles.itemText, { color: colors.textLight }]}>
               {oi.quantity}x {oi.product.name}
             </Text>
           ))}
         </View>
 
-        <View style={styles.cardFooter}>
+        <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
           <View>
-            <Text style={styles.feeLabel}>Taxa de entrega</Text>
-            <Text style={styles.feeValue}>R$ {Number(item.deliveryFee).toFixed(2)}</Text>
+            <Text style={[styles.feeLabel, { color: colors.textLight }]}>Taxa de entrega</Text>
+            <Text style={[styles.feeValue, { color: colors.success }]}>R$ {Number(item.deliveryFee).toFixed(2)}</Text>
           </View>
           <TouchableOpacity
-            style={styles.acceptButton}
+            style={[styles.acceptButton, { backgroundColor: colors.success }]}
             onPress={() => handleAccept(item.id, item.orderNumber)}
           >
-            <Ionicons name="checkmark-circle" size={20} color={colors.white} />
+            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
             <Text style={styles.acceptButtonText}>Aceitar</Text>
           </TouchableOpacity>
         </View>
@@ -354,11 +357,11 @@ export default function DeliveriesScreen() {
     const isActive = !item.deliveredAt;
 
     return (
-      <View style={[styles.card, isActive && styles.cardActive]}>
+      <View style={[styles.card, { backgroundColor: colors.card }, isActive && [styles.cardActive, { borderLeftColor: colors.primary }]]}>
         <View style={styles.cardHeader}>
           <View>
-            <Text style={styles.storeName}>{order.store.name}</Text>
-            <Text style={styles.orderNumber}>#{order.orderNumber}</Text>
+            <Text style={[styles.storeName, { color: colors.text }]}>{order.store.name}</Text>
+            <Text style={[styles.orderNumber, { color: colors.textLight }]}>#{order.orderNumber}</Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: status.color + '20' }]}>
             <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
@@ -367,12 +370,12 @@ export default function DeliveriesScreen() {
 
         {isActive && (
           <>
-            <View style={styles.addressSection}>
+            <View style={[styles.addressSection, { backgroundColor: colors.grayLight }]}>
               <View style={styles.addressRow}>
                 <Ionicons name="storefront" size={16} color={colors.primary} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.addressLabel}>Loja</Text>
-                  <Text style={styles.addressText}>
+                  <Text style={[styles.addressLabel, { color: colors.textLight }]}>Loja</Text>
+                  <Text style={[styles.addressText, { color: colors.text }]}>
                     {order.store.street}, {order.store.number} - {order.store.neighborhood}
                   </Text>
                 </View>
@@ -380,12 +383,12 @@ export default function DeliveriesScreen() {
                   <Ionicons name="call" size={20} color={colors.primary} />
                 </TouchableOpacity>
               </View>
-              <View style={styles.addressDivider} />
+              <View style={[styles.addressDivider, { borderLeftColor: colors.gray }]} />
               <View style={styles.addressRow}>
                 <Ionicons name="flag" size={16} color={colors.danger} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.addressLabel}>Cliente: {order.customer.name}</Text>
-                  <Text style={styles.addressText}>{order.deliveryAddress}</Text>
+                  <Text style={[styles.addressLabel, { color: colors.textLight }]}>Cliente: {order.customer.name}</Text>
+                  <Text style={[styles.addressText, { color: colors.text }]}>{order.deliveryAddress}</Text>
                 </View>
                 <TouchableOpacity onPress={() => Linking.openURL(`tel:${order.customer.phone}`)}>
                   <Ionicons name="call" size={20} color={colors.success} />
@@ -412,7 +415,7 @@ export default function DeliveriesScreen() {
                   }
                 }}
               >
-                <Ionicons name="navigate" size={18} color={colors.white} />
+                <Ionicons name="navigate" size={18} color="#FFFFFF" />
                 <Text style={styles.navigateButtonText}>
                   {order.status === 'PICKED_UP' ? 'Navegar ate a loja' : 'Navegar ate o cliente'}
                 </Text>
@@ -421,20 +424,20 @@ export default function DeliveriesScreen() {
 
             <View style={styles.itemsList}>
               {order.items.map((oi: any) => (
-                <Text key={oi.id} style={styles.itemText}>
+                <Text key={oi.id} style={[styles.itemText, { color: colors.textLight }]}>
                   {oi.quantity}x {oi.product.name}
                 </Text>
               ))}
             </View>
 
-            <View style={styles.cardFooter}>
-              <Text style={styles.totalText}>R$ {Number(order.total).toFixed(2)}</Text>
+            <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
+              <Text style={[styles.totalText, { color: colors.text }]}>R$ {Number(order.total).toFixed(2)}</Text>
               {order.status === 'PICKED_UP' && (
                 <TouchableOpacity
                   style={[styles.actionButton, { backgroundColor: colors.primary }]}
                   onPress={() => handleConfirmPickup(item.id)}
                 >
-                  <Ionicons name="bag-check" size={18} color={colors.white} />
+                  <Ionicons name="bag-check" size={18} color="#FFFFFF" />
                   <Text style={styles.actionButtonText}>Confirmar coleta</Text>
                 </TouchableOpacity>
               )}
@@ -443,7 +446,7 @@ export default function DeliveriesScreen() {
                   style={[styles.actionButton, { backgroundColor: colors.success }]}
                   onPress={() => handleConfirmDelivery(item.id)}
                 >
-                  <Ionicons name="checkmark-done" size={18} color={colors.white} />
+                  <Ionicons name="checkmark-done" size={18} color="#FFFFFF" />
                   <Text style={styles.actionButtonText}>Confirmar entrega</Text>
                 </TouchableOpacity>
               )}
@@ -453,10 +456,10 @@ export default function DeliveriesScreen() {
 
         {!isActive && (
           <View style={styles.completedInfo}>
-            <Text style={styles.completedText}>
+            <Text style={[styles.completedText, { color: colors.textLight }]}>
               {order.items.length} {order.items.length === 1 ? 'item' : 'itens'} - R$ {Number(order.total).toFixed(2)}
             </Text>
-            <Text style={styles.completedDate}>
+            <Text style={[styles.completedDate, { color: colors.gray }]}>
               {new Date(item.deliveredAt).toLocaleDateString('pt-BR')}
             </Text>
           </View>
@@ -468,33 +471,33 @@ export default function DeliveriesScreen() {
   const isAvailableTab = tab === 'available';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Delivery offer popup */}
       {currentOffer && (
-        <View style={styles.offerOverlay}>
-          <View style={styles.offerCard}>
-            <Text style={styles.offerTitle}>Nova entrega!</Text>
-            <Text style={styles.offerTimer}>{offerCountdown}s</Text>
-            <View style={styles.offerInfo}>
+        <View style={[styles.offerOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.6)' }]}>
+          <View style={[styles.offerCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.offerTitle, { color: colors.text }]}>Nova entrega!</Text>
+            <Text style={[styles.offerTimer, { color: colors.danger }]}>{offerCountdown}s</Text>
+            <View style={[styles.offerInfo, { backgroundColor: colors.grayLight }]}>
               <View style={styles.offerRow}>
                 <Ionicons name="storefront" size={16} color={colors.success} />
-                <Text style={styles.offerText}>{currentOffer.storeAddress}</Text>
+                <Text style={[styles.offerText, { color: colors.text }]}>{currentOffer.storeAddress}</Text>
               </View>
               <View style={styles.offerRow}>
                 <Ionicons name="flag" size={16} color={colors.danger} />
-                <Text style={styles.offerText}>{currentOffer.deliveryAddress}</Text>
+                <Text style={[styles.offerText, { color: colors.text }]}>{currentOffer.deliveryAddress}</Text>
               </View>
               <View style={styles.offerRow}>
                 <Ionicons name="cash" size={16} color={colors.primary} />
-                <Text style={styles.offerFee}>R$ {Number(currentOffer.deliveryFee).toFixed(2)}</Text>
+                <Text style={[styles.offerFee, { color: colors.success }]}>R$ {Number(currentOffer.deliveryFee).toFixed(2)}</Text>
               </View>
             </View>
             <View style={styles.offerButtons}>
-              <TouchableOpacity style={styles.offerDecline} onPress={handleDeclineOffer}>
-                <Text style={styles.offerDeclineText}>Recusar</Text>
+              <TouchableOpacity style={[styles.offerDecline, { backgroundColor: colors.grayLight }]} onPress={handleDeclineOffer}>
+                <Text style={[styles.offerDeclineText, { color: colors.textLight }]}>Recusar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.offerAccept} onPress={handleAcceptOffer}>
-                <Ionicons name="checkmark-circle" size={20} color={colors.white} />
+              <TouchableOpacity style={[styles.offerAccept, { backgroundColor: colors.success }]} onPress={handleAcceptOffer}>
+                <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
                 <Text style={styles.offerAcceptText}>Aceitar</Text>
               </TouchableOpacity>
             </View>
@@ -502,23 +505,28 @@ export default function DeliveriesScreen() {
         </View>
       )}
 
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: colors.card }]}>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>Entregas</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Entregas</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {activeDeliveryForTracking && (
-              <View style={styles.trackingBadge}>
-                <View style={styles.trackingDot} />
-                <Text style={styles.trackingText}>Rastreando</Text>
+              <View style={[styles.trackingBadge, { backgroundColor: colors.success + '15' }]}>
+                <View style={[styles.trackingDot, { backgroundColor: colors.success }]} />
+                <Text style={[styles.trackingText, { color: colors.success }]}>Rastreando</Text>
               </View>
             )}
             <TouchableOpacity
-              style={[styles.onlineToggle, isOnline && styles.onlineToggleActive, !paymentConnected && { opacity: 0.5 }]}
+              style={[
+                styles.onlineToggle,
+                { backgroundColor: colors.grayLight },
+                isOnline && { backgroundColor: colors.success + '20' },
+                !paymentConnected && { opacity: 0.5 },
+              ]}
               onPress={toggleOnline}
               disabled={!paymentConnected}
             >
-              <View style={[styles.onlineDot, isOnline && styles.onlineDotActive]} />
-              <Text style={[styles.onlineText, isOnline && styles.onlineTextActive]}>
+              <View style={[styles.onlineDot, { backgroundColor: colors.gray }, isOnline && { backgroundColor: colors.success }]} />
+              <Text style={[styles.onlineText, { color: colors.gray }, isOnline && { color: colors.success }]}>
                 {isOnline ? 'Online' : 'Offline'}
               </Text>
             </TouchableOpacity>
@@ -526,39 +534,43 @@ export default function DeliveriesScreen() {
         </View>
 
         {!paymentConnected && (
-          <View style={styles.mpBanner}>
+          <TouchableOpacity
+            style={[styles.mpBanner, { backgroundColor: colors.warning + '12', borderColor: colors.warning + '40' }]}
+            onPress={() => router.push('/earnings' as any)}
+            activeOpacity={0.7}
+          >
             <View style={styles.mpBannerContent}>
-              <View style={styles.mpBannerIcon}>
+              <View style={[styles.mpBannerIcon, { backgroundColor: colors.warning + '20' }]}>
                 <Ionicons name="wallet-outline" size={28} color={colors.warning} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.mpBannerTitle}>Conecte sua conta para comecar</Text>
-                <Text style={styles.mpBannerSubtitle}>
-                  Para receber entregas e pagamentos, cadastre-se como recebedor ou entre em contato com o suporte
+                <Text style={[styles.mpBannerTitle, { color: colors.text }]}>Conecte sua conta para comecar</Text>
+                <Text style={[styles.mpBannerSubtitle, { color: colors.textLight }]}>
+                  Cadastre sua conta bancária para receber pagamentos das entregas
                 </Text>
               </View>
             </View>
             <View style={styles.mpBannerButton}>
-              <Ionicons name="information-circle" size={18} color={colors.white} />
-              <Text style={styles.mpBannerButtonText}>Conectar Pagamento</Text>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+              <Text style={styles.mpBannerButtonText}>Cadastrar Conta</Text>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
 
         <View style={styles.tabBar}>
           <TouchableOpacity
-            style={[styles.tabButton, isAvailableTab && styles.tabButtonActive]}
+            style={[styles.tabButton, { backgroundColor: colors.grayLight }, isAvailableTab && { backgroundColor: colors.primary }]}
             onPress={() => setTab('available')}
           >
-            <Text style={[styles.tabText, isAvailableTab && styles.tabTextActive]}>
+            <Text style={[styles.tabText, { color: colors.textLight }, isAvailableTab && { color: '#FFFFFF' }]}>
               Disponiveis ({availableOrders.length})
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tabButton, !isAvailableTab && styles.tabButtonActive]}
+            style={[styles.tabButton, { backgroundColor: colors.grayLight }, !isAvailableTab && { backgroundColor: colors.primary }]}
             onPress={() => setTab('my')}
           >
-            <Text style={[styles.tabText, !isAvailableTab && styles.tabTextActive]}>
+            <Text style={[styles.tabText, { color: colors.textLight }, !isAvailableTab && { color: '#FFFFFF' }]}>
               Minhas ({activeDeliveries.length})
             </Text>
           </TouchableOpacity>
@@ -575,11 +587,58 @@ export default function DeliveriesScreen() {
           ListEmptyComponent={
             !loadingAvailable ? (
               <View style={styles.emptyContainer}>
-                <Ionicons name="bicycle-outline" size={64} color={colors.grayLight} />
-                <Text style={styles.emptyText}>Nenhuma entrega disponivel</Text>
-                <Text style={styles.emptySubtext}>
-                  Novos pedidos aparecerao aqui quando estiverem prontos
-                </Text>
+                {!isOnline ? (
+                  <>
+                    <View style={[styles.onlineGuideIcon, { backgroundColor: colors.primary + '15' }]}>
+                      <Ionicons name="radio-outline" size={48} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.emptyText, { color: colors.text }]}>Fique online para receber entregas</Text>
+                    <Text style={[styles.emptySubtext, { color: colors.gray }]}>
+                      Toque no botao "Offline" no canto superior direito para ficar online e comecar a receber ofertas de entrega.
+                    </Text>
+                    <View style={[styles.onlineGuideSteps, { backgroundColor: colors.card }]}>
+                      <View style={styles.onlineGuideStep}>
+                        <View style={[styles.stepNumber, { backgroundColor: colors.primary }]}>
+                          <Text style={styles.stepNumberText}>1</Text>
+                        </View>
+                        <Text style={[styles.stepText, { color: colors.textLight }]}>
+                          {!paymentConnected ? 'Cadastre sua conta bancaria em "Cadastrar Conta"' : 'Toque em "Offline" para ficar online'}
+                        </Text>
+                      </View>
+                      <View style={styles.onlineGuideStep}>
+                        <View style={[styles.stepNumber, { backgroundColor: colors.primary }]}>
+                          <Text style={styles.stepNumberText}>2</Text>
+                        </View>
+                        <Text style={[styles.stepText, { color: colors.textLight }]}>
+                          {!paymentConnected ? 'Fique online tocando em "Offline"' : 'Aguarde ofertas de entrega chegarem'}
+                        </Text>
+                      </View>
+                      <View style={styles.onlineGuideStep}>
+                        <View style={[styles.stepNumber, { backgroundColor: colors.primary }]}>
+                          <Text style={styles.stepNumberText}>3</Text>
+                        </View>
+                        <Text style={[styles.stepText, { color: colors.textLight }]}>Aceite entregas e comece a ganhar!</Text>
+                      </View>
+                    </View>
+                    {paymentConnected && (
+                      <TouchableOpacity
+                        style={[styles.goOnlineButton, { backgroundColor: colors.success }]}
+                        onPress={toggleOnline}
+                      >
+                        <Ionicons name="power" size={20} color="#FFFFFF" />
+                        <Text style={styles.goOnlineButtonText}>Ficar Online</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="bicycle-outline" size={64} color={colors.grayLight} />
+                    <Text style={[styles.emptyText, { color: colors.textLight }]}>Nenhuma entrega disponivel</Text>
+                    <Text style={[styles.emptySubtext, { color: colors.gray }]}>
+                      Voce esta online! Novos pedidos aparecerao aqui quando estiverem prontos.
+                    </Text>
+                  </>
+                )}
               </View>
             ) : null
           }
@@ -595,8 +654,8 @@ export default function DeliveriesScreen() {
             !loadingMy ? (
               <View style={styles.emptyContainer}>
                 <Ionicons name="document-text-outline" size={64} color={colors.grayLight} />
-                <Text style={styles.emptyText}>Nenhuma entrega ainda</Text>
-                <Text style={styles.emptySubtext}>
+                <Text style={[styles.emptyText, { color: colors.textLight }]}>Nenhuma entrega ainda</Text>
+                <Text style={[styles.emptySubtext, { color: colors.gray }]}>
                   Aceite entregas na aba "Disponiveis"
                 </Text>
               </View>
@@ -609,15 +668,14 @@ export default function DeliveriesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  header: { padding: 24, paddingTop: 56, backgroundColor: colors.white },
+  container: { flex: 1 },
+  header: { padding: 24, paddingTop: 56 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text },
+  title: { fontSize: fonts.xlarge, fontWeight: 'bold' },
   trackingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.success + '15',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
@@ -626,17 +684,13 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.success,
   },
   trackingText: {
     fontSize: fonts.tiny,
-    color: colors.success,
     fontWeight: '600',
   },
   mpBanner: {
-    backgroundColor: colors.warning + '12',
     borderWidth: 1.5,
-    borderColor: colors.warning + '40',
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -651,18 +705,15 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.warning + '20',
     justifyContent: 'center',
     alignItems: 'center',
   },
   mpBannerTitle: {
     fontSize: fonts.regular,
     fontWeight: 'bold',
-    color: colors.text,
   },
   mpBannerSubtitle: {
     fontSize: fonts.small,
-    color: colors.textLight,
     marginTop: 4,
     lineHeight: 18,
   },
@@ -676,7 +727,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   mpBannerButtonText: {
-    color: colors.white,
+    color: '#FFFFFF',
     fontWeight: 'bold',
     fontSize: fonts.regular,
   },
@@ -685,15 +736,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: colors.grayLight,
     alignItems: 'center',
   },
-  tabButtonActive: { backgroundColor: colors.primary },
-  tabText: { fontSize: fonts.small, fontWeight: '600', color: colors.textLight },
-  tabTextActive: { color: colors.white },
+  tabText: { fontSize: fonts.small, fontWeight: '600' },
   list: { padding: 16, gap: 12 },
-  card: { backgroundColor: colors.white, borderRadius: 16, padding: 16 },
-  cardActive: { borderLeftWidth: 4, borderLeftColor: colors.primary },
+  card: { borderRadius: 16, padding: 16 },
+  cardActive: { borderLeftWidth: 4 },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -701,49 +749,45 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   storeInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  storeName: { fontSize: fonts.large, fontWeight: '600', color: colors.text },
-  orderNumber: { fontSize: fonts.small, color: colors.textLight, marginTop: 2 },
+  storeName: { fontSize: fonts.large, fontWeight: '600' },
+  orderNumber: { fontSize: fonts.small, marginTop: 2 },
   statusBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   statusText: { fontSize: fonts.tiny, fontWeight: '600' },
   addressSection: {
-    backgroundColor: colors.grayLight,
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
     gap: 8,
   },
   addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  addressLabel: { fontSize: fonts.tiny, color: colors.textLight, fontWeight: '600' },
-  addressText: { fontSize: fonts.small, color: colors.text, marginTop: 2 },
+  addressLabel: { fontSize: fonts.tiny, fontWeight: '600' },
+  addressText: { fontSize: fonts.small, marginTop: 2 },
   addressDivider: {
     borderLeftWidth: 1,
-    borderLeftColor: colors.gray,
     height: 12,
     marginLeft: 7,
   },
   itemsList: { marginBottom: 12, gap: 4 },
-  itemText: { fontSize: fonts.small, color: colors.textLight },
+  itemText: { fontSize: fonts.small },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: colors.grayLight,
   },
-  feeLabel: { fontSize: fonts.tiny, color: colors.textLight },
-  feeValue: { fontSize: fonts.large, fontWeight: 'bold', color: colors.success },
+  feeLabel: { fontSize: fonts.tiny },
+  feeValue: { fontSize: fonts.large, fontWeight: 'bold' },
   acceptButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.success,
     borderRadius: 12,
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  acceptButtonText: { color: colors.white, fontWeight: 'bold', fontSize: fonts.regular },
-  totalText: { fontSize: fonts.large, fontWeight: 'bold', color: colors.text },
+  acceptButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: fonts.regular },
+  totalText: { fontSize: fonts.large, fontWeight: 'bold' },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -752,7 +796,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  actionButtonText: { color: colors.white, fontWeight: 'bold', fontSize: fonts.small },
+  actionButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: fonts.small },
   navigateButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -764,7 +808,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   navigateButtonText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontWeight: 'bold',
     fontSize: fonts.regular,
   },
@@ -773,40 +817,81 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  completedText: { fontSize: fonts.small, color: colors.textLight },
-  completedDate: { fontSize: fonts.small, color: colors.gray },
-  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 12, paddingHorizontal: 32 },
-  emptyText: { fontSize: fonts.large, color: colors.textLight, fontWeight: '600' },
-  emptySubtext: { fontSize: fonts.regular, color: colors.gray, textAlign: 'center' },
+  completedText: { fontSize: fonts.small },
+  completedDate: { fontSize: fonts.small },
+  emptyContainer: { alignItems: 'center', marginTop: 48, gap: 12, paddingHorizontal: 32 },
+  emptyText: { fontSize: fonts.large, fontWeight: '600' },
+  emptySubtext: { fontSize: fonts.regular, textAlign: 'center', lineHeight: 22 },
+  onlineGuideIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  onlineGuideSteps: {
+    borderRadius: 16,
+    padding: 16,
+    gap: 14,
+    width: '100%',
+    marginTop: 8,
+  },
+  onlineGuideStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  stepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepNumberText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  stepText: {
+    flex: 1,
+    fontSize: fonts.small,
+    lineHeight: 20,
+  },
+  goOnlineButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    marginTop: 8,
+    width: '100%',
+  },
+  goOnlineButtonText: {
+    color: '#FFFFFF',
+    fontSize: fonts.regular,
+    fontWeight: 'bold',
+  },
   // Online toggle
   onlineToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.grayLight,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-  },
-  onlineToggleActive: {
-    backgroundColor: colors.success + '20',
   },
   onlineDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: colors.gray,
-  },
-  onlineDotActive: {
-    backgroundColor: colors.success,
   },
   onlineText: {
     fontSize: fonts.small,
     fontWeight: '600',
-    color: colors.gray,
-  },
-  onlineTextActive: {
-    color: colors.success,
   },
   // Offer popup
   offerOverlay: {
@@ -815,14 +900,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 100,
     padding: 24,
   },
   offerCard: {
-    backgroundColor: colors.white,
     borderRadius: 20,
     padding: 24,
     width: '100%',
@@ -831,18 +914,15 @@ const styles = StyleSheet.create({
   offerTitle: {
     fontSize: fonts.xlarge,
     fontWeight: 'bold',
-    color: colors.text,
     textAlign: 'center',
   },
   offerTimer: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: colors.danger,
     textAlign: 'center',
     marginVertical: 8,
   },
   offerInfo: {
-    backgroundColor: colors.grayLight,
     borderRadius: 12,
     padding: 16,
     gap: 10,
@@ -855,13 +935,11 @@ const styles = StyleSheet.create({
   },
   offerText: {
     fontSize: fonts.small,
-    color: colors.text,
     flex: 1,
   },
   offerFee: {
     fontSize: fonts.large,
     fontWeight: 'bold',
-    color: colors.success,
   },
   offerButtons: {
     flexDirection: 'row',
@@ -871,20 +949,17 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: colors.grayLight,
     alignItems: 'center',
   },
   offerDeclineText: {
     fontSize: fonts.regular,
     fontWeight: '600',
-    color: colors.textLight,
   },
   offerAccept: {
     flex: 2,
     flexDirection: 'row',
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: colors.success,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -892,6 +967,6 @@ const styles = StyleSheet.create({
   offerAcceptText: {
     fontSize: fonts.regular,
     fontWeight: 'bold',
-    color: colors.white,
+    color: '#FFFFFF',
   },
 });

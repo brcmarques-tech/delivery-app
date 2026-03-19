@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useCart } from '../src/contexts/CartContext';
 import { useAlert } from '../src/contexts/AlertContext';
+import { useTheme } from '../src/contexts/ThemeContext';
 import { CREATE_ORDER } from '../src/lib/graphql/mutations';
 import { CALCULATE_DELIVERY_FEE, GET_MY_ADDRESSES, GET_STORE, ESTIMATE_DELIVERY_TIME, LIST_MY_CARDS, GET_MINIMUM_ORDER_PLATFORM } from '../src/lib/graphql/queries';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,6 +45,7 @@ const ALL_PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string; de
 
 export default function CheckoutScreen() {
   const insets = useSafeAreaInsets();
+  const { colors: themeColors, isDark } = useTheme();
   const params = useLocalSearchParams<{ storeId: string; storeName: string; selectedItems: string }>();
   const { removeItem, refetch: refetchCart } = useCart();
   const { alert } = useAlert();
@@ -301,20 +303,24 @@ export default function CheckoutScreen() {
     }
   }
 
+  const errorBg = isDark ? '#431407' : '#fef2f2';
+  const errorBorder = isDark ? '#7c2d12' : '#fecaca';
+  const errorText = isDark ? '#fca5a5' : '#dc2626';
+
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: themeColors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: themeColors.white }]}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <Ionicons name="arrow-back" size={24} color={themeColors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Finalizar pedido</Text>
+        <Text style={[styles.title, { color: themeColors.text }]}>Finalizar pedido</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <Text style={styles.storeBadge}>{storeName}</Text>
+      <Text style={[styles.storeBadge, { color: themeColors.primary, backgroundColor: themeColors.primary + '15' }]}>{storeName}</Text>
 
       <FlatList
         data={checkoutItems}
@@ -322,16 +328,16 @@ export default function CheckoutScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
         renderItem={({ item }) => (
-          <View style={styles.itemCard}>
+          <View style={[styles.itemCard, { backgroundColor: themeColors.white }]}>
             <View style={styles.itemInfo}>
-              <Text style={styles.itemName}>{item.name}</Text>
-              <Text style={styles.itemPrice}>
+              <Text style={[styles.itemName, { color: themeColors.text }]}>{item.name}</Text>
+              <Text style={[styles.itemPrice, { color: themeColors.primary }]}>
                 {item.isVariableWeight
                   ? `R$ ${((item.price * (item.weightGrams || 0)) / 1000).toFixed(2)}`
                   : `R$ ${(item.price * item.quantity).toFixed(2)}`}
               </Text>
             </View>
-            <Text style={styles.itemQty}>
+            <Text style={[styles.itemQty, { color: themeColors.textLight }]}>
               {item.isVariableWeight
                 ? (item.weightGrams || 0) >= 1000
                   ? `${((item.weightGrams || 0) / 1000).toFixed((item.weightGrams || 0) % 1000 === 0 ? 0 : 1)}kg`
@@ -343,9 +349,9 @@ export default function CheckoutScreen() {
         ListFooterComponent={
           <View style={styles.footer}>
             {!ownerPaymentConnected && (
-              <View style={styles.warningBanner}>
-                <Ionicons name="alert-circle-outline" size={20} color={colors.warning} />
-                <Text style={styles.warningBannerText}>
+              <View style={[styles.warningBanner, { backgroundColor: themeColors.warning + '18', borderColor: themeColors.warning + '40' }]}>
+                <Ionicons name="alert-circle-outline" size={20} color={themeColors.warning} />
+                <Text style={[styles.warningBannerText, { color: themeColors.warning }]}>
                   {pickupOnly
                     ? 'Esta loja aceita apenas retirada no local no momento'
                     : 'Esta loja aceita apenas pagamento na entrega'}
@@ -354,36 +360,36 @@ export default function CheckoutScreen() {
             )}
 
             {/* Delivery Type */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Como deseja receber?</Text>
+            <View style={[styles.section, { backgroundColor: themeColors.white }]}>
+              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Como deseja receber?</Text>
               <View style={styles.deliveryTypeRow}>
                 {!pickupOnly && (
                   <TouchableOpacity
-                    style={[styles.deliveryTypeOption, deliveryType === 'DELIVERY' && styles.deliveryTypeSelected]}
+                    style={[styles.deliveryTypeOption, { borderColor: themeColors.grayLight }, deliveryType === 'DELIVERY' && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '10' }]}
                     onPress={() => setDeliveryType('DELIVERY')}
                   >
-                    <Ionicons name="bicycle-outline" size={24} color={deliveryType === 'DELIVERY' ? colors.primary : colors.gray} />
-                    <Text style={[styles.deliveryTypeLabel, deliveryType === 'DELIVERY' && styles.deliveryTypeLabelSelected]}>Entrega</Text>
+                    <Ionicons name="bicycle-outline" size={24} color={deliveryType === 'DELIVERY' ? themeColors.primary : themeColors.gray} />
+                    <Text style={[styles.deliveryTypeLabel, { color: themeColors.gray }, deliveryType === 'DELIVERY' && { color: themeColors.primary }]}>Entrega</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
-                  style={[styles.deliveryTypeOption, deliveryType === 'PICKUP' && styles.deliveryTypeSelected]}
+                  style={[styles.deliveryTypeOption, { borderColor: themeColors.grayLight }, deliveryType === 'PICKUP' && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '10' }]}
                   onPress={() => setDeliveryType('PICKUP')}
                 >
-                  <Ionicons name="storefront-outline" size={24} color={deliveryType === 'PICKUP' ? colors.primary : colors.gray} />
-                  <Text style={[styles.deliveryTypeLabel, deliveryType === 'PICKUP' && styles.deliveryTypeLabelSelected]}>Retirar no local</Text>
+                  <Ionicons name="storefront-outline" size={24} color={deliveryType === 'PICKUP' ? themeColors.primary : themeColors.gray} />
+                  <Text style={[styles.deliveryTypeLabel, { color: themeColors.gray }, deliveryType === 'PICKUP' && { color: themeColors.primary }]}>Retirar no local</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Address */}
             {!isPickup && (
-              <View style={styles.section}>
+              <View style={[styles.section, { backgroundColor: themeColors.white }]}>
                 <View style={styles.addressHeaderRow}>
-                  <Text style={styles.sectionTitle}>Local de entrega</Text>
+                  <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Local de entrega</Text>
                   {savedAddresses.length > 0 && (
                     <TouchableOpacity onPress={() => setShowAddressPicker(!showAddressPicker)}>
-                      <Text style={styles.savedAddressesLink}>{showAddressPicker ? 'Fechar' : 'Meus enderecos'}</Text>
+                      <Text style={[styles.savedAddressesLink, { color: themeColors.primary }]}>{showAddressPicker ? 'Fechar' : 'Meus enderecos'}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -394,7 +400,7 @@ export default function CheckoutScreen() {
                       return (
                         <TouchableOpacity
                           key={addr.id}
-                          style={styles.addressPickerItem}
+                          style={[styles.addressPickerItem, { backgroundColor: themeColors.background }]}
                           onPress={() => {
                             const parts = [addr.street, addr.number];
                             if (addr.complement) parts.push(addr.complement);
@@ -409,11 +415,11 @@ export default function CheckoutScreen() {
                             setShowAddressPicker(false);
                           }}
                         >
-                          <Ionicons name="location" size={16} color={addr.isDefault ? colors.primary : colors.gray} />
-                          <Text style={styles.addressPickerText} numberOfLines={2}>{label}</Text>
+                          <Ionicons name="location" size={16} color={addr.isDefault ? themeColors.primary : themeColors.gray} />
+                          <Text style={[styles.addressPickerText, { color: themeColors.text }]} numberOfLines={2}>{label}</Text>
                           {addr.isDefault && (
-                            <View style={styles.addressPickerBadge}>
-                              <Text style={styles.addressPickerBadgeText}>Principal</Text>
+                            <View style={[styles.addressPickerBadge, { backgroundColor: themeColors.primary + '15' }]}>
+                              <Text style={[styles.addressPickerBadgeText, { color: themeColors.primary }]}>Principal</Text>
                             </View>
                           )}
                         </TouchableOpacity>
@@ -422,17 +428,17 @@ export default function CheckoutScreen() {
                   </View>
                 )}
                 <View style={styles.locationRow}>
-                  <TouchableOpacity style={styles.locationButton} onPress={handleGetLocation} disabled={locatingGps}>
+                  <TouchableOpacity style={[styles.locationButton, { backgroundColor: themeColors.primary + '15' }]} onPress={handleGetLocation} disabled={locatingGps}>
                     {locatingGps ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
+                      <ActivityIndicator size="small" color={themeColors.primary} />
                     ) : (
-                      <Ionicons name="navigate" size={22} color={colors.primary} />
+                      <Ionicons name="navigate" size={22} color={themeColors.primary} />
                     )}
                   </TouchableOpacity>
                   <TextInput
-                    style={styles.addressInput}
+                    style={[styles.addressInput, { backgroundColor: themeColors.background, color: themeColors.text }]}
                     placeholder="Digite o endereco ou use o GPS"
-                    placeholderTextColor={colors.gray}
+                    placeholderTextColor={themeColors.gray}
                     value={address}
                     onChangeText={setAddress}
                     multiline
@@ -442,100 +448,100 @@ export default function CheckoutScreen() {
             )}
 
             <TextInput
-              style={styles.notesInput}
+              style={[styles.notesInput, { backgroundColor: themeColors.white, color: themeColors.text }]}
               placeholder="Observacoes (opcional)"
-              placeholderTextColor={colors.gray}
+              placeholderTextColor={themeColors.gray}
               value={notes}
               onChangeText={setNotes}
               multiline
             />
 
             {/* Payment */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Forma de pagamento</Text>
+            <View style={[styles.section, { backgroundColor: themeColors.white }]}>
+              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Forma de pagamento</Text>
               {paymentOptions.map((option) => (
                 <TouchableOpacity
                   key={option.key}
-                  style={[styles.paymentOption, paymentMethod === option.key && styles.paymentOptionSelected]}
+                  style={[styles.paymentOption, { borderColor: themeColors.grayLight }, paymentMethod === option.key && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '08' }]}
                   onPress={() => setPaymentMethod(option.key)}
                 >
-                  <Ionicons name={option.icon as any} size={24} color={paymentMethod === option.key ? colors.primary : colors.gray} />
+                  <Ionicons name={option.icon as any} size={24} color={paymentMethod === option.key ? themeColors.primary : themeColors.gray} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.paymentLabel, paymentMethod === option.key && { color: colors.primary }]}>{option.label}</Text>
-                    <Text style={styles.paymentDesc}>{option.description}</Text>
+                    <Text style={[styles.paymentLabel, { color: themeColors.text }, paymentMethod === option.key && { color: themeColors.primary }]}>{option.label}</Text>
+                    <Text style={[styles.paymentDesc, { color: themeColors.textLight }]}>{option.description}</Text>
                   </View>
-                  {paymentMethod === option.key && <Ionicons name="checkmark-circle" size={24} color={colors.primary} />}
+                  {paymentMethod === option.key && <Ionicons name="checkmark-circle" size={24} color={themeColors.primary} />}
                 </TouchableOpacity>
               ))}
 
               {paymentMethod === 'CREDIT_CARD' && (
                 <View style={styles.cardsSection}>
-                  <Text style={styles.cardsTitle}>Cartoes salvos</Text>
+                  <Text style={[styles.cardsTitle, { color: themeColors.textLight }]}>Cartoes salvos</Text>
                   {(cardsData?.myCards || []).map((card: any) => (
                     <TouchableOpacity
                       key={card.id}
-                      style={[styles.cardItem, selectedCardId === card.id && styles.cardItemSelected]}
+                      style={[styles.cardItem, { borderColor: themeColors.grayLight }, selectedCardId === card.id && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '08' }]}
                       onPress={() => setSelectedCardId(card.id)}
                     >
-                      <Ionicons name="card" size={20} color={selectedCardId === card.id ? colors.primary : colors.gray} />
+                      <Ionicons name="card" size={20} color={selectedCardId === card.id ? themeColors.primary : themeColors.gray} />
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.cardText}>{card.brand} •••• {card.lastFourDigits}</Text>
-                        {card.holderName && <Text style={styles.cardHolder}>{card.holderName}</Text>}
+                        <Text style={[styles.cardText, { color: themeColors.text }]}>{card.brand} •••• {card.lastFourDigits}</Text>
+                        {card.holderName && <Text style={[styles.cardHolder, { color: themeColors.textLight }]}>{card.holderName}</Text>}
                       </View>
-                      {selectedCardId === card.id && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
+                      {selectedCardId === card.id && <Ionicons name="checkmark-circle" size={20} color={themeColors.primary} />}
                     </TouchableOpacity>
                   ))}
                   <TouchableOpacity
-                    style={[styles.cardItem, !selectedCardId && styles.cardItemSelected]}
+                    style={[styles.cardItem, { borderColor: themeColors.grayLight }, !selectedCardId && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '08' }]}
                     onPress={() => setSelectedCardId(null)}
                   >
-                    <Ionicons name="add-circle-outline" size={20} color={!selectedCardId ? colors.primary : colors.gray} />
-                    <Text style={[styles.cardText, !selectedCardId && { color: colors.primary }]}>Usar novo cartao (link de pagamento)</Text>
+                    <Ionicons name="add-circle-outline" size={20} color={!selectedCardId ? themeColors.primary : themeColors.gray} />
+                    <Text style={[styles.cardText, { color: themeColors.text }, !selectedCardId && { color: themeColors.primary }]}>Usar novo cartao (link de pagamento)</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.manageCardsLink} onPress={() => router.push('/cards')}>
-                    <Text style={styles.manageCardsText}>Gerenciar cartoes</Text>
-                    <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                    <Text style={[styles.manageCardsText, { color: themeColors.primary }]}>Gerenciar cartoes</Text>
+                    <Ionicons name="chevron-forward" size={16} color={themeColors.primary} />
                   </TouchableOpacity>
                 </View>
               )}
             </View>
 
             {/* Summary */}
-            <View style={styles.section}>
+            <View style={[styles.section, { backgroundColor: themeColors.white }]}>
               {belowMinimum && (
-                <View style={styles.minimumOrderWarning}>
-                  <Ionicons name="alert-circle" size={18} color="#dc2626" />
-                  <Text style={styles.minimumOrderText}>
+                <View style={[styles.minimumOrderWarning, { backgroundColor: errorBg, borderColor: errorBorder }]}>
+                  <Ionicons name="alert-circle" size={18} color={errorText} />
+                  <Text style={[styles.minimumOrderText, { color: errorText }]}>
                     Pedido minimo desta loja: R$ {effectiveMinimum.toFixed(2)}. Faltam R$ {(effectiveMinimum - subtotal).toFixed(2)}.
                   </Text>
                 </View>
               )}
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Subtotal</Text>
-                <Text style={[styles.summaryValue, belowMinimum && { color: '#dc2626' }]}>R$ {subtotal.toFixed(2)}</Text>
+                <Text style={[styles.summaryLabel, { color: themeColors.textLight }]}>Subtotal</Text>
+                <Text style={[styles.summaryValue, { color: themeColors.text }, belowMinimum && { color: errorText }]}>R$ {subtotal.toFixed(2)}</Text>
               </View>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>{isPickup ? 'Retirada' : 'Taxa de entrega'}</Text>
+                <Text style={[styles.summaryLabel, { color: themeColors.textLight }]}>{isPickup ? 'Retirada' : 'Taxa de entrega'}</Text>
                 {isPickup ? (
-                  <Text style={[styles.summaryValue, { color: colors.success || '#22c55e' }]}>Gratis</Text>
+                  <Text style={[styles.summaryValue, { color: themeColors.success }]}>Gratis</Text>
                 ) : feeLoading ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
+                  <ActivityIndicator size="small" color={themeColors.primary} />
                 ) : (
-                  <Text style={styles.summaryValue}>{deliveryFee > 0 ? `R$ ${deliveryFee.toFixed(2)}` : 'Calculando...'}</Text>
+                  <Text style={[styles.summaryValue, { color: themeColors.text }]}>{deliveryFee > 0 ? `R$ ${deliveryFee.toFixed(2)}` : 'Calculando...'}</Text>
                 )}
               </View>
               {!isPickup && timeData?.estimatedDeliveryTime && (
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Tempo estimado</Text>
+                  <Text style={[styles.summaryLabel, { color: themeColors.textLight }]}>Tempo estimado</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Ionicons name="time-outline" size={16} color={colors.primary} />
-                    <Text style={[styles.summaryValue, { color: colors.primary, fontWeight: '600' }]}>~{Math.ceil(timeData.estimatedDeliveryTime)} min</Text>
+                    <Ionicons name="time-outline" size={16} color={themeColors.primary} />
+                    <Text style={[styles.summaryValue, { color: themeColors.primary, fontWeight: '600' }]}>~{Math.ceil(timeData.estimatedDeliveryTime)} min</Text>
                   </View>
                 </View>
               )}
-              <View style={[styles.summaryRow, styles.totalRow]}>
-                <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>R$ {finalTotal.toFixed(2)}</Text>
+              <View style={[styles.summaryRow, styles.totalRow, { borderTopColor: themeColors.grayLight }]}>
+                <Text style={[styles.totalLabel, { color: themeColors.text }]}>Total</Text>
+                <Text style={[styles.totalValue, { color: themeColors.primary }]}>R$ {finalTotal.toFixed(2)}</Text>
               </View>
             </View>
           </View>
@@ -543,7 +549,7 @@ export default function CheckoutScreen() {
       />
 
       <TouchableOpacity
-        style={[styles.checkoutButton, { bottom: insets.bottom + 24 }, (loading || belowMinimum || (!isPickup && !coords)) && styles.checkoutDisabled]}
+        style={[styles.checkoutButton, { bottom: insets.bottom + 24, backgroundColor: themeColors.primary }, (loading || belowMinimum || (!isPickup && !coords)) && styles.checkoutDisabled]}
         onPress={handleCheckout}
         disabled={loading || belowMinimum || (!isPickup && !coords)}
       >

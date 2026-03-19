@@ -14,6 +14,36 @@ import { useAlert } from '../src/contexts/AlertContext';
 
 const PAGARME_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAGARME_PUBLIC_KEY || '';
 
+function luhnCheck(number: string): boolean {
+  const digits = number.replace(/\D/g, '');
+  let sum = 0;
+  let alternate = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let n = parseInt(digits[i], 10);
+    if (alternate) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
+    sum += n;
+    alternate = !alternate;
+  }
+  return sum % 10 === 0;
+}
+
+function isExpired(month: number, year: number): boolean {
+  const now = new Date();
+  const expDate = new Date(year, month, 0); // last day of exp month
+  return expDate < now;
+}
+
+function detectBrand(number: string): string {
+  const d = number.replace(/\D/g, '');
+  if (/^4/.test(d)) return 'Visa';
+  if (/^5[1-5]/.test(d) || /^2[2-7]/.test(d)) return 'Mastercard';
+  if (/^(636368|438935|504175|451416|636297|5067|4576|4011|506699)/.test(d)) return 'Elo';
+  return '';
+}
+
 function formatCardNumber(text: string) {
   const digits = text.replace(/\D/g, '').substring(0, 16);
   return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
@@ -85,14 +115,20 @@ export default function CardsScreen() {
     const e: Record<string, string> = {};
     const digits = cardNumber.replace(/\D/g, '');
 
-    if (digits.length < 13) e.cardNumber = 'Numero do cartao invalido';
+    if (digits.length < 13) {
+      e.cardNumber = 'Numero do cartao invalido';
+    } else if (!luhnCheck(digits)) {
+      e.cardNumber = 'Numero do cartao invalido. Verifique os digitos.';
+    }
     if (!holderName.trim()) e.holderName = 'Informe o nome do titular';
     const expiryParts = expiry.split('/');
     if (expiryParts.length !== 2 || expiryParts[0].length !== 2 || expiryParts[1].length !== 2) {
       e.expiry = 'Validade invalida';
     } else {
       const month = parseInt(expiryParts[0]);
+      const year = parseInt('20' + expiryParts[1]);
       if (month < 1 || month > 12) e.expiry = 'Mes invalido';
+      else if (isExpired(month, year)) e.expiry = 'Cartao vencido';
     }
     if (cvv.length < 3) e.cvv = 'CVV invalido';
 
@@ -184,6 +220,11 @@ export default function CardsScreen() {
               maxLength={19}
             />
             {errors.cardNumber && <Text style={styles.fieldError}>{errors.cardNumber}</Text>}
+            {!errors.cardNumber && detectBrand(cardNumber) ? (
+              <Text style={{ fontSize: 11, color: getBrandColor(detectBrand(cardNumber)), marginTop: 3, fontWeight: '600' }}>
+                {detectBrand(cardNumber)}
+              </Text>
+            ) : null}
           </View>
 
           <View>
