@@ -84,12 +84,42 @@ export default function CardsScreen() {
   const [holderName, setHolderName] = useState('');
   const [expiry, setExpiry] = useState('');
   const [cvv, setCvv] = useState('');
+  const [zipCode, setZipCode] = useState('');
+  const [street, setStreet] = useState('');
+  const [streetNumber, setStreetNumber] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [loadingCep, setLoadingCep] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const cards = data?.myCards || [];
 
   function clearErrors(field: string) {
     if (errors[field]) setErrors((prev) => { const n = { ...prev }; delete n[field]; return n; });
+  }
+
+  function formatCep(text: string) {
+    const digits = text.replace(/\D/g, '').substring(0, 8);
+    if (digits.length > 5) return digits.substring(0, 5) + '-' + digits.substring(5);
+    return digits;
+  }
+
+  async function lookupCep(cep: string) {
+    const digits = cep.replace(/\D/g, '');
+    if (digits.length !== 8) return;
+    setLoadingCep(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = await res.json();
+      if (!data.erro) {
+        setStreet(data.logradouro || '');
+        setNeighborhood(data.bairro || '');
+        setCity(data.localidade || '');
+        setState(data.uf || '');
+      }
+    } catch { /* ignore */ }
+    setLoadingCep(false);
   }
 
   async function handleDeleteCard(cardId: string) {
@@ -131,6 +161,12 @@ export default function CardsScreen() {
       else if (isExpired(month, year)) e.expiry = 'Cartao vencido';
     }
     if (cvv.length < 3) e.cvv = 'CVV invalido';
+    if (zipCode.replace(/\D/g, '').length !== 8) e.zipCode = 'CEP invalido';
+    if (!street.trim()) e.street = 'Rua e obrigatoria';
+    if (!streetNumber.trim()) e.streetNumber = 'Numero e obrigatorio';
+    if (!neighborhood.trim()) e.neighborhood = 'Bairro e obrigatorio';
+    if (!city.trim()) e.city = 'Cidade e obrigatoria';
+    if (!state.trim()) e.state = 'Estado e obrigatorio';
 
     setErrors(e);
     if (Object.keys(e).length > 0) return;
@@ -154,6 +190,13 @@ export default function CardsScreen() {
               exp_month: parseInt(expiryParts[0]),
               exp_year: parseInt('20' + expiryParts[1]),
               cvv,
+              billing_address: {
+                line_1: `${street.trim()}, ${streetNumber.trim()}, ${neighborhood.trim()}`,
+                zip_code: zipCode.replace(/\D/g, ''),
+                city: city.trim(),
+                state: state.trim().toUpperCase(),
+                country: 'BR',
+              },
             },
           }),
         },
@@ -175,6 +218,12 @@ export default function CardsScreen() {
       setHolderName('');
       setExpiry('');
       setCvv('');
+      setZipCode('');
+      setStreet('');
+      setStreetNumber('');
+      setNeighborhood('');
+      setCity('');
+      setState('');
       setErrors({});
       setShowForm(false);
 
@@ -264,6 +313,92 @@ export default function CardsScreen() {
                 maxLength={4}
               />
               {errors.cvv && <Text style={styles.fieldError}>{errors.cvv}</Text>}
+            </View>
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+            <Ionicons name="location-outline" size={18} color="#f97316" />
+            <Text style={[styles.formTitle, { color: themeColors.text, fontSize: 14 }]}>Endereco de cobranca</Text>
+          </View>
+
+          <View style={styles.formRow}>
+            <View style={{ flex: 1 }}>
+              <TextInput
+                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.zipCode ? '#ef4444' : themeColors.border }]}
+                placeholder="CEP"
+                placeholderTextColor={themeColors.textSecondary}
+                keyboardType="numeric"
+                value={zipCode}
+                onChangeText={(t) => {
+                  const formatted = formatCep(t);
+                  setZipCode(formatted);
+                  clearErrors('zipCode');
+                  if (formatted.replace(/\D/g, '').length === 8) lookupCep(formatted);
+                }}
+                maxLength={9}
+              />
+              {errors.zipCode && <Text style={styles.fieldError}>{errors.zipCode}</Text>}
+            </View>
+            {loadingCep && <ActivityIndicator size="small" color="#f97316" style={{ marginTop: 8 }} />}
+          </View>
+
+          <View>
+            <TextInput
+              style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.street ? '#ef4444' : themeColors.border }]}
+              placeholder="Rua"
+              placeholderTextColor={themeColors.textSecondary}
+              value={street}
+              onChangeText={(t) => { setStreet(t); clearErrors('street'); }}
+            />
+            {errors.street && <Text style={styles.fieldError}>{errors.street}</Text>}
+          </View>
+
+          <View style={styles.formRow}>
+            <View style={{ flex: 1 }}>
+              <TextInput
+                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.streetNumber ? '#ef4444' : themeColors.border }]}
+                placeholder="Numero"
+                placeholderTextColor={themeColors.textSecondary}
+                keyboardType="numeric"
+                value={streetNumber}
+                onChangeText={(t) => { setStreetNumber(t); clearErrors('streetNumber'); }}
+              />
+              {errors.streetNumber && <Text style={styles.fieldError}>{errors.streetNumber}</Text>}
+            </View>
+            <View style={{ flex: 2 }}>
+              <TextInput
+                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.neighborhood ? '#ef4444' : themeColors.border }]}
+                placeholder="Bairro"
+                placeholderTextColor={themeColors.textSecondary}
+                value={neighborhood}
+                onChangeText={(t) => { setNeighborhood(t); clearErrors('neighborhood'); }}
+              />
+              {errors.neighborhood && <Text style={styles.fieldError}>{errors.neighborhood}</Text>}
+            </View>
+          </View>
+
+          <View style={styles.formRow}>
+            <View style={{ flex: 2 }}>
+              <TextInput
+                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.city ? '#ef4444' : themeColors.border }]}
+                placeholder="Cidade"
+                placeholderTextColor={themeColors.textSecondary}
+                value={city}
+                onChangeText={(t) => { setCity(t); clearErrors('city'); }}
+              />
+              {errors.city && <Text style={styles.fieldError}>{errors.city}</Text>}
+            </View>
+            <View style={{ flex: 1 }}>
+              <TextInput
+                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.state ? '#ef4444' : themeColors.border }]}
+                placeholder="UF"
+                placeholderTextColor={themeColors.textSecondary}
+                autoCapitalize="characters"
+                value={state}
+                onChangeText={(t) => { setState(t.substring(0, 2)); clearErrors('state'); }}
+                maxLength={2}
+              />
+              {errors.state && <Text style={styles.fieldError}>{errors.state}</Text>}
             </View>
           </View>
 
