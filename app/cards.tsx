@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput,
-  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useMutation } from '@apollo/client';
@@ -99,12 +99,6 @@ export default function CardsScreen() {
     if (errors[field]) setErrors((prev) => { const n = { ...prev }; delete n[field]; return n; });
   }
 
-  function formatCep(text: string) {
-    const digits = text.replace(/\D/g, '').substring(0, 8);
-    if (digits.length > 5) return digits.substring(0, 5) + '-' + digits.substring(5);
-    return digits;
-  }
-
   async function lookupCep(cep: string) {
     const digits = cep.replace(/\D/g, '');
     if (digits.length !== 8) return;
@@ -120,6 +114,12 @@ export default function CardsScreen() {
       }
     } catch { /* ignore */ }
     setLoadingCep(false);
+  }
+
+  function formatCep(text: string) {
+    const digits = text.replace(/\D/g, '').substring(0, 8);
+    if (digits.length > 5) return digits.substring(0, 5) + '-' + digits.substring(5);
+    return digits;
   }
 
   async function handleDeleteCard(cardId: string) {
@@ -162,11 +162,11 @@ export default function CardsScreen() {
     }
     if (cvv.length < 3) e.cvv = 'CVV invalido';
     if (zipCode.replace(/\D/g, '').length !== 8) e.zipCode = 'CEP invalido';
-    if (!street.trim()) e.street = 'Rua e obrigatoria';
-    if (!streetNumber.trim()) e.streetNumber = 'Numero e obrigatorio';
-    if (!neighborhood.trim()) e.neighborhood = 'Bairro e obrigatorio';
-    if (!city.trim()) e.city = 'Cidade e obrigatoria';
-    if (!state.trim()) e.state = 'Estado e obrigatorio';
+    if (!street.trim()) e.street = 'Informe a rua';
+    if (!streetNumber.trim()) e.streetNumber = 'Informe o numero';
+    if (!neighborhood.trim()) e.neighborhood = 'Informe o bairro';
+    if (!city.trim()) e.city = 'Informe a cidade';
+    if (!state.trim() || state.trim().length !== 2) e.state = 'UF invalido';
 
     setErrors(e);
     if (Object.keys(e).length > 0) return;
@@ -191,7 +191,7 @@ export default function CardsScreen() {
               exp_year: parseInt('20' + expiryParts[1]),
               cvv,
               billing_address: {
-                line_1: `${street.trim()}, ${streetNumber.trim()}, ${neighborhood.trim()}`,
+                line_1: `${streetNumber.trim()}, ${street.trim()}, ${neighborhood.trim()}`,
                 zip_code: zipCode.replace(/\D/g, ''),
                 city: city.trim(),
                 state: state.trim().toUpperCase(),
@@ -252,176 +252,177 @@ export default function CardsScreen() {
       </View>
 
       {showForm && (
-        <View style={[styles.formCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <Ionicons name="card" size={20} color="#f97316" />
-            <Text style={[styles.formTitle, { color: themeColors.text }]}>Novo Cartao</Text>
-          </View>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
+          <View style={[styles.formCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Ionicons name="card" size={20} color="#f97316" />
+              <Text style={[styles.formTitle, { color: themeColors.text }]}>Novo Cartao</Text>
+            </View>
 
-          <View>
-            <TextInput
-              style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.cardNumber ? '#ef4444' : themeColors.border }]}
-              placeholder="Numero do cartao"
-              placeholderTextColor={themeColors.textSecondary}
-              keyboardType="numeric"
-              value={cardNumber}
-              onChangeText={(t) => { setCardNumber(formatCardNumber(t)); clearErrors('cardNumber'); }}
-              maxLength={19}
-            />
-            {errors.cardNumber && <Text style={styles.fieldError}>{errors.cardNumber}</Text>}
-            {!errors.cardNumber && detectBrand(cardNumber) ? (
-              <Text style={{ fontSize: 11, color: getBrandColor(detectBrand(cardNumber)), marginTop: 3, fontWeight: '600' }}>
-                {detectBrand(cardNumber)}
-              </Text>
-            ) : null}
-          </View>
-
-          <View>
-            <TextInput
-              style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.holderName ? '#ef4444' : themeColors.border }]}
-              placeholder="Nome do titular (como no cartao)"
-              placeholderTextColor={themeColors.textSecondary}
-              autoCapitalize="characters"
-              value={holderName}
-              onChangeText={(t) => { setHolderName(t); clearErrors('holderName'); }}
-            />
-            {errors.holderName && <Text style={styles.fieldError}>{errors.holderName}</Text>}
-          </View>
-
-          <View style={styles.formRow}>
-            <View style={{ flex: 1 }}>
+            <View>
               <TextInput
-                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.expiry ? '#ef4444' : themeColors.border }]}
-                placeholder="MM/AA"
+                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.cardNumber ? '#ef4444' : themeColors.border }]}
+                placeholder="Numero do cartao"
                 placeholderTextColor={themeColors.textSecondary}
                 keyboardType="numeric"
-                value={expiry}
-                onChangeText={(t) => { setExpiry(formatExpiry(t)); clearErrors('expiry'); }}
-                maxLength={5}
+                value={cardNumber}
+                onChangeText={(t) => { setCardNumber(formatCardNumber(t)); clearErrors('cardNumber'); }}
+                maxLength={19}
               />
-              {errors.expiry && <Text style={styles.fieldError}>{errors.expiry}</Text>}
+              {errors.cardNumber && <Text style={styles.fieldError}>{errors.cardNumber}</Text>}
+              {!errors.cardNumber && detectBrand(cardNumber) ? (
+                <Text style={{ fontSize: 11, color: getBrandColor(detectBrand(cardNumber)), marginTop: 3, fontWeight: '600' }}>
+                  {detectBrand(cardNumber)}
+                </Text>
+              ) : null}
             </View>
-            <View style={{ flex: 1 }}>
-              <TextInput
-                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.cvv ? '#ef4444' : themeColors.border }]}
-                placeholder="CVV"
-                placeholderTextColor={themeColors.textSecondary}
-                keyboardType="numeric"
-                secureTextEntry
-                value={cvv}
-                onChangeText={(t) => { setCvv(t.replace(/\D/g, '').substring(0, 4)); clearErrors('cvv'); }}
-                maxLength={4}
-              />
-              {errors.cvv && <Text style={styles.fieldError}>{errors.cvv}</Text>}
-            </View>
-          </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-            <Ionicons name="location-outline" size={18} color="#f97316" />
-            <Text style={[styles.formTitle, { color: themeColors.text, fontSize: 14 }]}>Endereco de cobranca</Text>
-          </View>
-
-          <View style={styles.formRow}>
-            <View style={{ flex: 1 }}>
+            <View>
               <TextInput
-                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.zipCode ? '#ef4444' : themeColors.border }]}
-                placeholder="CEP"
-                placeholderTextColor={themeColors.textSecondary}
-                keyboardType="numeric"
-                value={zipCode}
-                onChangeText={(t) => {
-                  const formatted = formatCep(t);
-                  setZipCode(formatted);
-                  clearErrors('zipCode');
-                  if (formatted.replace(/\D/g, '').length === 8) lookupCep(formatted);
-                }}
-                maxLength={9}
-              />
-              {errors.zipCode && <Text style={styles.fieldError}>{errors.zipCode}</Text>}
-            </View>
-            {loadingCep && <ActivityIndicator size="small" color="#f97316" style={{ marginTop: 8 }} />}
-          </View>
-
-          <View>
-            <TextInput
-              style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.street ? '#ef4444' : themeColors.border }]}
-              placeholder="Rua"
-              placeholderTextColor={themeColors.textSecondary}
-              value={street}
-              onChangeText={(t) => { setStreet(t); clearErrors('street'); }}
-            />
-            {errors.street && <Text style={styles.fieldError}>{errors.street}</Text>}
-          </View>
-
-          <View style={styles.formRow}>
-            <View style={{ flex: 1 }}>
-              <TextInput
-                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.streetNumber ? '#ef4444' : themeColors.border }]}
-                placeholder="Numero"
-                placeholderTextColor={themeColors.textSecondary}
-                keyboardType="numeric"
-                value={streetNumber}
-                onChangeText={(t) => { setStreetNumber(t); clearErrors('streetNumber'); }}
-              />
-              {errors.streetNumber && <Text style={styles.fieldError}>{errors.streetNumber}</Text>}
-            </View>
-            <View style={{ flex: 2 }}>
-              <TextInput
-                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.neighborhood ? '#ef4444' : themeColors.border }]}
-                placeholder="Bairro"
-                placeholderTextColor={themeColors.textSecondary}
-                value={neighborhood}
-                onChangeText={(t) => { setNeighborhood(t); clearErrors('neighborhood'); }}
-              />
-              {errors.neighborhood && <Text style={styles.fieldError}>{errors.neighborhood}</Text>}
-            </View>
-          </View>
-
-          <View style={styles.formRow}>
-            <View style={{ flex: 2 }}>
-              <TextInput
-                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.city ? '#ef4444' : themeColors.border }]}
-                placeholder="Cidade"
-                placeholderTextColor={themeColors.textSecondary}
-                value={city}
-                onChangeText={(t) => { setCity(t); clearErrors('city'); }}
-              />
-              {errors.city && <Text style={styles.fieldError}>{errors.city}</Text>}
-            </View>
-            <View style={{ flex: 1 }}>
-              <TextInput
-                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.state ? '#ef4444' : themeColors.border }]}
-                placeholder="UF"
+                style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.holderName ? '#ef4444' : themeColors.border }]}
+                placeholder="Nome do titular (como no cartao)"
                 placeholderTextColor={themeColors.textSecondary}
                 autoCapitalize="characters"
-                value={state}
-                onChangeText={(t) => { setState(t.substring(0, 2)); clearErrors('state'); }}
-                maxLength={2}
+                value={holderName}
+                onChangeText={(t) => { setHolderName(t); clearErrors('holderName'); }}
               />
-              {errors.state && <Text style={styles.fieldError}>{errors.state}</Text>}
+              {errors.holderName && <Text style={styles.fieldError}>{errors.holderName}</Text>}
+            </View>
+
+            <View style={styles.formRow}>
+              <View style={{ flex: 1 }}>
+                <TextInput
+                  style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.expiry ? '#ef4444' : themeColors.border }]}
+                  placeholder="MM/AA"
+                  placeholderTextColor={themeColors.textSecondary}
+                  keyboardType="numeric"
+                  value={expiry}
+                  onChangeText={(t) => { setExpiry(formatExpiry(t)); clearErrors('expiry'); }}
+                  maxLength={5}
+                />
+                {errors.expiry && <Text style={styles.fieldError}>{errors.expiry}</Text>}
+              </View>
+              <View style={{ flex: 1 }}>
+                <TextInput
+                  style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.cvv ? '#ef4444' : themeColors.border }]}
+                  placeholder="CVV"
+                  placeholderTextColor={themeColors.textSecondary}
+                  keyboardType="numeric"
+                  secureTextEntry
+                  value={cvv}
+                  onChangeText={(t) => { setCvv(t.replace(/\D/g, '').substring(0, 4)); clearErrors('cvv'); }}
+                  maxLength={4}
+                />
+                {errors.cvv && <Text style={styles.fieldError}>{errors.cvv}</Text>}
+              </View>
+            </View>
+
+            <View style={{ marginTop: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <Ionicons name="home" size={18} color="#f97316" />
+                <Text style={[styles.formTitle, { color: themeColors.text }]}>Endereco de cobranca</Text>
+              </View>
+
+              <View style={styles.formRow}>
+                <View style={{ flex: 1 }}>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.zipCode ? '#ef4444' : themeColors.border }]}
+                    placeholder="CEP"
+                    placeholderTextColor={themeColors.textSecondary}
+                    keyboardType="numeric"
+                    value={zipCode}
+                    onChangeText={(t) => {
+                      const formatted = formatCep(t);
+                      setZipCode(formatted);
+                      clearErrors('zipCode');
+                      if (formatted.replace(/\D/g, '').length === 8) lookupCep(formatted);
+                    }}
+                    maxLength={9}
+                  />
+                  {errors.zipCode && <Text style={styles.fieldError}>{errors.zipCode}</Text>}
+                  {loadingCep && <ActivityIndicator size="small" color="#f97316" style={{ position: 'absolute', right: 12, top: 12 }} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.state ? '#ef4444' : themeColors.border }]}
+                    placeholder="UF"
+                    placeholderTextColor={themeColors.textSecondary}
+                    autoCapitalize="characters"
+                    value={state}
+                    onChangeText={(t) => { setState(t.substring(0, 2)); clearErrors('state'); }}
+                    maxLength={2}
+                  />
+                  {errors.state && <Text style={styles.fieldError}>{errors.state}</Text>}
+                </View>
+              </View>
+
+              <View>
+                <TextInput
+                  style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.street ? '#ef4444' : themeColors.border, marginTop: 12 }]}
+                  placeholder="Rua"
+                  placeholderTextColor={themeColors.textSecondary}
+                  value={street}
+                  onChangeText={(t) => { setStreet(t); clearErrors('street'); }}
+                />
+                {errors.street && <Text style={styles.fieldError}>{errors.street}</Text>}
+              </View>
+
+              <View style={[styles.formRow, { marginTop: 12 }]}>
+                <View style={{ flex: 1 }}>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.streetNumber ? '#ef4444' : themeColors.border }]}
+                    placeholder="Numero"
+                    placeholderTextColor={themeColors.textSecondary}
+                    value={streetNumber}
+                    onChangeText={(t) => { setStreetNumber(t); clearErrors('streetNumber'); }}
+                  />
+                  {errors.streetNumber && <Text style={styles.fieldError}>{errors.streetNumber}</Text>}
+                </View>
+                <View style={{ flex: 2 }}>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.neighborhood ? '#ef4444' : themeColors.border }]}
+                    placeholder="Bairro"
+                    placeholderTextColor={themeColors.textSecondary}
+                    value={neighborhood}
+                    onChangeText={(t) => { setNeighborhood(t); clearErrors('neighborhood'); }}
+                  />
+                  {errors.neighborhood && <Text style={styles.fieldError}>{errors.neighborhood}</Text>}
+                </View>
+              </View>
+
+              <View>
+                <TextInput
+                  style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.city ? '#ef4444' : themeColors.border, marginTop: 12 }]}
+                  placeholder="Cidade"
+                  placeholderTextColor={themeColors.textSecondary}
+                  value={city}
+                  onChangeText={(t) => { setCity(t); clearErrors('city'); }}
+                />
+                {errors.city && <Text style={styles.fieldError}>{errors.city}</Text>}
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.saveButton, saving && { opacity: 0.5 }]}
+              onPress={handleSaveCard}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="lock-closed" size={16} color="#fff" />
+                  <Text style={styles.saveButtonText}>Salvar cartao</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+              <Ionicons name="shield-checkmark" size={12} color={themeColors.textSecondary} />
+              <Text style={{ fontSize: 11, color: themeColors.textSecondary }}>Seus dados sao criptografados e protegidos</Text>
             </View>
           </View>
-
-          <TouchableOpacity
-            style={[styles.saveButton, saving && { opacity: 0.5 }]}
-            onPress={handleSaveCard}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="lock-closed" size={16} color="#fff" />
-                <Text style={styles.saveButtonText}>Salvar cartao</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
-            <Ionicons name="shield-checkmark" size={12} color={themeColors.textSecondary} />
-            <Text style={{ fontSize: 11, color: themeColors.textSecondary }}>Seus dados sao criptografados e protegidos</Text>
-          </View>
-        </View>
+        </ScrollView>
       )}
 
       {loading ? (
