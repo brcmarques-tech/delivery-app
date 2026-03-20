@@ -90,7 +90,7 @@ export default function EarningsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Recebimentos</Text>
         <View style={{ width: 24 }} />
@@ -99,7 +99,7 @@ export default function EarningsScreen() {
       {loadingMe ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ color: colors.textSecondary, marginTop: 12, fontSize: 14 }}>Carregando...</Text>
+          <Text style={{ color: colors.textSecondary, marginTop: 12, fontSize: 12 }}>Carregando...</Text>
         </View>
       ) : paymentConnected ? (
         <EarningsDashboard colors={colors} refetchMe={refetchMe} />
@@ -174,7 +174,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ color: colors.textSecondary, marginTop: 12, fontSize: 14 }}>Carregando saldo...</Text>
+        <Text style={{ color: colors.textSecondary, marginTop: 12, fontSize: 12 }}>Carregando saldo...</Text>
       </View>
     );
   }
@@ -182,40 +182,40 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
   if (balanceError) {
     return (
       <View style={styles.centered}>
-        <Ionicons name="cloud-offline-outline" size={48} color={colors.textSecondary} />
-        <Text style={{ color: colors.textSecondary, marginTop: 12, fontSize: 14, textAlign: 'center' }}>
+        <Ionicons name="cloud-offline-outline" size={36} color={colors.textSecondary} />
+        <Text style={{ color: colors.textSecondary, marginTop: 12, fontSize: 12, textAlign: 'center' }}>
           Nao foi possivel carregar seu saldo.{'\n'}Verifique sua conexao.
         </Text>
         <TouchableOpacity style={[styles.retryBtn, { borderColor: colors.border }]} onPress={() => refetchBalance()}>
           <Ionicons name="refresh" size={16} color={colors.primary} />
-          <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 14 }}>Tentar novamente</Text>
+          <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 12 }}>Tentar novamente</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 40 }}>
       {/* Balance Cards */}
-      <View style={{ gap: 12, marginBottom: 24 }}>
+      <View style={{ gap: 6, marginBottom: 12 }}>
         <View style={[styles.balanceCard, { backgroundColor: isDark ? '#14532d' : '#dcfce7', borderColor: isDark ? '#166534' : '#bbf7d0' }]}>
           <View style={styles.balanceRow}>
             <View style={[styles.balanceIcon, { backgroundColor: isDark ? '#166534' : '#bbf7d0' }]}>
-              <Ionicons name="wallet-outline" size={20} color={isDark ? '#86efac' : '#22c55e'} />
+              <Ionicons name="wallet-outline" size={18} color={isDark ? '#86efac' : '#22c55e'} />
             </View>
-            <Text style={{ fontSize: 13, color: isDark ? '#bbf7d0' : '#166534' }}>Disponivel para saque</Text>
+            <Text style={{ fontSize: 10, color: isDark ? '#bbf7d0' : '#166534' }}>Disponivel para saque</Text>
           </View>
           <Text style={{ fontSize: 28, fontWeight: 'bold', color: isDark ? '#86efac' : '#166534', marginTop: 4 }}>
             R$ {(balance?.availableAmount || 0).toFixed(2)}
           </Text>
         </View>
 
-        <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
           <View style={[styles.balanceCard, { flex: 1, backgroundColor: isDark ? '#431407' : '#fff7ed', borderColor: isDark ? '#9a3412' : '#fed7aa' }]}>
             <View style={[styles.balanceIconSmall, { backgroundColor: isDark ? '#9a3412' : '#fed7aa' }]}>
               <Ionicons name="time-outline" size={16} color={isDark ? '#fdba74' : '#f97316'} />
             </View>
-            <Text style={{ fontSize: 11, color: isDark ? '#fed7aa' : '#9a3412', marginTop: 6 }}>A receber</Text>
+            <Text style={{ fontSize: 10, color: isDark ? '#fed7aa' : '#9a3412', marginTop: 6 }}>A receber</Text>
             <Text style={{ fontSize: 20, fontWeight: 'bold', color: isDark ? '#fdba74' : '#9a3412' }}>
               R$ {(balance?.waitingFundsAmount || 0).toFixed(2)}
             </Text>
@@ -225,7 +225,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             <View style={[styles.balanceIconSmall, { backgroundColor: isDark ? '#1e40af' : '#bfdbfe' }]}>
               <Ionicons name="checkmark-circle-outline" size={16} color={isDark ? '#93c5fd' : '#3b82f6'} />
             </View>
-            <Text style={{ fontSize: 11, color: isDark ? '#bfdbfe' : '#1e40af', marginTop: 6 }}>Ja transferido</Text>
+            <Text style={{ fontSize: 10, color: isDark ? '#bfdbfe' : '#1e40af', marginTop: 6 }}>Ja transferido</Text>
             <Text style={{ fontSize: 20, fontWeight: 'bold', color: isDark ? '#93c5fd' : '#1e40af' }}>
               R$ {(balance?.transferredAmount || 0).toFixed(2)}
             </Text>
@@ -236,26 +236,26 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
       {/* Anticipation */}
       {(balance?.waitingFundsAmount || 0) > 0 && sim && sim.originalAmount > 0 && (
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <Ionicons name="flash-outline" size={18} color="#f97316" />
             <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Antecipar Recebiveis</Text>
           </View>
-          <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>
+          <Text style={{ fontSize: 10, color: colors.textSecondary, marginBottom: 12 }}>
             Receba seus valores pendentes agora, com uma pequena taxa.
           </Text>
 
           <View style={[styles.simBox, { backgroundColor: colors.background }]}>
             <View style={styles.simRow}>
-              <Text style={{ fontSize: 13, color: colors.textSecondary }}>Valor pendente</Text>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>R$ {sim.originalAmount.toFixed(2)}</Text>
+              <Text style={{ fontSize: 10, color: colors.textSecondary }}>Valor pendente</Text>
+              <Text style={{ fontSize: 10, fontWeight: '600', color: colors.text }}>R$ {sim.originalAmount.toFixed(2)}</Text>
             </View>
             <View style={styles.simRow}>
-              <Text style={{ fontSize: 13, color: '#dc2626' }}>Taxa (~{sim.feePercentage}%)</Text>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#dc2626' }}>- R$ {sim.fee.toFixed(2)}</Text>
+              <Text style={{ fontSize: 10, color: '#dc2626' }}>Taxa (~{sim.feePercentage}%)</Text>
+              <Text style={{ fontSize: 10, fontWeight: '600', color: '#dc2626' }}>- R$ {sim.fee.toFixed(2)}</Text>
             </View>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <View style={styles.simRow}>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: '#16a34a' }}>Voce recebe</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#16a34a' }}>Voce recebe</Text>
               <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#16a34a' }}>R$ {sim.anticipatedAmount.toFixed(2)}</Text>
             </View>
           </View>
@@ -307,14 +307,14 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
 
       {/* M6: Transaction history placeholder */}
       <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
           <Ionicons name="list-outline" size={18} color="#f97316" />
           <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Historico de transacoes</Text>
         </View>
         {/* TODO: Integrate myPayments query when available in the API */}
-        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-          <Ionicons name="time-outline" size={32} color={colors.textSecondary} />
-          <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 8, textAlign: 'center' }}>
+        <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+          <Ionicons name="time-outline" size={26} color={colors.textSecondary} />
+          <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 8, textAlign: 'center' }}>
             Historico de transacoes em breve
           </Text>
         </View>
@@ -323,7 +323,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
       {/* How it works */}
       <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Como funciona?</Text>
-        <View style={{ gap: 16 }}>
+        <View style={{ gap: 6 }}>
           {[
             { icon: 'card-outline' as const, title: 'Cartao de credito', desc: 'Disponivel em 30 dias. Com antecipacao, ~2 dias (com taxa).', color: '#8b5cf6' },
             { icon: 'phone-portrait-outline' as const, title: 'PIX', desc: 'Disponivel em 2 dias uteis (D+2).', color: '#06b6d4' },
@@ -334,7 +334,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
                 <Ionicons name={item.icon} size={18} color={item.color} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>{item.title}</Text>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: colors.text }}>{item.title}</Text>
                 <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>{item.desc}</Text>
               </View>
             </View>
@@ -345,7 +345,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
       {/* Disconnect */}
       <TouchableOpacity style={styles.disconnectBtn} onPress={handleDisconnect}>
         <Ionicons name="log-out-outline" size={16} color="#dc2626" />
-        <Text style={{ fontSize: 13, color: '#dc2626' }}>Desconectar dados bancarios</Text>
+        <Text style={{ fontSize: 10, color: '#dc2626' }}>Desconectar dados bancarios</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -502,7 +502,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
 
         {/* Step indicator */}
         <View style={styles.steps}>
@@ -517,7 +517,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
                     <Text style={{ fontSize: 12, color: i === step ? '#fff' : colors.textSecondary, fontWeight: 'bold' }}>{i + 1}</Text>
                   )}
                 </View>
-                <Text style={{ fontSize: 11, color: i <= step ? '#f97316' : colors.textSecondary, fontWeight: i === step ? '600' : 'normal' }}>{label}</Text>
+                <Text style={{ fontSize: 10, color: i <= step ? '#f97316' : colors.textSecondary, fontWeight: i === step ? '600' : 'normal' }}>{label}</Text>
               </TouchableOpacity>
             </React.Fragment>
           ))}
@@ -525,7 +525,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
 
         {/* Step 0: Personal + Address */}
         {step === 0 && (
-          <View style={{ gap: 12 }}>
+          <View style={{ gap: 6 }}>
             <Text style={[styles.sectionLabel, { color: colors.text }]}>Dados Pessoais</Text>
             <View>
               <Text style={labelStyle}>Nome Completo</Text>
@@ -537,7 +537,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
               <TextInput style={inputStyle('email')} value={form.email} onChangeText={(v) => set('email', v)} placeholder="seu@email.com" keyboardType="email-address" autoCapitalize="none" placeholderTextColor={colors.textSecondary} />
               <FieldError field="email" />
             </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
               <View style={{ flex: 1 }}>
                 <Text style={labelStyle}>CPF</Text>
                 <TextInput style={inputStyle('document')} value={form.document} onChangeText={(v) => set('document', maskCPF(v))} placeholder="000.000.000-00" keyboardType="numeric" maxLength={14} placeholderTextColor={colors.textSecondary} />
@@ -580,7 +580,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
               <TextInput style={inputStyle('street')} value={form.street} onChangeText={(v) => set('street', v)} placeholder="Nome da rua" placeholderTextColor={colors.textSecondary} />
               <FieldError field="street" />
             </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
               <View style={{ width: 90 }}>
                 <Text style={labelStyle}>Numero</Text>
                 <TextInput style={inputStyle('streetNumber')} value={form.streetNumber} onChangeText={(v) => set('streetNumber', v)} keyboardType="numeric" placeholder="123" placeholderTextColor={colors.textSecondary} />
@@ -592,7 +592,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
                 <FieldError field="neighborhood" />
               </View>
             </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
               <View style={{ flex: 1 }}>
                 <Text style={labelStyle}>Cidade</Text>
                 <TextInput style={inputStyle('city')} value={form.city} onChangeText={(v) => set('city', v)} placeholder="Sua cidade" placeholderTextColor={colors.textSecondary} />
@@ -614,7 +614,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
 
         {/* Step 1: Bank Account */}
         {step === 1 && (
-          <View style={{ gap: 12 }}>
+          <View style={{ gap: 6 }}>
             <View>
               <Text style={labelStyle}>Banco</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -643,7 +643,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
 
             <View>
               <Text style={[labelStyle, { marginBottom: 6 }]}>Tipo de Conta</Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
                 <TouchableOpacity
                   onPress={() => set('accountType', 'checking')}
                   style={[styles.typeBtn, {
@@ -651,7 +651,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
                     borderColor: form.accountType === 'checking' ? '#f97316' : colors.border,
                   }]}
                 >
-                  <Text style={{ fontSize: 13, color: form.accountType === 'checking' ? '#fff' : colors.text, fontWeight: '600' }}>Corrente</Text>
+                  <Text style={{ fontSize: 10, color: form.accountType === 'checking' ? '#fff' : colors.text, fontWeight: '600' }}>Corrente</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => set('accountType', 'savings')}
@@ -660,12 +660,12 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
                     borderColor: form.accountType === 'savings' ? '#f97316' : colors.border,
                   }]}
                 >
-                  <Text style={{ fontSize: 13, color: form.accountType === 'savings' ? '#fff' : colors.text, fontWeight: '600' }}>Poupanca</Text>
+                  <Text style={{ fontSize: 10, color: form.accountType === 'savings' ? '#fff' : colors.text, fontWeight: '600' }}>Poupanca</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
               <View style={{ flex: 1 }}>
                 <Text style={labelStyle}>Agencia</Text>
                 <TextInput style={inputStyle('branchNumber')} value={form.branchNumber} onChangeText={(v) => set('branchNumber', v.replace(/\D/g, ''))} placeholder="0001" keyboardType="numeric" placeholderTextColor={colors.textSecondary} />
@@ -677,7 +677,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
               <View style={{ flex: 1 }}>
                 <Text style={labelStyle}>Conta</Text>
                 <TextInput style={inputStyle('accountNumber')} value={form.accountNumber} onChangeText={(v) => set('accountNumber', v.replace(/\D/g, ''))} placeholder="00000" keyboardType="numeric" placeholderTextColor={colors.textSecondary} />
@@ -690,10 +690,10 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+            <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
               <TouchableOpacity style={[styles.secondaryBtn, { borderColor: colors.border }]} onPress={() => setStep(0)}>
                 <Ionicons name="arrow-back" size={16} color={colors.text} />
-                <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>Voltar</Text>
+                <Text style={{ color: colors.text, fontWeight: '600', fontSize: 12 }}>Voltar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.primaryBtn, { flex: 1, opacity: loading ? 0.5 : 1 }]} onPress={handleSubmit} disabled={loading}>
                 {loading ? (
@@ -715,50 +715,50 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 12 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1,
+    paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 18, fontWeight: 'bold' },
-  balanceCard: { borderRadius: 16, padding: 16, borderWidth: 1 },
-  balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  balanceIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  balanceIconSmall: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  section: { borderRadius: 16, padding: 16, borderWidth: 1, marginBottom: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 8 },
-  sectionLabel: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
+  headerTitle: { fontSize: 12, fontWeight: 'bold' },
+  balanceCard: { borderRadius: 10, padding: 12, borderWidth: 1 },
+  balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  balanceIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  balanceIconSmall: { width: 28, height: 28, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  section: { borderRadius: 10, padding: 12, borderWidth: 1, marginBottom: 12 },
+  sectionTitle: { fontSize: 12, fontWeight: 'bold', marginBottom: 8 },
+  sectionLabel: { fontSize: 10, fontWeight: '700', marginBottom: 2 },
   sectionDivider: { borderTopWidth: 1, marginVertical: 4 },
-  simBox: { borderRadius: 12, padding: 12, marginBottom: 12, gap: 6 },
+  simBox: { borderRadius: 10, padding: 12, marginBottom: 12, gap: 6 },
   simRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   divider: { height: 1, marginVertical: 4 },
   primaryBtn: {
-    backgroundColor: '#f97316', borderRadius: 12, paddingVertical: 14,
+    backgroundColor: '#f97316', borderRadius: 10, paddingVertical: 10,
     alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6,
   },
-  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
+  primaryBtnText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
   secondaryBtn: {
-    borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16,
+    borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12,
     alignItems: 'center', borderWidth: 1, flexDirection: 'row', gap: 4,
   },
   retryBtn: {
-    flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 16,
-    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1,
+    flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 12,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1,
   },
   disconnectBtn: {
     flexDirection: 'row', gap: 6, alignSelf: 'center', alignItems: 'center',
-    marginTop: 16, paddingVertical: 8, paddingHorizontal: 12,
+    marginTop: 12, paddingVertical: 8, paddingHorizontal: 12,
   },
-  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   infoIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  steps: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  steps: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
   stepItem: { alignItems: 'center', gap: 4 },
-  stepLine: { height: 2, width: 40, borderRadius: 1, marginBottom: 16 },
-  stepDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14 },
+  stepLine: { height: 2, width: 40, borderRadius: 1, marginBottom: 12 },
+  stepDot: { width: 28, height: 28, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 12 },
   label: { fontSize: 12, fontWeight: '500', marginBottom: 4 },
-  fieldError: { fontSize: 11, color: '#ef4444', marginTop: 3 },
-  bankChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, borderWidth: 1 },
+  fieldError: { fontSize: 10, color: '#ef4444', marginTop: 3 },
+  bankChip: { paddingHorizontal: 10, paddingVertical: 9, borderRadius: 10, borderWidth: 1 },
   typeBtn: {
     flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center',
   },

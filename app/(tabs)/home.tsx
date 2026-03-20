@@ -150,7 +150,7 @@ export default function HomeScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.card, paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { backgroundColor: colors.card, paddingTop: insets.top + 8 }]}>
         {user && user.emailVerified === false && (
           <TouchableOpacity
             style={styles.emailBanner}
@@ -196,7 +196,7 @@ export default function HomeScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Destaques</Text>
               </View>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
               {promotions.map((promo: any) => {
                 const originalPrice = promo.product?.price;
                 const promoPrice = promo.promotionalPrice;
@@ -213,7 +213,7 @@ export default function HomeScreen() {
                         <Image source={{ uri: promo.product?.imageUrl || promo.imageUrl }} style={styles.promoImage} />
                       ) : (
                         <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
-                          <Ionicons name="megaphone-outline" size={28} color="#FFFFFF" />
+                          <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
                         </View>
                       )}
                       {discount > 0 && (
@@ -260,7 +260,7 @@ export default function HomeScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Compre de novo</Text>
               </View>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
               {reorderProducts.map((product: any) => renderProductCard(product, 'small'))}
             </ScrollView>
           </View>
@@ -275,7 +275,7 @@ export default function HomeScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Mais vendidos</Text>
               </View>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
               {popularProducts.map((product: any) => renderProductCard(product))}
             </ScrollView>
           </View>
@@ -290,7 +290,7 @@ export default function HomeScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Volta aqui</Text>
               </View>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
               {frequentStores.map((store: any) => (
                 <TouchableOpacity
                   key={store.id}
@@ -301,7 +301,7 @@ export default function HomeScreen() {
                     <Image source={{ uri: store.logoUrl }} style={styles.frequentStoreLogo} />
                   ) : (
                     <View style={[styles.frequentStoreLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                      <Ionicons name="storefront-outline" size={28} color={colors.gray} />
+                      <Ionicons name="storefront-outline" size={18} color={colors.gray} />
                     </View>
                   )}
                   <View style={styles.frequentStoreInfo}>
@@ -338,7 +338,7 @@ export default function HomeScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Suas lojas</Text>
               </View>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
               {followedStores.map((store: any) => (
                 <TouchableOpacity
                   key={store.id}
@@ -349,7 +349,7 @@ export default function HomeScreen() {
                     <Image source={{ uri: store.logoUrl }} style={styles.frequentStoreLogo} />
                   ) : (
                     <View style={[styles.frequentStoreLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                      <Ionicons name="storefront-outline" size={28} color={colors.gray} />
+                      <Ionicons name="storefront-outline" size={18} color={colors.gray} />
                     </View>
                   )}
                   <View style={styles.frequentStoreInfo}>
@@ -376,7 +376,7 @@ export default function HomeScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Top 5 da semana</Text>
               </View>
             </View>
-            <View style={{ paddingHorizontal: 16, gap: 8 }}>
+            <View style={{ paddingHorizontal: 12, gap: 6 }}>
               {topStores.map((store: any, index: number) => (
                 <TouchableOpacity
                   key={store.id}
@@ -392,7 +392,7 @@ export default function HomeScreen() {
                     <Image source={{ uri: store.logoUrl }} style={styles.topStoreLogo} />
                   ) : (
                     <View style={[styles.topStoreLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                      <Ionicons name="storefront-outline" size={20} color={colors.gray} />
+                      <Ionicons name="storefront-outline" size={18} color={colors.gray} />
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
@@ -441,7 +441,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { padding: 20, paddingBottom: 16 },
+  header: { padding: 10, paddingBottom: 12 },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
   logoBcm: { fontSize: 6, fontWeight: '500', color: '#d4d4d4', letterSpacing: 2, position: 'absolute', top: 0, left: -2, zIndex: 1 },
   logoCenter: { flexDirection: 'row', alignItems: 'baseline' },
   logoDelivery: { fontSize: 22, fontWeight: '800', color: '#FF6B35' },
-  logoApp: { fontSize: 14, fontWeight: '600', marginLeft: 4 },
+  logoApp: { fontSize: 12, fontWeight: '600', marginLeft: 4 },
   greeting: { fontSize: fonts.xlarge, fontWeight: 'bold' },
   headerSub: { fontSize: fonts.regular, marginTop: 4 },
   profileButton: {
@@ -465,23 +465,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F59E0B',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 10,
-    gap: 8,
+    gap: 6,
     borderRadius: 10,
     marginBottom: 12,
   },
-  emailBannerText: { flex: 1, color: '#fff', fontSize: 13, fontWeight: '600' },
+  emailBannerText: { flex: 1, color: '#fff', fontSize: 10, fontWeight: '600' },
 
-  content: { paddingBottom: 16 },
+  content: { paddingBottom: 12 },
 
   // Sections
-  section: { marginTop: 20 },
+  section: { marginTop: 14 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     marginBottom: 12,
   },
   sectionTitle: { fontSize: fonts.large, fontWeight: '700' },
@@ -489,7 +489,7 @@ const styles = StyleSheet.create({
   // Promo cards
   promoCard: {
     width: 200,
-    borderRadius: 16,
+    borderRadius: 10,
     marginRight: 10,
     overflow: 'hidden',
   },
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  promoBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: 'bold' },
+  promoBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: 'bold' },
   promoStoreBadge: {
     position: 'absolute',
     bottom: 0,
@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
   // Product cards
   productCard: {
     width: 150,
-    borderRadius: 14,
+    borderRadius: 10,
     marginRight: 10,
     overflow: 'hidden',
   },
@@ -527,11 +527,11 @@ const styles = StyleSheet.create({
   productInfo: { padding: 8, gap: 1 },
   productCardSmall: {
     width: 130,
-    borderRadius: 12,
+    borderRadius: 10,
     marginRight: 10,
     overflow: 'hidden',
   },
-  productImageSmall: { width: 130, height: 80 },
+  productImageSmall: { width: 130, height: 56 },
   productInfoSmall: { padding: 8, gap: 1 },
   productName: { fontSize: fonts.small, fontWeight: '600' },
   productPrice: { fontSize: fonts.small, fontWeight: '700' },
@@ -549,7 +549,7 @@ const styles = StyleSheet.create({
   // Frequent stores
   frequentStoreCard: {
     width: 140,
-    borderRadius: 14,
+    borderRadius: 10,
     marginRight: 10,
     overflow: 'hidden',
     alignItems: 'center',
@@ -564,32 +564,32 @@ const styles = StyleSheet.create({
   topStoreCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderRadius: 14,
+    gap: 6,
+    borderRadius: 10,
     padding: 12,
   },
   topRank: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  topRankText: { fontSize: 13, fontWeight: 'bold' },
+  topRankText: { fontSize: 10, fontWeight: 'bold' },
   topStoreLogo: { width: 40, height: 40, borderRadius: 10 },
   topStoreName: { fontSize: fonts.regular, fontWeight: '600' },
 
   // Empty state
-  emptyState: { alignItems: 'center', marginTop: 60, gap: 12, paddingHorizontal: 32 },
+  emptyState: { alignItems: 'center', marginTop: 60, gap: 6, paddingHorizontal: 32 },
   emptyTitle: { fontSize: fonts.large, fontWeight: '600' },
   emptySubtext: { fontSize: fonts.regular, textAlign: 'center' },
   exploreButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
     marginTop: 8,
   },
   exploreButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: fonts.regular },

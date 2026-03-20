@@ -283,9 +283,9 @@ export default function OrderDetailScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: colors.card }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: colors.card }]}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Pedido #{order.orderNumber}</Text>
         <View style={{ width: 24 }} />
@@ -293,7 +293,7 @@ export default function OrderDetailScreen() {
 
       {isAwaitingPayment && (
         <View style={[styles.paymentBanner, { backgroundColor: isDark ? '#4A3A1A' : '#FFF3CD' }]}>
-          <Ionicons name="alert-circle" size={24} color={colors.warning} />
+          <Ionicons name="alert-circle" size={18} color={colors.warning} />
           <Text style={[styles.paymentBannerText, { color: isDark ? '#FBBF24' : '#856404' }]}>Aguardando pagamento</Text>
         </View>
       )}
@@ -303,7 +303,7 @@ export default function OrderDetailScreen() {
           style={[styles.payButton, { backgroundColor: '#00B4D8' }]}
           onPress={() => setPixModalVisible(true)}
         >
-          <Ionicons name="qr-code-outline" size={20} color="#FFFFFF" />
+          <Ionicons name="qr-code-outline" size={18} color="#FFFFFF" />
           <Text style={[styles.payButtonText, { color: '#FFFFFF' }]}>Pagar com PIX</Text>
         </TouchableOpacity>
       )}
@@ -313,7 +313,7 @@ export default function OrderDetailScreen() {
           style={[styles.payButton, { backgroundColor: colors.primary }]}
           onPress={() => Linking.openURL(order.checkoutUrl)}
         >
-          <Ionicons name="card-outline" size={20} color="#FFFFFF" />
+          <Ionicons name="card-outline" size={18} color="#FFFFFF" />
           <Text style={[styles.payButtonText, { color: '#FFFFFF' }]}>Ir para pagamento</Text>
         </TouchableOpacity>
       )}
@@ -321,7 +321,7 @@ export default function OrderDetailScreen() {
       {/* Terminal status banners */}
       {order.status === 'REJECTED' && (
         <View style={[styles.terminalBanner, { backgroundColor: isDark ? '#3A1A1A' : '#F8D7DA' }]}>
-          <Ionicons name="close-circle" size={24} color={colors.danger} />
+          <Ionicons name="close-circle" size={18} color={colors.danger} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.terminalBannerTitle, { color: isDark ? '#FCA5A5' : '#721C24' }]}>Pedido rejeitado</Text>
             {order.rejectionReason && (
@@ -335,7 +335,7 @@ export default function OrderDetailScreen() {
 
       {order.status === 'DISPUTED' && (
         <View style={[styles.terminalBanner, { backgroundColor: isDark ? '#4A3A1A' : '#FFF3CD' }]}>
-          <Ionicons name="warning" size={24} color={colors.warning} />
+          <Ionicons name="warning" size={18} color={colors.warning} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.terminalBannerTitle, { color: isDark ? '#FBBF24' : '#856404' }]}>Em disputa</Text>
             {order.disputeReason && (
@@ -384,7 +384,7 @@ export default function OrderDetailScreen() {
       {/* ETA display */}
       {etaMinutes !== null && etaMinutes > 0 && !isTerminal && order.status !== 'COMPLETED' && (
         <View style={[styles.etaBanner, { backgroundColor: isDark ? '#1A2A3A' : '#D1ECF1' }]}>
-          <Ionicons name="time-outline" size={20} color={colors.primary} />
+          <Ionicons name="time-outline" size={18} color={colors.primary} />
           <Text style={[styles.etaText, { color: isDark ? '#93C5FD' : '#0C5460' }]}>
             Chega em ~{etaMinutes} min
           </Text>
@@ -393,13 +393,13 @@ export default function OrderDetailScreen() {
 
       {order.delivery?.deliverer && (
         <View style={[styles.delivererCard, { backgroundColor: colors.card }]}>
-          <Ionicons name="bicycle" size={24} color={colors.primary} />
+          <Ionicons name="bicycle" size={18} color={colors.primary} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.delivererName, { color: colors.text }]}>{order.delivery.deliverer.name}</Text>
             <Text style={[styles.delivererPhone, { color: colors.textLight }]}>{order.delivery.deliverer.phone}</Text>
           </View>
           <TouchableOpacity style={styles.callButton}>
-            <Ionicons name="call" size={20} color={colors.primary} />
+            <Ionicons name="call" size={18} color={colors.primary} />
           </TouchableOpacity>
         </View>
       )}
@@ -415,7 +415,7 @@ export default function OrderDetailScreen() {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <>
-              <Ionicons name="bag-check-outline" size={20} color="#FFFFFF" />
+              <Ionicons name="bag-check-outline" size={18} color="#FFFFFF" />
               <Text style={styles.actionButtonText}>Confirmar Retirada</Text>
             </>
           )}
@@ -432,7 +432,7 @@ export default function OrderDetailScreen() {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <>
-              <Ionicons name="checkmark-done-outline" size={20} color="#FFFFFF" />
+              <Ionicons name="checkmark-done-outline" size={18} color="#FFFFFF" />
               <Text style={styles.actionButtonText}>Confirmar Entrega</Text>
             </>
           )}
@@ -443,7 +443,7 @@ export default function OrderDetailScreen() {
       {needsCustomerAction && !isDeliverer && (
         <View style={[styles.confirmCard, { backgroundColor: colors.card, borderColor: colors.success }]}>
           <View style={styles.confirmHeader}>
-            <Ionicons name="checkmark-circle" size={32} color={colors.success} />
+            <Ionicons name="checkmark-circle" size={26} color={colors.success} />
             <Text style={[styles.confirmTitle, { color: colors.text }]}>Pedido entregue!</Text>
           </View>
           <Text style={[styles.confirmSubtitle, { color: colors.textLight }]}>
@@ -466,7 +466,7 @@ export default function OrderDetailScreen() {
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
-                <Ionicons name="checkmark-done" size={20} color="#FFFFFF" />
+                <Ionicons name="checkmark-done" size={18} color="#FFFFFF" />
                 <Text style={[styles.confirmButtonText, { color: '#FFFFFF' }]}>Confirmar Recebimento</Text>
               </>
             )}
@@ -476,7 +476,7 @@ export default function OrderDetailScreen() {
             onPress={() => setDenyModalVisible(true)}
             disabled={denying}
           >
-            <Ionicons name="close-circle-outline" size={20} color={colors.danger} />
+            <Ionicons name="close-circle-outline" size={18} color={colors.danger} />
             <Text style={[styles.denyButtonText, { color: colors.danger }]}>Não recebi o pedido</Text>
           </TouchableOpacity>
         </View>
@@ -484,7 +484,7 @@ export default function OrderDetailScreen() {
 
       {order.customerConfirmedAt && (order.status === 'COMPLETED' || order.status === 'DELIVERED') && (
         <View style={[styles.confirmedBanner, { backgroundColor: isDark ? '#1A3A2A' : '#D4EDDA' }]}>
-          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+          <Ionicons name="checkmark-circle" size={18} color={colors.success} />
           <Text style={[styles.confirmedText, { color: isDark ? '#6EE7B7' : '#155724' }]}>
             Recebimento confirmado em {new Date(order.customerConfirmedAt).toLocaleString('pt-BR')}
           </Text>
@@ -493,7 +493,7 @@ export default function OrderDetailScreen() {
 
       {order.completedAt && order.status === 'COMPLETED' && (
         <View style={[styles.confirmedBanner, { backgroundColor: isDark ? '#1A3A2A' : '#D4EDDA' }]}>
-          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+          <Ionicons name="checkmark-circle" size={18} color={colors.success} />
           <Text style={[styles.confirmedText, { color: isDark ? '#6EE7B7' : '#155724' }]}>
             Pedido finalizado em {new Date(order.completedAt).toLocaleString('pt-BR')}
           </Text>
@@ -506,7 +506,7 @@ export default function OrderDetailScreen() {
           style={[styles.cancelButton, { borderColor: colors.warning }]}
           onPress={() => setDisputeModalVisible(true)}
         >
-          <Ionicons name="alert-circle-outline" size={20} color={colors.warning} />
+          <Ionicons name="alert-circle-outline" size={18} color={colors.warning} />
           <Text style={[styles.cancelButtonText, { color: colors.warning }]}>Tive um problema</Text>
         </TouchableOpacity>
       )}
@@ -560,14 +560,14 @@ export default function OrderDetailScreen() {
             <ActivityIndicator color={colors.danger} />
           ) : (
             <>
-              <Ionicons name="close-circle-outline" size={20} color={colors.danger} />
+              <Ionicons name="close-circle-outline" size={18} color={colors.danger} />
               <Text style={[styles.cancelButtonText, { color: colors.danger }]}>Cancelar pedido</Text>
             </>
           )}
         </TouchableOpacity>
       )}
 
-      <View style={{ height: insets.bottom + 24 }} />
+      <View style={{ height: insets.bottom + 16 }} />
 
       {/* PIX payment modal */}
       <Modal
@@ -581,7 +581,7 @@ export default function OrderDetailScreen() {
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Pagar com PIX</Text>
               <TouchableOpacity onPress={() => setPixModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
+                <Ionicons name="close" size={18} color={colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -617,7 +617,7 @@ export default function OrderDetailScreen() {
               style={[styles.pixCopyButton, { backgroundColor: pixCopied ? '#10B981' : '#00B4D8' }]}
               onPress={handleCopyPixCode}
             >
-              <Ionicons name={pixCopied ? 'checkmark-circle' : 'copy-outline'} size={20} color="#FFFFFF" />
+              <Ionicons name={pixCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color="#FFFFFF" />
               <Text style={styles.pixCopyButtonText}>
                 {pixCopied ? 'Codigo copiado!' : 'Copiar codigo PIX'}
               </Text>
@@ -628,7 +628,7 @@ export default function OrderDetailScreen() {
               style={[styles.pixShareButton, { backgroundColor: isDark ? '#333' : '#F3F4F6' }]}
               onPress={handleSharePixCode}
             >
-              <Ionicons name="share-outline" size={20} color={colors.text} />
+              <Ionicons name="share-outline" size={18} color={colors.text} />
               <Text style={[styles.pixShareButtonText, { color: colors.text }]}>
                 Enviar para app do banco
               </Text>
@@ -653,7 +653,7 @@ export default function OrderDetailScreen() {
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Contestar entrega</Text>
               <TouchableOpacity onPress={() => setDenyModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
+                <Ionicons name="close" size={18} color={colors.text} />
               </TouchableOpacity>
             </View>
             <Text style={[styles.modalSubtitle, { color: colors.textLight }]}>
@@ -671,7 +671,7 @@ export default function OrderDetailScreen() {
               >
                 <Ionicons
                   name={selectedDenyReason === reason ? 'radio-button-on' : 'radio-button-off'}
-                  size={20}
+                  size={18}
                   color={selectedDenyReason === reason ? colors.primary : colors.gray}
                 />
                 <Text style={[styles.reasonText, { color: colors.text }]}>{reason}</Text>
@@ -714,7 +714,7 @@ export default function OrderDetailScreen() {
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Relatar problema</Text>
               <TouchableOpacity onPress={() => setDisputeModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
+                <Ionicons name="close" size={18} color={colors.text} />
               </TouchableOpacity>
             </View>
             <Text style={[styles.modalSubtitle, { color: colors.textLight }]}>
@@ -732,7 +732,7 @@ export default function OrderDetailScreen() {
               >
                 <Ionicons
                   name={selectedDisputeReason === reason ? 'radio-button-on' : 'radio-button-off'}
-                  size={20}
+                  size={18}
                   color={selectedDisputeReason === reason ? colors.primary : colors.gray}
                 />
                 <Text style={[styles.reasonText, { color: colors.text }]}>{reason}</Text>
@@ -773,42 +773,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 24,
+    padding: 12,
     paddingTop: 56,
   },
   title: { fontSize: fonts.large, fontWeight: 'bold' },
   statusContainer: {
-    margin: 16,
-    borderRadius: 16,
-    padding: 20,
+    margin: 12,
+    borderRadius: 10,
+    padding: 10,
   },
-  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   stepIndicator: { alignItems: 'center' },
   stepDot: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   stepLine: { width: 2, height: 24 },
   stepLabel: { fontSize: fonts.regular, marginTop: 6 },
   delivererCard: {
-    marginHorizontal: 16,
-    borderRadius: 12,
-    padding: 16,
+    marginHorizontal: 12,
+    borderRadius: 10,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
+    gap: 6,
+    marginBottom: 12,
   },
   delivererName: { fontSize: fonts.regular, fontWeight: '600' },
   delivererPhone: { fontSize: fonts.small },
   callButton: { padding: 8 },
   section: {
-    marginHorizontal: 16,
-    borderRadius: 12,
-    padding: 16,
+    marginHorizontal: 12,
+    borderRadius: 10,
+    padding: 12,
     marginBottom: 12,
   },
   sectionTitle: { fontSize: fonts.large, fontWeight: '600', marginBottom: 12 },
@@ -826,34 +826,34 @@ const styles = StyleSheet.create({
   paymentBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
+    gap: 6,
+    marginHorizontal: 12,
     marginTop: 12,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 10,
+    padding: 10,
   },
   paymentBannerText: { fontSize: fonts.regular, fontWeight: '600' },
   payButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginHorizontal: 16,
+    gap: 6,
+    marginHorizontal: 12,
     marginTop: 12,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
   },
   payButtonText: { fontSize: fonts.regular, fontWeight: 'bold' },
   confirmCard: {
-    marginHorizontal: 16,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    marginHorizontal: 12,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
     borderWidth: 2,
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
   },
-  confirmHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  confirmHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   confirmTitle: { fontSize: fonts.xlarge, fontWeight: 'bold' },
   confirmSubtitle: { fontSize: fonts.regular, textAlign: 'center' },
   confirmTimer: { fontSize: fonts.small, fontWeight: '600' },
@@ -861,53 +861,53 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
+    gap: 6,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     width: '100%',
   },
   confirmButtonText: { fontSize: fonts.regular, fontWeight: 'bold' },
   confirmedBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
+    gap: 6,
+    marginHorizontal: 12,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
   },
   confirmedText: { fontSize: fonts.small, fontWeight: '600' },
   terminalBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginHorizontal: 16,
+    gap: 6,
+    marginHorizontal: 12,
     marginTop: 12,
     marginBottom: 4,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
   },
   terminalBannerTitle: { fontSize: fonts.regular, fontWeight: '700' },
   terminalBannerSub: { fontSize: fonts.small, marginTop: 2 },
   etaBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
+    gap: 6,
+    marginHorizontal: 12,
     marginBottom: 12,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 10,
+    padding: 10,
   },
   etaText: { fontSize: fonts.regular, fontWeight: '600' },
   denyButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
+    gap: 6,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     width: '100%',
     borderWidth: 2,
   },
@@ -916,22 +916,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 12,
-    paddingVertical: 16,
+    gap: 6,
+    marginHorizontal: 12,
+    marginBottom: 12,
+    borderRadius: 10,
+    paddingVertical: 12,
   },
   actionButtonText: { fontSize: fonts.regular, fontWeight: 'bold', color: '#FFFFFF' },
   cancelButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginHorizontal: 16,
+    gap: 6,
+    marginHorizontal: 12,
     marginBottom: 12,
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: 10,
+    paddingVertical: 10,
     borderWidth: 2,
   },
   cancelButtonText: { fontSize: fonts.regular, fontWeight: 'bold' },
@@ -944,7 +944,7 @@ const styles = StyleSheet.create({
   modalContent: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 24,
+    padding: 12,
     paddingBottom: 40,
   },
   modalHeader: {
@@ -954,21 +954,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalTitle: { fontSize: fonts.xlarge, fontWeight: 'bold' },
-  modalSubtitle: { fontSize: fonts.regular, marginBottom: 16 },
+  modalSubtitle: { fontSize: fonts.regular, marginBottom: 12 },
   reasonOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: 12,
+    gap: 6,
+    padding: 10,
+    borderRadius: 10,
     borderWidth: 1,
     marginBottom: 8,
   },
   reasonText: { fontSize: fonts.regular },
   reasonInput: {
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 10,
+    padding: 10,
     fontSize: fonts.regular,
     minHeight: 80,
     textAlignVertical: 'top',
@@ -977,8 +977,8 @@ const styles = StyleSheet.create({
   modalConfirmButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 10,
+    paddingVertical: 12,
     marginTop: 8,
   },
   modalConfirmButtonText: { fontSize: fonts.regular, fontWeight: 'bold', color: '#FFFFFF' },
@@ -986,18 +986,18 @@ const styles = StyleSheet.create({
   pixModalContent: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 24,
+    padding: 12,
     paddingBottom: 40,
     alignItems: 'center',
   },
   pixTimerBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    borderRadius: 12,
+    gap: 6,
+    borderRadius: 10,
     paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginBottom: 20,
+    paddingHorizontal: 12,
+    marginBottom: 14,
     alignSelf: 'stretch',
     justifyContent: 'center',
   },
@@ -1007,9 +1007,9 @@ const styles = StyleSheet.create({
   },
   pixQrContainer: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
   },
   pixQrImage: {
     width: 200,
@@ -1022,15 +1022,15 @@ const styles = StyleSheet.create({
   },
   pixLabel: {
     fontSize: fonts.small,
-    marginBottom: 20,
+    marginBottom: 14,
   },
   pixCopyButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderRadius: 12,
-    paddingVertical: 16,
+    gap: 6,
+    borderRadius: 10,
+    paddingVertical: 12,
     alignSelf: 'stretch',
     marginBottom: 10,
   },
@@ -1043,11 +1043,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderRadius: 12,
-    paddingVertical: 16,
+    gap: 6,
+    borderRadius: 10,
+    paddingVertical: 12,
     alignSelf: 'stretch',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   pixShareButtonText: {
     fontSize: fonts.regular,

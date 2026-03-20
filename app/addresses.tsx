@@ -280,13 +280,13 @@ export default function AddressesScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Meus enderecos</Text>
         <TouchableOpacity onPress={() => showForm ? handleCloseForm() : setShowForm(true)}>
-          <Ionicons name={showForm ? 'close' : 'add'} size={28} color={colors.primary} />
+          <Ionicons name={showForm ? 'close' : 'add'} size={18} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -436,8 +436,8 @@ export default function AddressesScreen() {
               data={ESTADOS_BR}
               keyExtractor={(item) => item}
               numColumns={4}
-              contentContainerStyle={{ gap: 8 }}
-              columnWrapperStyle={{ gap: 8 }}
+              contentContainerStyle={{ gap: 6 }}
+              columnWrapperStyle={{ gap: 6 }}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[
@@ -486,28 +486,28 @@ export default function AddressesScreen() {
                 style={styles.actionButton}
                 onPress={() => handleEdit(item)}
               >
-                <Ionicons name="create-outline" size={20} color={colors.primary} />
+                <Ionicons name="create-outline" size={18} color={colors.primary} />
               </TouchableOpacity>
               {!item.isDefault && (
                 <TouchableOpacity
                   style={styles.actionButton}
                   onPress={() => handleSetDefault(item.id)}
                 >
-                  <Ionicons name="star-outline" size={20} color={colors.primary} />
+                  <Ionicons name="star-outline" size={18} color={colors.primary} />
                 </TouchableOpacity>
               )}
               <TouchableOpacity
                 style={styles.actionButton}
                 onPress={() => handleDelete(item.id)}
               >
-                <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                <Ionicons name="trash-outline" size={18} color={colors.danger} />
               </TouchableOpacity>
             </View>
           </View>
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="location-outline" size={48} color={colors.grayLight} />
+            <Ionicons name="location-outline" size={36} color={colors.grayLight} />
             <Text style={styles.emptyText}>Nenhum endereco salvo</Text>
             <Text style={styles.emptySubtext}>
               Adicione um endereco ou faca um pedido{'\n'}e ele sera salvo automaticamente
@@ -526,21 +526,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 24,
+    padding: 12,
     paddingTop: 56,
     backgroundColor: colors.white,
   },
   title: { fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text },
   form: {
     backgroundColor: colors.white,
-    margin: 16,
-    borderRadius: 16,
-    padding: 16,
-    gap: 10,
+    margin: 12,
+    borderRadius: 10,
+    padding: 12,
+    gap: 6,
   },
   formScroll: { maxHeight: '70%' },
   formTitle: { fontSize: fonts.medium, fontWeight: 'bold', color: colors.text, marginBottom: 4 },
-  formRow: { flexDirection: 'row', gap: 10 },
+  formRow: { flexDirection: 'row', gap: 6 },
   input: {
     backgroundColor: colors.background,
     borderRadius: 10,
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     backgroundColor: colors.primary,
     borderRadius: 10,
     padding: 12,
@@ -561,16 +561,16 @@ const styles = StyleSheet.create({
   saveButton: {
     backgroundColor: colors.primary,
     borderRadius: 10,
-    padding: 14,
+    padding: 10,
     alignItems: 'center',
     marginTop: 4,
   },
   saveButtonText: { color: colors.white, fontWeight: 'bold', fontSize: fonts.regular },
-  list: { padding: 16, paddingBottom: 100 },
+  list: { padding: 12, paddingBottom: 100 },
   card: {
     backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
   defaultBadgeText: { color: colors.primary, fontSize: fonts.tiny, fontWeight: '600' },
   addressText: { fontSize: fonts.small, color: colors.text, lineHeight: 20 },
   zipText: { fontSize: fonts.tiny, color: colors.textLight, marginTop: 4 },
-  cardActions: { flexDirection: 'row', gap: 8, marginLeft: 8 },
+  cardActions: { flexDirection: 'row', gap: 6, marginLeft: 8 },
   actionButton: {
     width: 36,
     height: 36,
@@ -623,7 +623,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 24,
+    padding: 12,
     maxHeight: '50%',
   },
   modalTitle: {
@@ -631,7 +631,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.text,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   stateChip: {
     flex: 1,
@@ -652,7 +652,7 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   mapSection: {
-    gap: 8,
+    gap: 6,
   },
   mapHint: {
     fontSize: fonts.regular,
@@ -662,7 +662,7 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     height: 200,
-    borderRadius: 12,
+    borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: colors.grayLight,
   },
@@ -671,13 +671,13 @@ const styles = StyleSheet.create({
   },
   mapButtons: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 6,
     marginTop: 4,
   },
   mapBackButton: {
     flex: 1,
     borderRadius: 10,
-    padding: 14,
+    padding: 10,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.grayLight,
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
     fontSize: fonts.small,
     color: colors.textLight,
   },
-  empty: { alignItems: 'center', marginTop: 60, gap: 8 },
+  empty: { alignItems: 'center', marginTop: 60, gap: 6 },
   emptyText: { fontSize: fonts.regular, color: colors.textLight, fontWeight: '600' },
   emptySubtext: { fontSize: fonts.small, color: colors.gray, textAlign: 'center' },
 });

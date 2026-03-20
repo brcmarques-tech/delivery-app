@@ -128,7 +128,7 @@ function FaceCameraScreen({
 
         {/* Close button */}
         <TouchableOpacity style={camStyles.closeButton} onPress={onClose}>
-          <Ionicons name="close" size={28} color={colors.white} />
+          <Ionicons name="close" size={18} color={colors.white} />
         </TouchableOpacity>
 
         {/* Capture button */}
@@ -196,12 +196,12 @@ const camStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
   },
   statusText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
   },
   closeButton: {
@@ -569,13 +569,13 @@ export default function DelivererRegisterScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]} keyboardShouldPersistTaps="handled">
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]} keyboardShouldPersistTaps="handled">
       <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/')}>
-        <Ionicons name="arrow-back" size={24} color={colors.text} />
+        <Ionicons name="arrow-back" size={18} color={colors.text} />
       </TouchableOpacity>
 
       <View style={styles.iconContainer}>
-        <Ionicons name="bicycle" size={48} color={colors.primary} />
+        <Ionicons name="bicycle" size={36} color={colors.primary} />
       </View>
 
       <Text style={styles.title}>Quero ser entregador</Text>
@@ -608,7 +608,7 @@ export default function DelivererRegisterScreen() {
             >
               <Ionicons
                 name={v.icon}
-                size={24}
+                size={18}
                 color={vehicleType === v.key ? colors.primary : colors.gray}
               />
               <Text
@@ -659,7 +659,7 @@ export default function DelivererRegisterScreen() {
           <View style={styles.photoPreviewContainer}>
             <Image source={{ uri: facePhoto }} style={styles.photoPreview} />
             <TouchableOpacity style={styles.removePhotoButton} onPress={clearFacePhoto}>
-              <Ionicons name="close-circle" size={28} color={colors.danger} />
+              <Ionicons name="close-circle" size={18} color={colors.danger} />
             </TouchableOpacity>
             {facePhotoStatus === 'validating' && (
               <View style={styles.validationOverlay}>
@@ -669,23 +669,23 @@ export default function DelivererRegisterScreen() {
             )}
             {facePhotoStatus === 'valid' && (
               <View style={styles.statusBadge}>
-                <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
               </View>
             )}
             {facePhotoStatus === 'invalid' && (
               <View style={styles.statusBadgeError}>
-                <Ionicons name="close-circle" size={24} color={colors.danger} />
+                <Ionicons name="close-circle" size={18} color={colors.danger} />
               </View>
             )}
           </View>
         ) : (
           <View style={styles.photoButtons}>
             <TouchableOpacity style={styles.photoButton} onPress={openFaceCamera}>
-              <Ionicons name="scan-outline" size={24} color={colors.primary} />
+              <Ionicons name="scan-outline" size={18} color={colors.primary} />
               <Text style={styles.photoButtonText}>Selfie</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.photoButton} onPress={pickFaceFromGallery}>
-              <Ionicons name="images-outline" size={24} color={colors.primary} />
+              <Ionicons name="images-outline" size={18} color={colors.primary} />
               <Text style={styles.photoButtonText}>Galeria</Text>
             </TouchableOpacity>
           </View>
@@ -693,7 +693,7 @@ export default function DelivererRegisterScreen() {
         {facePhotoError ? <Text style={styles.photoError}>{facePhotoError}</Text> : null}
 
         {/* Foto do documento - FRENTE */}
-        <Text style={[styles.label, { marginTop: 16 }]}>Documento - Frente (RG ou CNH)</Text>
+        <Text style={[styles.label, { marginTop: 12 }]}>Documento - Frente (RG ou CNH)</Text>
         <Text style={styles.photoHint}>
           Tire uma foto da frente do documento, com os dados visiveis.
         </Text>
@@ -702,7 +702,7 @@ export default function DelivererRegisterScreen() {
           <View style={styles.photoPreviewContainer}>
             <Image source={{ uri: docPhoto }} style={styles.photoPreview} />
             <TouchableOpacity style={styles.removePhotoButton} onPress={clearDocPhoto}>
-              <Ionicons name="close-circle" size={28} color={colors.danger} />
+              <Ionicons name="close-circle" size={18} color={colors.danger} />
             </TouchableOpacity>
             {docPhotoStatus === 'validating' && (
               <View style={styles.validationOverlay}>
@@ -712,23 +712,23 @@ export default function DelivererRegisterScreen() {
             )}
             {docPhotoStatus === 'valid' && (
               <View style={styles.statusBadge}>
-                <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
               </View>
             )}
             {docPhotoStatus === 'invalid' && (
               <View style={styles.statusBadgeError}>
-                <Ionicons name="close-circle" size={24} color={colors.danger} />
+                <Ionicons name="close-circle" size={18} color={colors.danger} />
               </View>
             )}
           </View>
         ) : (
           <View style={styles.photoButtons}>
             <TouchableOpacity style={styles.photoButton} onPress={() => pickDocPhoto(true, 'front')}>
-              <Ionicons name="camera-outline" size={24} color={colors.primary} />
+              <Ionicons name="camera-outline" size={18} color={colors.primary} />
               <Text style={styles.photoButtonText}>Tirar foto</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.photoButton} onPress={() => pickDocPhoto(false, 'front')}>
-              <Ionicons name="images-outline" size={24} color={colors.primary} />
+              <Ionicons name="images-outline" size={18} color={colors.primary} />
               <Text style={styles.photoButtonText}>Galeria</Text>
             </TouchableOpacity>
           </View>
@@ -736,7 +736,7 @@ export default function DelivererRegisterScreen() {
         {docPhotoError ? <Text style={styles.photoError}>{docPhotoError}</Text> : null}
 
         {/* Foto do documento - VERSO */}
-        <Text style={[styles.label, { marginTop: 16 }]}>Documento - Verso</Text>
+        <Text style={[styles.label, { marginTop: 12 }]}>Documento - Verso</Text>
         <Text style={styles.photoHint}>
           Tire uma foto do verso do documento.
         </Text>
@@ -745,7 +745,7 @@ export default function DelivererRegisterScreen() {
           <View style={styles.photoPreviewContainer}>
             <Image source={{ uri: docPhotoBack }} style={styles.photoPreview} />
             <TouchableOpacity style={styles.removePhotoButton} onPress={clearDocPhotoBack}>
-              <Ionicons name="close-circle" size={28} color={colors.danger} />
+              <Ionicons name="close-circle" size={18} color={colors.danger} />
             </TouchableOpacity>
             {docPhotoBackStatus === 'validating' && (
               <View style={styles.validationOverlay}>
@@ -755,23 +755,23 @@ export default function DelivererRegisterScreen() {
             )}
             {docPhotoBackStatus === 'valid' && (
               <View style={styles.statusBadge}>
-                <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
               </View>
             )}
             {docPhotoBackStatus === 'invalid' && (
               <View style={styles.statusBadgeError}>
-                <Ionicons name="close-circle" size={24} color={colors.danger} />
+                <Ionicons name="close-circle" size={18} color={colors.danger} />
               </View>
             )}
           </View>
         ) : (
           <View style={styles.photoButtons}>
             <TouchableOpacity style={styles.photoButton} onPress={() => pickDocPhoto(true, 'back')}>
-              <Ionicons name="camera-outline" size={24} color={colors.primary} />
+              <Ionicons name="camera-outline" size={18} color={colors.primary} />
               <Text style={styles.photoButtonText}>Tirar foto</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.photoButton} onPress={() => pickDocPhoto(false, 'back')}>
-              <Ionicons name="images-outline" size={24} color={colors.primary} />
+              <Ionicons name="images-outline" size={18} color={colors.primary} />
               <Text style={styles.photoButtonText}>Galeria</Text>
             </TouchableOpacity>
           </View>
@@ -784,11 +784,11 @@ export default function DelivererRegisterScreen() {
             style={styles.contractHeader}
             onPress={() => setShowContract(!showContract)}
           >
-            <Ionicons name="document-text-outline" size={20} color={colors.text} />
+            <Ionicons name="document-text-outline" size={18} color={colors.text} />
             <Text style={styles.contractHeaderText}>Termo de compromisso do entregador</Text>
             <Ionicons
               name={showContract ? 'chevron-up' : 'chevron-down'}
-              size={20}
+              size={18}
               color={colors.gray}
             />
           </TouchableOpacity>
@@ -805,7 +805,7 @@ export default function DelivererRegisterScreen() {
           >
             <Ionicons
               name={acceptedContract ? 'checkbox' : 'square-outline'}
-              size={24}
+              size={18}
               color={acceptedContract ? colors.primary : colors.gray}
             />
             <Text style={styles.checkboxText}>
@@ -844,7 +844,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.success + '15',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 12,
   },
   successTitle: {
     fontSize: 24,
@@ -862,8 +862,8 @@ const styles = StyleSheet.create({
   },
   successButton: {
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 10,
+    paddingVertical: 12,
     paddingHorizontal: 32,
   },
   successButtonText: {
@@ -872,17 +872,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   container: { flex: 1, backgroundColor: colors.white },
-  content: { padding: 24, paddingTop: 56, paddingBottom: 40 },
-  backButton: { marginBottom: 16 },
+  content: { padding: 12, paddingTop: 56, paddingBottom: 40 },
+  backButton: { marginBottom: 12 },
   iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   title: {
     fontSize: fonts.title,
@@ -898,7 +898,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     lineHeight: 22,
   },
-  form: { gap: 8 },
+  form: { gap: 6 },
   label: {
     fontSize: fonts.small,
     fontWeight: '600',
@@ -908,21 +908,21 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: colors.grayLight,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     fontSize: fonts.regular,
     color: colors.text,
   },
   vehicleContainer: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
     flexWrap: 'wrap',
   },
   vehicleButton: {
     flex: 1,
     minWidth: '45%',
-    padding: 16,
-    borderRadius: 12,
+    padding: 12,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: colors.grayLight,
     alignItems: 'center',
@@ -946,16 +946,16 @@ const styles = StyleSheet.create({
   },
   photoButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 6,
   },
   photoButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    padding: 16,
-    borderRadius: 12,
+    gap: 6,
+    padding: 12,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: colors.primary + '30',
     borderStyle: 'dashed',
@@ -972,7 +972,7 @@ const styles = StyleSheet.create({
   photoPreview: {
     width: '100%',
     height: 200,
-    borderRadius: 12,
+    borderRadius: 10,
     backgroundColor: colors.grayLight,
   },
   removePhotoButton: {
@@ -980,7 +980,7 @@ const styles = StyleSheet.create({
     top: 8,
     right: 8,
     backgroundColor: colors.white,
-    borderRadius: 14,
+    borderRadius: 10,
   },
   validationOverlay: {
     position: 'absolute',
@@ -989,10 +989,10 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 12,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   validationText: {
     color: colors.white,
@@ -1004,7 +1004,7 @@ const styles = StyleSheet.create({
     bottom: 8,
     right: 8,
     backgroundColor: colors.white,
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 2,
   },
   statusBadgeError: {
@@ -1012,7 +1012,7 @@ const styles = StyleSheet.create({
     bottom: 8,
     right: 8,
     backgroundColor: colors.white,
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 2,
   },
   photoError: {
@@ -1022,17 +1022,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   contractSection: {
-    marginTop: 16,
+    marginTop: 12,
     borderWidth: 1,
     borderColor: colors.grayLight,
-    borderRadius: 12,
+    borderRadius: 10,
     overflow: 'hidden',
   },
   contractHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    padding: 14,
+    gap: 6,
+    padding: 10,
     backgroundColor: colors.grayLight,
   },
   contractHeaderText: {
@@ -1043,7 +1043,7 @@ const styles = StyleSheet.create({
   },
   contractBody: {
     maxHeight: 200,
-    padding: 14,
+    padding: 10,
     backgroundColor: colors.white,
   },
   contractText: {
@@ -1054,8 +1054,8 @@ const styles = StyleSheet.create({
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    padding: 14,
+    gap: 6,
+    padding: 10,
     borderTopWidth: 1,
     borderTopColor: colors.grayLight,
   },
@@ -1066,10 +1066,10 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: 12,
   },
   buttonDisabled: { opacity: 0.6 },
   submitButtonText: {

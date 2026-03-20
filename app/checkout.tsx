@@ -561,9 +561,9 @@ export default function CheckoutScreen() {
       style={[styles.container, { backgroundColor: themeColors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: themeColors.white }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: themeColors.white }]}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={themeColors.text} />
+          <Ionicons name="arrow-back" size={18} color={themeColors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: themeColors.text }]}>Finalizar pedido</Text>
         <View style={{ width: 24 }} />
@@ -575,7 +575,7 @@ export default function CheckoutScreen() {
         data={checkoutItems}
         keyExtractor={(item) => item.id}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
         renderItem={({ item }) => (
           <View style={[styles.itemCard, { backgroundColor: themeColors.white }]}>
             <View style={styles.itemInfo}>
@@ -599,7 +599,7 @@ export default function CheckoutScreen() {
           <View style={styles.footer}>
             {!ownerPaymentConnected && (
               <View style={[styles.warningBanner, { backgroundColor: themeColors.warning + '18', borderColor: themeColors.warning + '40' }]}>
-                <Ionicons name="alert-circle-outline" size={20} color={themeColors.warning} />
+                <Ionicons name="alert-circle-outline" size={18} color={themeColors.warning} />
                 <Text style={[styles.warningBannerText, { color: themeColors.warning }]}>
                   {pickupOnly
                     ? 'Esta loja aceita apenas retirada no local no momento'
@@ -617,7 +617,7 @@ export default function CheckoutScreen() {
                     style={[styles.deliveryTypeOption, { borderColor: themeColors.grayLight }, deliveryType === 'DELIVERY' && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '10' }]}
                     onPress={() => setDeliveryType('DELIVERY')}
                   >
-                    <Ionicons name="bicycle-outline" size={24} color={deliveryType === 'DELIVERY' ? themeColors.primary : themeColors.gray} />
+                    <Ionicons name="bicycle-outline" size={18} color={deliveryType === 'DELIVERY' ? themeColors.primary : themeColors.gray} />
                     <Text style={[styles.deliveryTypeLabel, { color: themeColors.gray }, deliveryType === 'DELIVERY' && { color: themeColors.primary }]}>Entrega</Text>
                   </TouchableOpacity>
                 )}
@@ -625,7 +625,7 @@ export default function CheckoutScreen() {
                   style={[styles.deliveryTypeOption, { borderColor: themeColors.grayLight }, deliveryType === 'PICKUP' && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '10' }]}
                   onPress={() => setDeliveryType('PICKUP')}
                 >
-                  <Ionicons name="storefront-outline" size={24} color={deliveryType === 'PICKUP' ? themeColors.primary : themeColors.gray} />
+                  <Ionicons name="storefront-outline" size={18} color={deliveryType === 'PICKUP' ? themeColors.primary : themeColors.gray} />
                   <Text style={[styles.deliveryTypeLabel, { color: themeColors.gray }, deliveryType === 'PICKUP' && { color: themeColors.primary }]}>Retirar no local</Text>
                 </TouchableOpacity>
               </View>
@@ -681,7 +681,7 @@ export default function CheckoutScreen() {
                     {locatingGps ? (
                       <ActivityIndicator size="small" color={themeColors.primary} />
                     ) : (
-                      <Ionicons name="navigate" size={22} color={themeColors.primary} />
+                      <Ionicons name="navigate" size={18} color={themeColors.primary} />
                     )}
                   </TouchableOpacity>
                   <TextInput
@@ -708,7 +708,7 @@ export default function CheckoutScreen() {
             {/* M3: Coupon input */}
             <View style={[styles.section, { backgroundColor: themeColors.white }]}>
               <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Cupom de desconto</Text>
-              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                 <TextInput
                   style={[styles.addressInput, { backgroundColor: themeColors.background, color: themeColors.text, flex: 1 }]}
                   placeholder="Codigo do cupom"
@@ -718,7 +718,7 @@ export default function CheckoutScreen() {
                   autoCapitalize="characters"
                 />
                 <TouchableOpacity
-                  style={[styles.locationButton, { backgroundColor: themeColors.primary + '15', width: 'auto' as any, paddingHorizontal: 16 }]}
+                  style={[styles.locationButton, { backgroundColor: themeColors.primary + '15', width: 'auto' as any, paddingHorizontal: 12 }]}
                   onPress={() => {
                     // TODO: Call validateCoupon query when available in the API
                     if (!couponCode.trim()) {
@@ -728,7 +728,7 @@ export default function CheckoutScreen() {
                     alert('Em breve', 'Cupons de desconto estarao disponiveis em breve!');
                   }}
                 >
-                  <Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 14 }}>Aplicar</Text>
+                  <Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 12 }}>Aplicar</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -742,12 +742,12 @@ export default function CheckoutScreen() {
                   style={[styles.paymentOption, { borderColor: themeColors.grayLight }, paymentMethod === option.key && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '08' }]}
                   onPress={() => setPaymentMethod(option.key)}
                 >
-                  <Ionicons name={option.icon as any} size={24} color={paymentMethod === option.key ? themeColors.primary : themeColors.gray} />
+                  <Ionicons name={option.icon as any} size={18} color={paymentMethod === option.key ? themeColors.primary : themeColors.gray} />
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.paymentLabel, { color: themeColors.text }, paymentMethod === option.key && { color: themeColors.primary }]}>{option.label}</Text>
                     <Text style={[styles.paymentDesc, { color: themeColors.textLight }]}>{option.description}</Text>
                   </View>
-                  {paymentMethod === option.key && <Ionicons name="checkmark-circle" size={24} color={themeColors.primary} />}
+                  {paymentMethod === option.key && <Ionicons name="checkmark-circle" size={18} color={themeColors.primary} />}
                 </TouchableOpacity>
               ))}
 
@@ -760,19 +760,19 @@ export default function CheckoutScreen() {
                       style={[styles.cardItem, { borderColor: themeColors.grayLight }, selectedCardId === card.id && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '08' }]}
                       onPress={() => setSelectedCardId(card.id)}
                     >
-                      <Ionicons name="card" size={20} color={selectedCardId === card.id ? themeColors.primary : themeColors.gray} />
+                      <Ionicons name="card" size={18} color={selectedCardId === card.id ? themeColors.primary : themeColors.gray} />
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.cardText, { color: themeColors.text }]}>{card.brand} •••• {card.lastFourDigits}</Text>
                         {card.holderName && <Text style={[styles.cardHolder, { color: themeColors.textLight }]}>{card.holderName}</Text>}
                       </View>
-                      {selectedCardId === card.id && <Ionicons name="checkmark-circle" size={20} color={themeColors.primary} />}
+                      {selectedCardId === card.id && <Ionicons name="checkmark-circle" size={18} color={themeColors.primary} />}
                     </TouchableOpacity>
                   ))}
                   <TouchableOpacity
                     style={[styles.cardItem, { borderColor: themeColors.grayLight }]}
                     onPress={() => { resetCardForm(); setShowCardModal(true); }}
                   >
-                    <Ionicons name="add-circle-outline" size={20} color={themeColors.primary} />
+                    <Ionicons name="add-circle-outline" size={18} color={themeColors.primary} />
                     <Text style={[styles.cardText, { color: themeColors.primary }]}>Adicionar novo cartao</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.manageCardsLink} onPress={() => router.push('/cards')}>
@@ -813,7 +813,7 @@ export default function CheckoutScreen() {
               {/* M2: Free delivery threshold banner */}
               {!isPickup && storeData?.store?.freeDeliveryAbove && subtotal < Number(storeData.store.freeDeliveryAbove) && (
                 <View style={[styles.summaryRow, { marginTop: 4 }]}>
-                  <Text style={{ fontSize: 13, color: themeColors.success, fontWeight: '600' }}>
+                  <Text style={{ fontSize: 10, color: themeColors.success, fontWeight: '600' }}>
                     Faltam R$ {(Number(storeData.store.freeDeliveryAbove) - subtotal).toFixed(2)} para frete gratis!
                   </Text>
                 </View>
@@ -837,7 +837,7 @@ export default function CheckoutScreen() {
       />
 
       <TouchableOpacity
-        style={[styles.checkoutButton, { bottom: insets.bottom + 24, backgroundColor: themeColors.primary }, (loading || belowMinimum || (!isPickup && !coords)) && styles.checkoutDisabled]}
+        style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: themeColors.primary }, (loading || belowMinimum || (!isPickup && !coords)) && styles.checkoutDisabled]}
         onPress={handleCheckout}
         disabled={loading || belowMinimum || (!isPickup && !coords)}
       >
@@ -860,16 +860,16 @@ export default function CheckoutScreen() {
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalContainer}>
             <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
               <View style={[styles.modalHeader, { borderBottomColor: themeColors.border }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="card" size={20} color={themeColors.primary} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="card" size={18} color={themeColors.primary} />
                   <Text style={[styles.modalTitle, { color: themeColors.text }]}>Novo Cartao</Text>
                 </View>
                 <TouchableOpacity onPress={() => { resetCardForm(); setShowCardModal(false); }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                  <Ionicons name="close" size={24} color={themeColors.text} />
+                  <Ionicons name="close" size={18} color={themeColors.text} />
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 12 }} keyboardShouldPersistTaps="handled">
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 40, gap: 6 }} keyboardShouldPersistTaps="handled">
                 <View>
                   <TextInput
                     style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.cardNumber ? '#ef4444' : themeColors.border }]}
@@ -882,7 +882,7 @@ export default function CheckoutScreen() {
                   />
                   {cardErrors.cardNumber && <Text style={styles.modalFieldError}>{cardErrors.cardNumber}</Text>}
                   {!cardErrors.cardNumber && detectBrand(cardNumber) ? (
-                    <Text style={{ fontSize: 11, color: getBrandColor(detectBrand(cardNumber)), marginTop: 3, fontWeight: '600' }}>
+                    <Text style={{ fontSize: 10, color: getBrandColor(detectBrand(cardNumber)), marginTop: 3, fontWeight: '600' }}>
                       {detectBrand(cardNumber)}
                     </Text>
                   ) : null}
@@ -900,7 +900,7 @@ export default function CheckoutScreen() {
                   {cardErrors.holderName && <Text style={styles.modalFieldError}>{cardErrors.holderName}</Text>}
                 </View>
 
-                <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
                   <View style={{ flex: 1 }}>
                     <TextInput
                       style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.expiry ? '#ef4444' : themeColors.border }]}
@@ -928,12 +928,12 @@ export default function CheckoutScreen() {
                   </View>
                 </View>
 
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                   <Ionicons name="home" size={18} color={themeColors.primary} />
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: themeColors.text }}>Endereco de cobranca</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: themeColors.text }}>Endereco de cobranca</Text>
                 </View>
 
-                <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
                   <View style={{ flex: 1 }}>
                     <TextInput
                       style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.zipCode ? '#ef4444' : themeColors.border }]}
@@ -975,7 +975,7 @@ export default function CheckoutScreen() {
                 />
                 {cardErrors.street && <Text style={styles.modalFieldError}>{cardErrors.street}</Text>}
 
-                <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
                   <View style={{ flex: 1 }}>
                     <TextInput
                       style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.streetNumber ? '#ef4444' : themeColors.border }]}
@@ -1024,7 +1024,7 @@ export default function CheckoutScreen() {
 
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
                   <Ionicons name="shield-checkmark" size={12} color={themeColors.gray} />
-                  <Text style={{ fontSize: 11, color: themeColors.gray }}>Seus dados sao criptografados e protegidos</Text>
+                  <Text style={{ fontSize: 10, color: themeColors.gray }}>Seus dados sao criptografados e protegidos</Text>
                 </View>
               </ScrollView>
             </View>
@@ -1041,7 +1041,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 24,
+    padding: 12,
     paddingTop: 56,
     backgroundColor: colors.white,
   },
@@ -1052,17 +1052,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     backgroundColor: colors.primary + '15',
     alignSelf: 'flex-start',
-    marginLeft: 16,
+    marginLeft: 12,
     marginTop: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
   },
-  list: { padding: 16, paddingBottom: 100 },
+  list: { padding: 12, paddingBottom: 100 },
   itemCard: {
     backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     marginBottom: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1072,29 +1072,29 @@ const styles = StyleSheet.create({
   itemName: { fontSize: fonts.regular, fontWeight: '600', color: colors.text },
   itemPrice: { fontSize: fonts.small, color: colors.primary, fontWeight: '600', marginTop: 4 },
   itemQty: { fontSize: fonts.small, fontWeight: 'bold', color: colors.textLight },
-  footer: { marginTop: 16, gap: 12 },
+  footer: { marginTop: 12, gap: 6 },
   warningBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 6,
     backgroundColor: colors.warning + '18',
     borderWidth: 1,
     borderColor: colors.warning + '40',
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 10,
+    padding: 10,
   },
   warningBannerText: { flex: 1, fontSize: fonts.small, color: colors.warning, fontWeight: '600' },
-  section: { backgroundColor: colors.white, borderRadius: 12, padding: 16, gap: 8 },
+  section: { backgroundColor: colors.white, borderRadius: 10, padding: 12, gap: 6 },
   sectionTitle: { fontSize: fonts.regular, fontWeight: 'bold', color: colors.text, marginBottom: 4 },
-  deliveryTypeRow: { flexDirection: 'row', gap: 12 },
+  deliveryTypeRow: { flexDirection: 'row', gap: 6 },
   deliveryTypeOption: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    padding: 14,
-    borderRadius: 12,
+    gap: 6,
+    padding: 10,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: colors.grayLight,
   },
@@ -1107,7 +1107,7 @@ const styles = StyleSheet.create({
   addressPickerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     backgroundColor: colors.background,
     borderRadius: 10,
     padding: 10,
@@ -1115,7 +1115,7 @@ const styles = StyleSheet.create({
   addressPickerText: { flex: 1, fontSize: fonts.small, color: colors.text },
   addressPickerBadge: { backgroundColor: colors.primary + '15', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   addressPickerBadgeText: { fontSize: 10, color: colors.primary, fontWeight: '600' },
-  locationRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  locationRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   locationButton: {
     width: 44,
     height: 44,
@@ -1131,15 +1131,15 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: fonts.small,
     color: colors.text,
-    minHeight: 44,
+    minHeight: 40,
   },
   notesInput: {
     backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     fontSize: fonts.regular,
     color: colors.text,
-    minHeight: 60,
+    minHeight: 40,
   },
   paymentOption: {
     flexDirection: 'row',
@@ -1148,7 +1148,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1.5,
     borderColor: colors.grayLight,
-    gap: 12,
+    gap: 6,
   },
   paymentOptionSelected: { borderColor: colors.primary, backgroundColor: colors.primary + '08' },
   paymentLabel: { fontSize: fonts.regular, fontWeight: '600', color: colors.text },
@@ -1158,7 +1158,7 @@ const styles = StyleSheet.create({
   cardItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 6,
     padding: 12,
     borderRadius: 10,
     borderWidth: 1.5,
@@ -1181,8 +1181,8 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    padding: 18,
+    borderRadius: 10,
+    padding: 10,
     alignItems: 'center',
   },
   checkoutDisabled: { opacity: 0.6 },
@@ -1190,11 +1190,11 @@ const styles = StyleSheet.create({
   minimumOrderWarning: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     backgroundColor: '#fef2f2',
     borderWidth: 1,
     borderColor: '#fecaca',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 12,
     marginBottom: 12,
   },
@@ -1234,12 +1234,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 12,
     fontWeight: 'bold',
   },
   modalInput: {
@@ -1247,17 +1247,17 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 11,
-    fontSize: 14,
+    fontSize: 12,
   },
   modalFieldError: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#ef4444',
     marginTop: 3,
   },
   modalSaveButton: {
     backgroundColor: '#f97316',
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 10,
+    padding: 10,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
@@ -1266,7 +1266,7 @@ const styles = StyleSheet.create({
   },
   modalSaveButtonText: {
     color: '#fff',
-    fontSize: 15,
+    fontSize: 10,
     fontWeight: 'bold',
   },
 });

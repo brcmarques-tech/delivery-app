@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.white,
     justifyContent: 'center',
-    padding: 24,
+    padding: 12,
   },
   header: {
     alignItems: 'center',
@@ -102,19 +102,19 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   form: {
-    gap: 16,
+    gap: 6,
   },
   input: {
     backgroundColor: colors.grayLight,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     fontSize: fonts.regular,
     color: colors.text,
   },
   button: {
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     alignItems: 'center',
     marginTop: 8,
   },
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: colors.primary,
     fontSize: fonts.regular,
-    marginTop: 16,
+    marginTop: 12,
     fontWeight: '600',
   },
 });

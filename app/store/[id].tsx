@@ -121,15 +121,15 @@ export default function StoreScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: colors.card }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: colors.card }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/home')}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.storeInfo}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Text style={[styles.storeName, { color: colors.text }]}>{store.name}</Text>
             {store.verificationLevel && store.verificationLevel !== 'NONE' && (
-              <Text style={{ fontSize: 16 }}>
+              <Text style={{ fontSize: 12 }}>
                 {store.verificationLevel === 'BRONZE' ? '🥉' : store.verificationLevel === 'SILVER' ? '🥈' : store.verificationLevel === 'GOLD' ? '🥇' : '💎'}
               </Text>
             )}
@@ -183,7 +183,7 @@ export default function StoreScreen() {
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
         renderSectionHeader={({ section }) => (
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
         )}
@@ -221,7 +221,7 @@ export default function StoreScreen() {
                 </TouchableOpacity>
               ) : (
                 <View style={[styles.productImage, styles.productImagePlaceholder, { backgroundColor: colors.grayLight }]}>
-                  <Ionicons name="fast-food-outline" size={24} color={colors.gray} />
+                  <Ionicons name="fast-food-outline" size={18} color={colors.gray} />
                 </View>
               )}
               {store.isOpen && item.isAvailable && !item.isVariableWeight && (
@@ -231,7 +231,7 @@ export default function StoreScreen() {
                     addItem(item.id, 1);
                   }}
                 >
-                  <Ionicons name="add" size={20} color="#FFFFFF" />
+                  <Ionicons name="add" size={18} color="#FFFFFF" />
                 </TouchableOpacity>
               )}
             </View>
@@ -249,7 +249,7 @@ export default function StoreScreen() {
       />
 
       {itemCount > 0 && (
-        <TouchableOpacity style={[styles.cartBar, { bottom: insets.bottom + 24, backgroundColor: colors.primary }]} onPress={() => router.push('/(tabs)/cart')}>
+        <TouchableOpacity style={[styles.cartBar, { bottom: insets.bottom + 16, backgroundColor: colors.primary }]} onPress={() => router.push('/(tabs)/cart')}>
           <View style={[styles.cartBadge, { backgroundColor: colors.primaryDark }]}>
             <Text style={styles.cartBadgeText}>{itemCount}</Text>
           </View>
@@ -265,8 +265,8 @@ export default function StoreScreen() {
               <Image source={{ uri: zoomedImage }} style={styles.imageModalImage} resizeMode="contain" />
             )}
           </View>
-          <TouchableOpacity style={[styles.imageModalClose, { top: insets.top + 12 }]} onPress={() => setZoomedImage(null)}>
-            <Ionicons name="close" size={28} color="#FFFFFF" />
+          <TouchableOpacity style={[styles.imageModalClose, { top: insets.top + 8 }]} onPress={() => setZoomedImage(null)}>
+            <Ionicons name="close" size={18} color="#FFFFFF" />
           </TouchableOpacity>
         </Pressable>
       </Modal>
@@ -313,7 +313,7 @@ export default function StoreScreen() {
                       onPress={() => weightGrams > 100 && setWeightGrams(weightGrams - 100)}
                       disabled={weightGrams <= 100}
                     >
-                      <Ionicons name="remove" size={22} color={weightGrams <= 100 ? colors.gray : colors.primary} />
+                      <Ionicons name="remove" size={18} color={weightGrams <= 100 ? colors.gray : colors.primary} />
                     </TouchableOpacity>
                     <Text style={[styles.quantityText, { color: colors.text }]}>
                       {weightGrams >= 1000 ? `${(weightGrams / 1000).toFixed(weightGrams % 1000 === 0 ? 0 : 1)}kg` : `${weightGrams}g`}
@@ -322,7 +322,7 @@ export default function StoreScreen() {
                       style={[styles.quantityBtn, { backgroundColor: colors.grayLight }]}
                       onPress={() => setWeightGrams(weightGrams + 100)}
                     >
-                      <Ionicons name="add" size={22} color={colors.primary} />
+                      <Ionicons name="add" size={18} color={colors.primary} />
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -332,14 +332,14 @@ export default function StoreScreen() {
                       onPress={() => quantity > 1 && setQuantity(quantity - 1)}
                       disabled={quantity <= 1}
                     >
-                      <Ionicons name="remove" size={22} color={quantity <= 1 ? colors.gray : colors.primary} />
+                      <Ionicons name="remove" size={18} color={quantity <= 1 ? colors.gray : colors.primary} />
                     </TouchableOpacity>
                     <Text style={[styles.quantityText, { color: colors.text }]}>{quantity}</Text>
                     <TouchableOpacity
                       style={[styles.quantityBtn, { backgroundColor: colors.grayLight }]}
                       onPress={() => setQuantity(quantity + 1)}
                     >
-                      <Ionicons name="add" size={22} color={colors.primary} />
+                      <Ionicons name="add" size={18} color={colors.primary} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -350,7 +350,7 @@ export default function StoreScreen() {
                   {selectedProduct.isVariableWeight ? (
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={styles.addModalButtonPrice}>R$ {((selectedPrice * weightGrams) / 1000).toFixed(2)}</Text>
-                      <Text style={[styles.addModalButtonPrice, { fontSize: 11, opacity: 0.85 }]}>(R$ {selectedPrice.toFixed(2)}/kg)</Text>
+                      <Text style={[styles.addModalButtonPrice, { fontSize: 10, opacity: 0.85 }]}>(R$ {selectedPrice.toFixed(2)}/kg)</Text>
                     </View>
                   ) : (
                     <Text style={styles.addModalButtonPrice}>R$ {(selectedPrice * quantity).toFixed(2)}</Text>
@@ -374,8 +374,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 24,
+    gap: 6,
+    padding: 12,
     paddingTop: 56,
   },
   backButton: { padding: 4 },
@@ -396,18 +396,18 @@ const styles = StyleSheet.create({
   closedBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     padding: 12,
-    marginHorizontal: 16,
+    marginHorizontal: 12,
     marginTop: 12,
     borderRadius: 8,
   },
   closedText: { fontSize: fonts.small, fontWeight: '600' },
-  list: { padding: 16, paddingBottom: 100 },
-  sectionTitle: { fontSize: fonts.large, fontWeight: 'bold', marginTop: 16, marginBottom: 12 },
+  list: { padding: 12, paddingBottom: 100 },
+  sectionTitle: { fontSize: fonts.large, fontWeight: 'bold', marginTop: 12, marginBottom: 12 },
   productCard: {
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     flexDirection: 'row',
     marginBottom: 8,
     position: 'relative',
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
   productInfo: { flex: 1 },
   productName: { fontSize: fonts.regular, fontWeight: '600' },
   productDesc: { fontSize: fonts.small, marginTop: 4 },
-  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   price: { fontSize: fonts.regular, fontWeight: 'bold' },
   priceOld: { fontSize: fonts.small, textDecorationLine: 'line-through' },
   unit: { fontSize: fonts.small },
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
   productImage: { width: 72, height: 72, borderRadius: 8 },
   productImagePlaceholder: { justifyContent: 'center', alignItems: 'center' },
   quickAddBtn: {
-    borderRadius: 14,
+    borderRadius: 10,
     width: 28,
     height: 28,
     justifyContent: 'center',
@@ -434,13 +434,13 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 12,
+    borderRadius: 10,
   },
   unavailableBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 20,
   },
@@ -450,8 +450,8 @@ const styles = StyleSheet.create({
     bottom: 24,
     left: 16,
     right: 16,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
   imageModalImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 12,
+    borderRadius: 10,
   },
   imageModalClose: {
     position: 'absolute',
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
   },
   addModalInfo: {
-    padding: 20,
+    padding: 10,
     paddingBottom: 8,
   },
   addModalName: {
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
   addModalPriceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     marginTop: 12,
   },
   addModalPrice: {
@@ -547,8 +547,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 24,
-    paddingVertical: 16,
-    marginHorizontal: 20,
+    paddingVertical: 12,
+    marginHorizontal: 14,
     borderTopWidth: 1,
   },
   quantityBtn: {
@@ -571,9 +571,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginHorizontal: 20,
-    borderRadius: 12,
-    padding: 16,
+    marginHorizontal: 14,
+    borderRadius: 10,
+    padding: 12,
   },
   addModalButtonText: {
     color: '#FFFFFF',

@@ -48,7 +48,7 @@ export default function OrdersScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.white, paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { backgroundColor: colors.white, paddingTop: insets.top + 8 }]}>
         <Text style={[styles.title, { color: colors.text }]}>Meus pedidos</Text>
       </View>
 
@@ -83,7 +83,7 @@ export default function OrdersScreen() {
               </View>
               <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
                 <Text style={[styles.total, { color: colors.text }]}>R$ {Number(item.total).toFixed(2)}</Text>
-                <Ionicons name="chevron-forward" size={20} color={colors.gray} />
+                <Ionicons name="chevron-forward" size={18} color={colors.gray} />
               </View>
             </TouchableOpacity>
           );
@@ -109,10 +109,10 @@ export default function OrdersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: staticColors.background },
-  header: { padding: 24, paddingTop: 56, backgroundColor: staticColors.white },
+  header: { padding: 12, paddingTop: 56, backgroundColor: staticColors.white },
   title: { fontSize: fonts.xlarge, fontWeight: 'bold', color: staticColors.text },
-  list: { padding: 16, gap: 12 },
-  card: { backgroundColor: staticColors.white, borderRadius: 16, padding: 16 },
+  list: { padding: 12, gap: 6 },
+  card: { backgroundColor: staticColors.white, borderRadius: 10, padding: 12 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   storeName: { fontSize: fonts.large, fontWeight: '600', color: staticColors.text },
   statusBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
@@ -123,8 +123,8 @@ const styles = StyleSheet.create({
   moreItems: { fontSize: fonts.small, color: staticColors.textLight },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: staticColors.grayLight },
   total: { fontSize: fonts.large, fontWeight: 'bold', color: staticColors.text },
-  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 16 },
+  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 6 },
   emptyText: { fontSize: fonts.regular, color: staticColors.textLight },
-  emptyButton: { backgroundColor: staticColors.primary, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
+  emptyButton: { backgroundColor: staticColors.primary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12 },
   emptyButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: fonts.regular },
 });

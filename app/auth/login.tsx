@@ -144,7 +144,7 @@ export default function LoginScreen() {
           >
             <Ionicons
               name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-              size={22}
+              size={18}
               color={colors.gray}
             />
           </TouchableOpacity>
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.white,
     justifyContent: 'center',
-    padding: 24,
+    padding: 12,
   },
   header: {
     alignItems: 'center',
@@ -247,12 +247,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   form: {
-    gap: 16,
+    gap: 6,
   },
   input: {
     backgroundColor: colors.grayLight,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     fontSize: fonts.regular,
     color: colors.text,
   },
@@ -260,17 +260,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.grayLight,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   passwordInput: {
     flex: 1,
-    padding: 16,
+    padding: 12,
     fontSize: fonts.regular,
     color: colors.text,
   },
   eyeButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
   },
   forgotPassword: {
     color: colors.primary,
@@ -279,8 +279,8 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     alignItems: 'center',
     marginTop: 8,
   },
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
   },
   dividerLine: {
     flex: 1,
@@ -311,11 +311,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 10,
+    padding: 10,
     borderWidth: 1,
     borderColor: colors.grayLight,
-    gap: 10,
+    gap: 6,
   },
   googleIcon: {
     width: 20,
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: colors.textLight,
     fontSize: fonts.regular,
-    marginTop: 16,
+    marginTop: 12,
   },
   linkBold: {
     color: colors.primary,
