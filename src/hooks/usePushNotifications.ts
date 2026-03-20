@@ -19,7 +19,7 @@ try {
 if (Notifications) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
+      shouldShowAlert: false,
       shouldPlaySound: true,
       shouldSetBadge: false,
       shouldShowBanner: true,

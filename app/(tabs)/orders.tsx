@@ -71,6 +71,9 @@ export default function OrdersScreen() {
                 </View>
               </View>
               <Text style={[styles.orderNumber, { color: colors.textLight }]}>#{item.orderNumber}</Text>
+              {item.rejectionReason && (item.status === 'REJECTED' || item.status === 'CANCELLED') && (
+                <Text style={{ color: colors.danger, fontSize: 12, marginTop: 4 }}>Motivo: {item.rejectionReason}</Text>
+              )}
               <View style={styles.itemsList}>
                 {item.items.slice(0, 3).map((oi: any) => (
                   <Text key={oi.id} style={[styles.itemText, { color: colors.text }]}>
