@@ -10,8 +10,11 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import * as Network from 'expo-network';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useLazyQuery, useQuery } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,10 +22,63 @@ import * as Location from 'expo-location';
 import { useCart } from '../src/contexts/CartContext';
 import { useAlert } from '../src/contexts/AlertContext';
 import { useTheme } from '../src/contexts/ThemeContext';
-import { CREATE_ORDER } from '../src/lib/graphql/mutations';
+import { CREATE_ORDER, SAVE_CARD } from '../src/lib/graphql/mutations';
 import { CALCULATE_DELIVERY_FEE, GET_MY_ADDRESSES, GET_STORE, ESTIMATE_DELIVERY_TIME, LIST_MY_CARDS, GET_MINIMUM_ORDER_PLATFORM } from '../src/lib/graphql/queries';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../src/theme';
+
+const PAGARME_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAGARME_PUBLIC_KEY || '';
+
+function luhnCheck(number: string): boolean {
+  const digits = number.replace(/\D/g, '');
+  let sum = 0;
+  let alternate = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let n = parseInt(digits[i], 10);
+    if (alternate) { n *= 2; if (n > 9) n -= 9; }
+    sum += n;
+    alternate = !alternate;
+  }
+  return sum % 10 === 0;
+}
+
+function isExpired(month: number, year: number): boolean {
+  const now = new Date();
+  return new Date(year, month, 0) < now;
+}
+
+function detectBrand(number: string): string {
+  const d = number.replace(/\D/g, '');
+  if (/^4/.test(d)) return 'Visa';
+  if (/^5[1-5]/.test(d) || /^2[2-7]/.test(d)) return 'Mastercard';
+  if (/^(636368|438935|504175|451416|636297|5067|4576|4011|506699)/.test(d)) return 'Elo';
+  return '';
+}
+
+function formatCardNumber(text: string) {
+  const digits = text.replace(/\D/g, '').substring(0, 16);
+  return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+}
+
+function formatExpiry(text: string) {
+  const digits = text.replace(/\D/g, '').substring(0, 4);
+  if (digits.length > 2) return digits.substring(0, 2) + '/' + digits.substring(2);
+  return digits;
+}
+
+function formatCep(text: string) {
+  const digits = text.replace(/\D/g, '').substring(0, 8);
+  if (digits.length > 5) return digits.substring(0, 5) + '-' + digits.substring(5);
+  return digits;
+}
+
+function getBrandColor(brand: string): string {
+  const b = (brand || '').toLowerCase();
+  if (b.includes('visa')) return '#1a1f71';
+  if (b.includes('master')) return '#eb001b';
+  if (b.includes('elo')) return '#00a4e0';
+  return '#6b7280';
+}
 
 type PaymentMethod = 'ON_DELIVERY' | 'CREDIT_CARD' | 'PIX';
 type DeliveryType = 'DELIVERY' | 'PICKUP';
@@ -78,6 +134,142 @@ export default function CheckoutScreen() {
   // M3: Coupon code state
   const [couponCode, setCouponCode] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
+  // ─── Card Modal State ─────────────────────────────────────────────────
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [cardNumber, setCardNumber] = useState('');
+  const [holderName, setHolderName] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cvv, setCvv] = useState('');
+  const [zipCode, setZipCode] = useState('');
+  const [street, setStreet] = useState('');
+  const [streetNumber, setStreetNumber] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
+  const [city, setCity] = useState('');
+  const [cardState, setCardState] = useState('');
+  const [loadingCep, setLoadingCep] = useState(false);
+  const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
+  const cardSubmittingRef = useRef(false);
+
+  const [saveCardMut, { loading: savingCard }] = useMutation(SAVE_CARD);
+
+  function clearCardError(field: string) {
+    if (cardErrors[field]) setCardErrors((prev) => { const n = { ...prev }; delete n[field]; return n; });
+  }
+
+  function resetCardForm() {
+    setCardNumber(''); setHolderName(''); setCardExpiry(''); setCvv('');
+    setZipCode(''); setStreet(''); setStreetNumber(''); setNeighborhood('');
+    setCity(''); setCardState(''); setCardErrors({});
+  }
+
+  async function lookupCep(cep: string) {
+    const digits = cep.replace(/\D/g, '');
+    if (digits.length !== 8) return;
+    setLoadingCep(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = await res.json();
+      if (!data.erro) {
+        setStreet(data.logradouro || '');
+        setNeighborhood(data.bairro || '');
+        setCity(data.localidade || '');
+        setCardState(data.uf || '');
+      }
+    } catch { /* ignore */ }
+    setLoadingCep(false);
+  }
+
+  async function handleSaveCardFromModal() {
+    if (cardSubmittingRef.current) return;
+    cardSubmittingRef.current = true;
+
+    const e: Record<string, string> = {};
+    const digits = cardNumber.replace(/\D/g, '');
+    if (digits.length < 13) e.cardNumber = 'Numero do cartao invalido';
+    else if (!luhnCheck(digits)) e.cardNumber = 'Numero do cartao invalido. Verifique os digitos.';
+    if (!holderName.trim()) e.holderName = 'Informe o nome do titular';
+    const expiryParts = cardExpiry.split('/');
+    if (expiryParts.length !== 2 || expiryParts[0].length !== 2 || expiryParts[1].length !== 2) {
+      e.expiry = 'Validade invalida';
+    } else {
+      const month = parseInt(expiryParts[0]);
+      const year = parseInt('20' + expiryParts[1]);
+      if (month < 1 || month > 12) e.expiry = 'Mes invalido';
+      else if (isExpired(month, year)) e.expiry = 'Cartao vencido';
+    }
+    if (cvv.length < 3) e.cvv = 'CVV invalido';
+    if (zipCode.replace(/\D/g, '').length !== 8) e.zipCode = 'CEP invalido';
+    if (!street.trim()) e.street = 'Informe a rua';
+    if (!streetNumber.trim()) e.streetNumber = 'Informe o numero';
+    if (!neighborhood.trim()) e.neighborhood = 'Informe o bairro';
+    if (!city.trim()) e.city = 'Informe a cidade';
+    if (!cardState.trim() || cardState.trim().length !== 2) e.state = 'UF invalido';
+
+    setCardErrors(e);
+    if (Object.keys(e).length > 0) { cardSubmittingRef.current = false; return; }
+
+    if (!PAGARME_PUBLIC_KEY) {
+      alert('Erro', 'Sistema de pagamento nao configurado.');
+      cardSubmittingRef.current = false;
+      return;
+    }
+
+    try {
+      const tokenResponse = await fetch(
+        `https://api.pagar.me/core/v5/tokens?appId=${PAGARME_PUBLIC_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'card',
+            card: {
+              number: digits,
+              holder_name: holderName.trim().toUpperCase(),
+              exp_month: parseInt(expiryParts[0]),
+              exp_year: parseInt('20' + expiryParts[1]),
+              cvv,
+              billing_address: {
+                line_1: `${streetNumber.trim()}, ${street.trim()}, ${neighborhood.trim()}`,
+                zip_code: zipCode.replace(/\D/g, ''),
+                city: city.trim(),
+                state: cardState.trim().toUpperCase(),
+                country: 'BR',
+              },
+            },
+          }),
+        },
+      );
+
+      if (!tokenResponse.ok) {
+        if (tokenResponse.status === 400) throw new Error('Dados do cartao invalidos. Verifique o numero, validade e CVV.');
+        throw new Error('Erro ao processar cartao. Tente novamente.');
+      }
+
+      const tokenData = await tokenResponse.json();
+      const { data: savedData } = await saveCardMut({
+        variables: { token: tokenData.id },
+        refetchQueries: [{ query: LIST_MY_CARDS }],
+        awaitRefetchQueries: true,
+      });
+
+      // Auto-select the newly saved card
+      if (savedData?.saveCard?.id) {
+        setSelectedCardId(savedData.saveCard.id);
+      }
+
+      resetCardForm();
+      setShowCardModal(false);
+      alert('Cartao Salvo', 'Seu cartao foi adicionado! Finalize o pedido.');
+    } catch (err: any) {
+      let msg = 'Nao foi possivel salvar o cartao. Tente novamente.';
+      if (err.message?.includes('network') || err.message?.includes('Network')) msg = 'Sem conexao com a internet.';
+      else if (err.message) msg = err.message;
+      alert('Erro', msg);
+    } finally {
+      cardSubmittingRef.current = false;
+    }
+  }
+
   const [createOrder] = useMutation(CREATE_ORDER);
   const [calcFee, { data: feeData, loading: feeLoading }] = useLazyQuery(CALCULATE_DELIVERY_FEE, {
     onCompleted: () => setFeeCalculated(true),
@@ -242,6 +434,31 @@ export default function CheckoutScreen() {
       if (!isPickup && !address.trim()) {
         alert('Erro', 'Informe o endereco de entrega');
         return;
+      }
+
+      // If credit card selected but no card chosen, open the add card modal
+      if (paymentMethod === 'CREDIT_CARD' && !selectedCardId) {
+        resetCardForm();
+        setShowCardModal(true);
+        return;
+      }
+
+      // Biometric/PIN authentication for credit card payments
+      if (paymentMethod === 'CREDIT_CARD' && selectedCardId) {
+        const hasHardware = await LocalAuthentication.hasHardwareAsync();
+        const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+        if (hasHardware && isEnrolled) {
+          const authResult = await LocalAuthentication.authenticateAsync({
+            promptMessage: 'Confirme para autorizar o pagamento',
+            cancelLabel: 'Cancelar',
+            fallbackLabel: 'Usar senha',
+            disableDeviceFallback: false,
+          });
+          if (!authResult.success) {
+            alert('Autenticacao necessaria', 'Confirme sua identidade para prosseguir com o pagamento.');
+            return;
+          }
+        }
       }
 
       let finalCoords = coords;
@@ -552,11 +769,11 @@ export default function CheckoutScreen() {
                     </TouchableOpacity>
                   ))}
                   <TouchableOpacity
-                    style={[styles.cardItem, { borderColor: themeColors.grayLight }, !selectedCardId && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '08' }]}
-                    onPress={() => setSelectedCardId(null)}
+                    style={[styles.cardItem, { borderColor: themeColors.grayLight }]}
+                    onPress={() => { resetCardForm(); setShowCardModal(true); }}
                   >
-                    <Ionicons name="add-circle-outline" size={20} color={!selectedCardId ? themeColors.primary : themeColors.gray} />
-                    <Text style={[styles.cardText, { color: themeColors.text }, !selectedCardId && { color: themeColors.primary }]}>Usar novo cartao (link de pagamento)</Text>
+                    <Ionicons name="add-circle-outline" size={20} color={themeColors.primary} />
+                    <Text style={[styles.cardText, { color: themeColors.primary }]}>Adicionar novo cartao</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.manageCardsLink} onPress={() => router.push('/cards')}>
                     <Text style={[styles.manageCardsText, { color: themeColors.primary }]}>Gerenciar cartoes</Text>
@@ -636,6 +853,184 @@ export default function CheckoutScreen() {
           <Text style={styles.loadingOverlayText}>Processando pedido...</Text>
         </View>
       )}
+
+      {/* Card Registration Modal */}
+      <Modal visible={showCardModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalContainer}>
+            <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: themeColors.border }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="card" size={20} color={themeColors.primary} />
+                  <Text style={[styles.modalTitle, { color: themeColors.text }]}>Novo Cartao</Text>
+                </View>
+                <TouchableOpacity onPress={() => { resetCardForm(); setShowCardModal(false); }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                  <Ionicons name="close" size={24} color={themeColors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 12 }} keyboardShouldPersistTaps="handled">
+                <View>
+                  <TextInput
+                    style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.cardNumber ? '#ef4444' : themeColors.border }]}
+                    placeholder="Numero do cartao"
+                    placeholderTextColor={themeColors.gray}
+                    keyboardType="numeric"
+                    value={cardNumber}
+                    onChangeText={(t) => { setCardNumber(formatCardNumber(t)); clearCardError('cardNumber'); }}
+                    maxLength={19}
+                  />
+                  {cardErrors.cardNumber && <Text style={styles.modalFieldError}>{cardErrors.cardNumber}</Text>}
+                  {!cardErrors.cardNumber && detectBrand(cardNumber) ? (
+                    <Text style={{ fontSize: 11, color: getBrandColor(detectBrand(cardNumber)), marginTop: 3, fontWeight: '600' }}>
+                      {detectBrand(cardNumber)}
+                    </Text>
+                  ) : null}
+                </View>
+
+                <View>
+                  <TextInput
+                    style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.holderName ? '#ef4444' : themeColors.border }]}
+                    placeholder="Nome do titular (como no cartao)"
+                    placeholderTextColor={themeColors.gray}
+                    autoCapitalize="characters"
+                    value={holderName}
+                    onChangeText={(t) => { setHolderName(t); clearCardError('holderName'); }}
+                  />
+                  {cardErrors.holderName && <Text style={styles.modalFieldError}>{cardErrors.holderName}</Text>}
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.expiry ? '#ef4444' : themeColors.border }]}
+                      placeholder="MM/AA"
+                      placeholderTextColor={themeColors.gray}
+                      keyboardType="numeric"
+                      value={cardExpiry}
+                      onChangeText={(t) => { setCardExpiry(formatExpiry(t)); clearCardError('expiry'); }}
+                      maxLength={5}
+                    />
+                    {cardErrors.expiry && <Text style={styles.modalFieldError}>{cardErrors.expiry}</Text>}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.cvv ? '#ef4444' : themeColors.border }]}
+                      placeholder="CVV"
+                      placeholderTextColor={themeColors.gray}
+                      keyboardType="numeric"
+                      secureTextEntry
+                      value={cvv}
+                      onChangeText={(t) => { setCvv(t.replace(/\D/g, '').substring(0, 4)); clearCardError('cvv'); }}
+                      maxLength={4}
+                    />
+                    {cardErrors.cvv && <Text style={styles.modalFieldError}>{cardErrors.cvv}</Text>}
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                  <Ionicons name="home" size={18} color={themeColors.primary} />
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: themeColors.text }}>Endereco de cobranca</Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.zipCode ? '#ef4444' : themeColors.border }]}
+                      placeholder="CEP"
+                      placeholderTextColor={themeColors.gray}
+                      keyboardType="numeric"
+                      value={zipCode}
+                      onChangeText={(t) => {
+                        const formatted = formatCep(t);
+                        setZipCode(formatted);
+                        clearCardError('zipCode');
+                        if (formatted.replace(/\D/g, '').length === 8) lookupCep(formatted);
+                      }}
+                      maxLength={9}
+                    />
+                    {cardErrors.zipCode && <Text style={styles.modalFieldError}>{cardErrors.zipCode}</Text>}
+                    {loadingCep && <ActivityIndicator size="small" color={themeColors.primary} style={{ position: 'absolute', right: 12, top: 12 }} />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.state ? '#ef4444' : themeColors.border }]}
+                      placeholder="UF"
+                      placeholderTextColor={themeColors.gray}
+                      autoCapitalize="characters"
+                      value={cardState}
+                      onChangeText={(t) => { setCardState(t.substring(0, 2)); clearCardError('state'); }}
+                      maxLength={2}
+                    />
+                    {cardErrors.state && <Text style={styles.modalFieldError}>{cardErrors.state}</Text>}
+                  </View>
+                </View>
+
+                <TextInput
+                  style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.street ? '#ef4444' : themeColors.border }]}
+                  placeholder="Rua"
+                  placeholderTextColor={themeColors.gray}
+                  value={street}
+                  onChangeText={(t) => { setStreet(t); clearCardError('street'); }}
+                />
+                {cardErrors.street && <Text style={styles.modalFieldError}>{cardErrors.street}</Text>}
+
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.streetNumber ? '#ef4444' : themeColors.border }]}
+                      placeholder="Numero"
+                      placeholderTextColor={themeColors.gray}
+                      value={streetNumber}
+                      onChangeText={(t) => { setStreetNumber(t); clearCardError('streetNumber'); }}
+                    />
+                    {cardErrors.streetNumber && <Text style={styles.modalFieldError}>{cardErrors.streetNumber}</Text>}
+                  </View>
+                  <View style={{ flex: 2 }}>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.neighborhood ? '#ef4444' : themeColors.border }]}
+                      placeholder="Bairro"
+                      placeholderTextColor={themeColors.gray}
+                      value={neighborhood}
+                      onChangeText={(t) => { setNeighborhood(t); clearCardError('neighborhood'); }}
+                    />
+                    {cardErrors.neighborhood && <Text style={styles.modalFieldError}>{cardErrors.neighborhood}</Text>}
+                  </View>
+                </View>
+
+                <TextInput
+                  style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.city ? '#ef4444' : themeColors.border }]}
+                  placeholder="Cidade"
+                  placeholderTextColor={themeColors.gray}
+                  value={city}
+                  onChangeText={(t) => { setCity(t); clearCardError('city'); }}
+                />
+                {cardErrors.city && <Text style={styles.modalFieldError}>{cardErrors.city}</Text>}
+
+                <TouchableOpacity
+                  style={[styles.modalSaveButton, savingCard && { opacity: 0.5 }]}
+                  onPress={handleSaveCardFromModal}
+                  disabled={savingCard}
+                >
+                  {savingCard ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="lock-closed" size={16} color="#fff" />
+                      <Text style={styles.modalSaveButtonText}>Salvar cartao e continuar</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                  <Ionicons name="shield-checkmark" size={12} color={themeColors.gray} />
+                  <Text style={{ fontSize: 11, color: themeColors.gray }}>Seus dados sao criptografados e protegidos</Text>
+                </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -821,5 +1216,57 @@ const styles = StyleSheet.create({
     fontSize: fonts.regular,
     fontWeight: '600',
     marginTop: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    maxHeight: '92%',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '100%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    fontSize: 14,
+  },
+  modalFieldError: {
+    fontSize: 11,
+    color: '#ef4444',
+    marginTop: 3,
+  },
+  modalSaveButton: {
+    backgroundColor: '#f97316',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  modalSaveButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: 'bold',
   },
 });

@@ -2794,6 +2794,13 @@ expo-linking@~55.0.7:
     expo-constants "~55.0.7"
     invariant "^2.2.4"
 
+expo-local-authentication@~55.0.9:
+  version "55.0.9"
+  resolved "https://registry.yarnpkg.com/expo-local-authentication/-/expo-local-authentication-55.0.9.tgz#8993962566c62062b3d00503e945db2e40f9b402"
+  integrity sha512-WeFmISIOpq3VOg1DkUf2J9xtj7FJuFOjSN5z+z+fNFCjCuFY1vw20UMApbiEz7bOvE2w6tDYpTF4GJhaatKJ/Q==
+  dependencies:
+    invariant "^2.2.4"
+
 expo-location@~55.1.2:
   version "55.1.2"
   resolved "https://registry.npmjs.org/expo-location/-/expo-location-55.1.2.tgz"
