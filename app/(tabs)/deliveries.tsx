@@ -73,7 +73,7 @@ async function openNavigation(lat: number, lng: number, label: string) {
 }
 
 const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
-const WS_URL = __DEV__ ? `http://${DEV_HOST}:3000` : 'https://delivery-api-fdc4.onrender.com';
+const WS_URL = 'https://delivery-api-fdc4.onrender.com'; // Force production even in dev mode
 
 type Tab = 'available' | 'my';
 
@@ -128,6 +128,9 @@ export default function DeliveriesScreen() {
   const CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos
 
   function getReceiptStatus(order: any): { label: string; color: string; icon: string; detail?: string } {
+    if (order.status === 'CANCELLED') {
+      return { label: 'Cancelado', color: colors.danger, icon: 'close-circle' };
+    }
     if (order.disputedAt) {
       return {
         label: 'Cliente negou',
@@ -366,21 +369,9 @@ export default function DeliveriesScreen() {
       }
       console.log(`[APP-ACCEPT-OFFER] SUCCESS`);
       setCurrentOffer(null);
-      await refetchMy();
-      refetchAvailable();
       setTab('my');
-
-      // Show store map modal from offer data
-      if (offer.storeLat && offer.storeLng) {
-        setAcceptedStore({
-          name: offer.storeName || 'Loja',
-          latitude: offer.storeLat,
-          longitude: offer.storeLng,
-          address: offer.storeAddress,
-        });
-      } else {
-        alert('Sucesso', 'Entrega aceita! Va ate a loja para coletar.');
-      }
+      refetchAvailable();
+      await refetchMy();
     } catch (e: any) {
       console.error(`[APP-ACCEPT-OFFER] FAILED:`, e?.message);
       setCurrentOffer(null);
@@ -647,8 +638,20 @@ export default function DeliveriesScreen() {
     const status = statusLabels[order.status] || { label: order.status, color: colors.gray };
     const isActive = !item.deliveredAt;
 
+    const handleCardPress = () => {
+      const lat = Number(order.deliveryLatitude);
+      const lng = Number(order.deliveryLongitude);
+      if (lat && lng) {
+        setClientLocation({ latitude: lat, longitude: lng, address: order.deliveryAddress || 'Local da entrega' });
+      }
+    };
+
     return (
-      <View style={[styles.card, { backgroundColor: colors.card }, isActive && [styles.cardActive, { borderLeftColor: colors.primary }]]}>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={handleCardPress}
+        style={[styles.card, { backgroundColor: colors.card }, isActive && [styles.cardActive, { borderLeftColor: colors.primary }]]}
+      >
         <View style={styles.cardHeader}>
           <View>
             <Text style={[styles.storeName, { color: colors.text }]}>{order.store.name}</Text>
@@ -740,7 +743,7 @@ export default function DeliveriesScreen() {
             <View style={styles.completedSection}>
               <View style={styles.completedInfo}>
                 <Text style={[styles.completedText, { color: colors.textLight }]}>
-                  {order.items.length} {order.items.length === 1 ? 'item' : 'itens'} - R$ {Number(order.total).toFixed(2)}
+                  {order.customer?.name ? `${order.customer.name} • ` : ''}{order.items.length} {order.items.length === 1 ? 'item' : 'itens'} - R$ {Number(order.total).toFixed(2)}
                 </Text>
                 <Text style={[styles.completedDate, { color: colors.gray }]}>
                   {new Date(item.deliveredAt).toLocaleDateString('pt-BR')}
@@ -758,7 +761,7 @@ export default function DeliveriesScreen() {
             </View>
           );
         })()}
-      </View>
+      </TouchableOpacity>
     );
   }
 
@@ -801,8 +804,8 @@ export default function DeliveriesScreen() {
 
       {/* Modal: Store map after accepting delivery */}
       <Modal visible={!!acceptedStore} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden', maxHeight: '80%' }}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} onPress={() => setAcceptedStore(null)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden', maxHeight: '80%' }}>
             <View style={{ padding: 16, alignItems: 'center' }}>
               <Text style={{ fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text }}>Va ate a loja!</Text>
               <Text style={{ fontSize: fonts.regular, color: colors.textLight, marginTop: 4 }}>{acceptedStore?.name}</Text>
@@ -852,16 +855,20 @@ export default function DeliveriesScreen() {
                 <Text style={{ color: colors.text, fontWeight: '600', fontSize: fonts.regular }}>Fechar</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Modal: Client map after confirming pickup */}
       <Modal visible={!!clientLocation} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden', maxHeight: '80%' }}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}
+          onPress={() => setClientLocation(null)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden', maxHeight: '80%' }}>
             <View style={{ padding: 16, alignItems: 'center' }}>
-              <Text style={{ fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text }}>Entregar ao cliente</Text>
+              <Text style={{ fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text }}>Local de entrega</Text>
               <Text style={{ fontSize: fonts.small, color: colors.textLight, marginTop: 2, textAlign: 'center' }}>{clientLocation?.address}</Text>
             </View>
             {clientLocation && Platform.OS !== 'web' && (
@@ -908,8 +915,8 @@ export default function DeliveriesScreen() {
                 <Text style={{ color: colors.text, fontWeight: '600', fontSize: fonts.regular }}>Fechar</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: colors.card }]}>
@@ -982,7 +989,7 @@ export default function DeliveriesScreen() {
             onPress={() => setTab('my')}
           >
             <Text style={[styles.tabText, { color: colors.textLight }, !isAvailableTab && { color: '#FFFFFF' }]}>
-              Minhas ({activeDeliveries.length})
+              Minhas ({myDeliveries.length})
             </Text>
           </TouchableOpacity>
         </View>
