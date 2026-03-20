@@ -32,6 +32,13 @@ export default function OrdersScreen() {
     DELIVERING: { label: 'A caminho', color: colors.success },
     DELIVERED: { label: 'Entregue', color: colors.grayDark },
     CANCELLED: { label: 'Cancelado', color: colors.danger },
+    // H4: Missing statuses added
+    COMPLETED: { label: 'Entregue', color: colors.success },
+    REJECTED: { label: 'Rejeitado', color: colors.danger },
+    DISPUTED: { label: 'Em disputa', color: colors.warning },
+    VENDOR_CONFIRMED_PICKUP: { label: 'Retirado', color: colors.primary },
+    DELIVERER_CONFIRMED_DELIVERY: { label: 'Entrega confirmada', color: colors.success },
+    EXPIRED: { label: 'Expirado', color: colors.gray },
   };
 
   // Real-time order updates

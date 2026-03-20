@@ -40,3 +40,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+# L8: google-services.json is intentionally committed for Firebase push notifications.
+# It contains only public Firebase config (no secrets). This is required by EAS Build.
+.gitnexus

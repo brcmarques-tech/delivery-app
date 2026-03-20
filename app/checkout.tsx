@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import * as Network from 'expo-network';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useLazyQuery, useQuery } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,6 +53,8 @@ export default function CheckoutScreen() {
 
   const storeId = params.storeId;
   const storeName = params.storeName;
+  // L1: Checkout items are passed via URL params. For very large carts this could hit URL length limits.
+  // Consider moving to a shared state/context if carts grow significantly.
   const checkoutItems: CheckoutItem[] = params.selectedItems ? JSON.parse(params.selectedItems) : [];
 
   const subtotal = checkoutItems.reduce((sum, item) => {
@@ -61,14 +64,24 @@ export default function CheckoutScreen() {
     return sum + item.price * item.quantity;
   }, 0);
 
+  // C1: Double-tap prevention ref
+  const submittingRef = useRef(false);
+
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('DELIVERY');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ON_DELIVERY');
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  // M1: Track whether delivery fee calculation has completed
+  const [feeCalculated, setFeeCalculated] = useState(false);
+  // M3: Coupon code state
+  const [couponCode, setCouponCode] = useState('');
+  const [couponApplied, setCouponApplied] = useState(false);
   const [createOrder] = useMutation(CREATE_ORDER);
-  const [calcFee, { data: feeData, loading: feeLoading }] = useLazyQuery(CALCULATE_DELIVERY_FEE);
+  const [calcFee, { data: feeData, loading: feeLoading }] = useLazyQuery(CALCULATE_DELIVERY_FEE, {
+    onCompleted: () => setFeeCalculated(true),
+  });
   const [calcTime, { data: timeData, loading: timeLoading }] = useLazyQuery(ESTIMATE_DELIVERY_TIME);
   const { data: addressesData } = useQuery(GET_MY_ADDRESSES);
   const { data: storeData } = useQuery(GET_STORE, { variables: { id: storeId }, skip: !storeId });
@@ -214,30 +227,41 @@ export default function CheckoutScreen() {
   }
 
   async function handleCheckout() {
-    if (!isPickup && !address.trim()) {
-      alert('Erro', 'Informe o endereco de entrega');
-      return;
-    }
+    // C1: Double-tap prevention
+    if (submittingRef.current) return;
+    submittingRef.current = true;
 
-    let finalCoords = coords;
-    if (!isPickup) {
-      if (!finalCoords) {
-        try {
-          const results = await Location.geocodeAsync(address);
-          if (results.length > 0) {
-            finalCoords = { latitude: results[0].latitude, longitude: results[0].longitude };
-            setCoords(finalCoords);
-          }
-        } catch {}
-      }
-      if (!finalCoords) {
-        alert('Erro', 'Nao foi possivel localizar o endereco. Tente usar o botao de GPS.');
+    try {
+      // L5: Offline check before checkout
+      const networkState = await Network.getNetworkStateAsync();
+      if (!networkState.isConnected) {
+        alert('Sem conexao', 'Verifique sua conexao com a internet e tente novamente.');
         return;
       }
-    }
 
-    setLoading(true);
-    try {
+      if (!isPickup && !address.trim()) {
+        alert('Erro', 'Informe o endereco de entrega');
+        return;
+      }
+
+      let finalCoords = coords;
+      if (!isPickup) {
+        if (!finalCoords) {
+          try {
+            const results = await Location.geocodeAsync(address);
+            if (results.length > 0) {
+              finalCoords = { latitude: results[0].latitude, longitude: results[0].longitude };
+              setCoords(finalCoords);
+            }
+          } catch {}
+        }
+        if (!finalCoords) {
+          alert('Erro', 'Nao foi possivel localizar o endereco. Tente usar o botao de GPS.');
+          return;
+        }
+      }
+
+      setLoading(true);
       const { data } = await createOrder({
         variables: {
           input: {
@@ -264,6 +288,12 @@ export default function CheckoutScreen() {
       });
 
       const order = data.createOrder;
+
+      // H1: Reconcile client-side price with server total
+      const serverTotal = Number(order.total);
+      if (Math.abs(serverTotal - finalTotal) > 0.01) {
+        alert('Valor atualizado', `O valor do pedido foi atualizado para R$ ${serverTotal.toFixed(2)}`);
+      }
 
       // Remove purchased items from cart
       for (const item of checkoutItems) {
@@ -301,6 +331,7 @@ export default function CheckoutScreen() {
       alert('Erro', err.message || 'Nao foi possivel fazer o pedido');
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   }
 
@@ -457,6 +488,34 @@ export default function CheckoutScreen() {
               multiline
             />
 
+            {/* M3: Coupon input */}
+            <View style={[styles.section, { backgroundColor: themeColors.white }]}>
+              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Cupom de desconto</Text>
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <TextInput
+                  style={[styles.addressInput, { backgroundColor: themeColors.background, color: themeColors.text, flex: 1 }]}
+                  placeholder="Codigo do cupom"
+                  placeholderTextColor={themeColors.gray}
+                  value={couponCode}
+                  onChangeText={(t) => { setCouponCode(t.toUpperCase()); setCouponApplied(false); }}
+                  autoCapitalize="characters"
+                />
+                <TouchableOpacity
+                  style={[styles.locationButton, { backgroundColor: themeColors.primary + '15', width: 'auto' as any, paddingHorizontal: 16 }]}
+                  onPress={() => {
+                    // TODO: Call validateCoupon query when available in the API
+                    if (!couponCode.trim()) {
+                      alert('Erro', 'Informe o codigo do cupom');
+                      return;
+                    }
+                    alert('Em breve', 'Cupons de desconto estarao disponiveis em breve!');
+                  }}
+                >
+                  <Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 14 }}>Aplicar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* Payment */}
             <View style={[styles.section, { backgroundColor: themeColors.white }]}>
               <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Forma de pagamento</Text>
@@ -528,9 +587,20 @@ export default function CheckoutScreen() {
                 ) : feeLoading ? (
                   <ActivityIndicator size="small" color={themeColors.primary} />
                 ) : (
-                  <Text style={[styles.summaryValue, { color: themeColors.text }]}>{deliveryFee > 0 ? `R$ ${deliveryFee.toFixed(2)}` : 'Calculando...'}</Text>
+                  // M1: Show 'Gratis' for zero fee when calculation is done, 'Calculando...' only when not yet calculated
+                  <Text style={[styles.summaryValue, { color: themeColors.text }]}>
+                    {feeCalculated ? (deliveryFee > 0 ? `R$ ${deliveryFee.toFixed(2)}` : 'Gratis') : 'Calculando...'}
+                  </Text>
                 )}
               </View>
+              {/* M2: Free delivery threshold banner */}
+              {!isPickup && storeData?.store?.freeDeliveryAbove && subtotal < Number(storeData.store.freeDeliveryAbove) && (
+                <View style={[styles.summaryRow, { marginTop: 4 }]}>
+                  <Text style={{ fontSize: 13, color: themeColors.success, fontWeight: '600' }}>
+                    Faltam R$ {(Number(storeData.store.freeDeliveryAbove) - subtotal).toFixed(2)} para frete gratis!
+                  </Text>
+                </View>
+              )}
               {!isPickup && timeData?.estimatedDeliveryTime && (
                 <View style={styles.summaryRow}>
                   <Text style={[styles.summaryLabel, { color: themeColors.textLight }]}>Tempo estimado</Text>
@@ -558,6 +628,14 @@ export default function CheckoutScreen() {
           {loading ? 'Finalizando...' : belowMinimum ? `Pedido minimo: R$ ${effectiveMinimum.toFixed(2)}` : `Finalizar pedido - R$ ${finalTotal.toFixed(2)}`}
         </Text>
       </TouchableOpacity>
+
+      {/* L6: Full-screen loading overlay during checkout */}
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+          <Text style={styles.loadingOverlayText}>Processando pedido...</Text>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -730,5 +808,18 @@ const styles = StyleSheet.create({
     fontSize: fonts.small,
     color: '#dc2626',
     fontWeight: '600',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  loadingOverlayText: {
+    color: '#FFFFFF',
+    fontSize: fonts.regular,
+    fontWeight: '600',
+    marginTop: 12,
   },
 });

@@ -2818,6 +2818,11 @@ expo-modules-core@55.0.14:
   dependencies:
     invariant "^2.2.4"
 
+expo-network@~55.0.9:
+  version "55.0.9"
+  resolved "https://registry.yarnpkg.com/expo-network/-/expo-network-55.0.9.tgz#abef5e21c2416e369a6b70073e88c3aa588ef514"
+  integrity sha512-vuL7s+Zbsbcqh2XxhaZ45mfuYZVn7ikukL27be7hN3zkLxoABNPgbVt+/gEKOxyv2Gzr/Q5JZvfVxCuwDDh0Fg==
+
 expo-notifications@~55.0.11:
   version "55.0.11"
   resolved "https://registry.npmjs.org/expo-notifications/-/expo-notifications-55.0.11.tgz"
@@ -2865,6 +2870,11 @@ expo-router@~55.0.4:
     shallowequal "^1.1.0"
     use-latest-callback "^0.2.1"
     vaul "^1.1.2"
+
+expo-secure-store@~55.0.9:
+  version "55.0.9"
+  resolved "https://registry.yarnpkg.com/expo-secure-store/-/expo-secure-store-55.0.9.tgz#c07006de1c0dfadf2e09fef047e3bb0a96f80ce3"
+  integrity sha512-TIPGjM73LKlebpXwgAu/yL7lNWr6RQYmFw3vgYHOqLFYQMpsBqkQmopovbNX3c/0+RCE9KZlLAkcz8r6detILQ==
 
 expo-sensors@~55.0.9:
   version "55.0.9"

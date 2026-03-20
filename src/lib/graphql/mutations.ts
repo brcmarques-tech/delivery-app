@@ -88,6 +88,9 @@ export const CREATE_ORDER = gql`
       total
       paymentMethod
       checkoutUrl
+      # L7: Return PIX QR code fields so order screen can show them immediately
+      pixQrCode
+      pixQrCodeBase64
       createdAt
     }
   }
