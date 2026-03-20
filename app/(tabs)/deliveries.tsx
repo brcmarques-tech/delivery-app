@@ -11,6 +11,7 @@ import {
   Vibration,
   AppState,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
@@ -102,6 +103,7 @@ export default function DeliveriesScreen() {
   const { colors, isDark } = useTheme();
   const [tab, setTab] = useState<Tab>('available');
   const [isOnline, setIsOnline] = useState(false);
+  const [togglingOnline, setTogglingOnline] = useState(false);
   const [currentOffer, setCurrentOffer] = useState<DeliveryOffer | null>(null);
   const [acceptedStore, setAcceptedStore] = useState<AcceptedStore | null>(null);
   const [clientLocation, setClientLocation] = useState<{ latitude: number; longitude: number; address: string } | null>(null);
@@ -229,42 +231,48 @@ export default function DeliveriesScreen() {
 
   // Go online/offline (only via button)
   const toggleOnline = useCallback(async () => {
+    if (togglingOnline) return;
     if (!paymentConnected) {
       alert('Conta nao conectada', 'Conecte sua conta de pagamento para comecar a fazer entregas.');
       return;
     }
 
-    if (isOnline) {
-      console.log(`[APP-ONLINE] Going OFFLINE, userId=${user?.id}`);
-      // Go offline - only here we send delivererOffline
-      if (socketRef.current) {
-        socketRef.current.emit('delivererOffline', { userId: user?.id });
-        socketRef.current.disconnect();
-        socketRef.current = null;
+    setTogglingOnline(true);
+    try {
+      if (isOnline) {
+        console.log(`[APP-ONLINE] Going OFFLINE, userId=${user?.id}`);
+        // Go offline - only here we send delivererOffline
+        if (socketRef.current) {
+          socketRef.current.emit('delivererOffline', { userId: user?.id });
+          socketRef.current.disconnect();
+          socketRef.current = null;
+        }
+        if (locationSubRef.current) {
+          locationSubRef.current.remove();
+          locationSubRef.current = null;
+        }
+        setIsOnline(false);
+        isOnlineRef.current = false;
+        AsyncStorage.setItem('deliverer_online', 'false');
+        setCurrentOffer(null);
+        return;
       }
-      if (locationSubRef.current) {
-        locationSubRef.current.remove();
-        locationSubRef.current = null;
+
+      // Go online
+      console.log(`[APP-ONLINE] Going ONLINE, userId=${user?.id}`);
+      const connected = await connectSocket();
+      if (!connected) {
+        alert('Erro', 'Permissao de localizacao necessaria para receber entregas');
+        return;
       }
-      setIsOnline(false);
-      isOnlineRef.current = false;
-      AsyncStorage.setItem('deliverer_online', 'false');
-      setCurrentOffer(null);
-      return;
-    }
 
-    // Go online
-    console.log(`[APP-ONLINE] Going ONLINE, userId=${user?.id}`);
-    const connected = await connectSocket();
-    if (!connected) {
-      alert('Erro', 'Permissao de localizacao necessaria para receber entregas');
-      return;
+      setIsOnline(true);
+      isOnlineRef.current = true;
+      AsyncStorage.setItem('deliverer_online', 'true');
+    } finally {
+      setTogglingOnline(false);
     }
-
-    setIsOnline(true);
-    isOnlineRef.current = true;
-    AsyncStorage.setItem('deliverer_online', 'true');
-  }, [isOnline, user, connectSocket]);
+  }, [isOnline, user, connectSocket, togglingOnline]);
 
   // Clear online status on logout
   useEffect(() => {
@@ -347,33 +355,25 @@ export default function DeliveriesScreen() {
     const { orderId } = offer;
     setActionLoading(orderId);
     try {
-      // Notify server via socket (best-effort, don't block on it)
+      // Accept via socket - the backend handles creating the delivery
       if (socketRef.current?.connected) {
         console.log(`[APP-ACCEPT-OFFER] Emitting acceptOffer via socket`);
         socketRef.current.emit('acceptOffer', { orderId, delivererId: user?.id });
+      } else {
+        // Fallback: if socket is not connected, use GraphQL mutation
+        console.log(`[APP-ACCEPT-OFFER] Socket not connected, using mutation fallback`);
+        await acceptDelivery({ variables: { orderId } });
       }
-      // Use GraphQL mutation as the reliable acceptance method
-      console.log(`[APP-ACCEPT-OFFER] Calling acceptDelivery mutation`);
-      const { data: acceptData } = await acceptDelivery({ variables: { orderId } });
-      console.log(`[APP-ACCEPT-OFFER] Mutation SUCCESS: deliveryId=${acceptData?.acceptDelivery?.id}`);
+      console.log(`[APP-ACCEPT-OFFER] SUCCESS`);
       setCurrentOffer(null);
       await refetchMy();
       refetchAvailable();
       setTab('my');
 
-      // Show store map modal
-      const store = acceptData?.acceptDelivery?.order?.store;
-      if (store?.latitude && store?.longitude) {
-        const addr = [store.street, store.number, store.neighborhood, store.city].filter(Boolean).join(', ');
+      // Show store map modal from offer data
+      if (offer.storeLat && offer.storeLng) {
         setAcceptedStore({
-          name: store.name,
-          latitude: Number(store.latitude),
-          longitude: Number(store.longitude),
-          address: addr,
-        });
-      } else if (offer.storeLat && offer.storeLng) {
-        setAcceptedStore({
-          name: 'Loja',
+          name: offer.storeName || 'Loja',
           latitude: offer.storeLat,
           longitude: offer.storeLng,
           address: offer.storeAddress,
@@ -927,14 +927,18 @@ export default function DeliveriesScreen() {
                 styles.onlineToggle,
                 { backgroundColor: colors.grayLight },
                 isOnline && { backgroundColor: colors.success + '20' },
-                !paymentConnected && { opacity: 0.5 },
+                (!paymentConnected || togglingOnline) && { opacity: 0.5 },
               ]}
               onPress={toggleOnline}
-              disabled={!paymentConnected}
+              disabled={!paymentConnected || togglingOnline}
             >
-              <View style={[styles.onlineDot, { backgroundColor: colors.gray }, isOnline && { backgroundColor: colors.success }]} />
+              {togglingOnline ? (
+                <ActivityIndicator size="small" color={isOnline ? colors.success : colors.gray} />
+              ) : (
+                <View style={[styles.onlineDot, { backgroundColor: colors.gray }, isOnline && { backgroundColor: colors.success }]} />
+              )}
               <Text style={[styles.onlineText, { color: colors.gray }, isOnline && { color: colors.success }]}>
-                {isOnline ? 'Online' : 'Offline'}
+                {togglingOnline ? (isOnline ? 'Desconectando...' : 'Conectando...') : (isOnline ? 'Online' : 'Offline')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1029,11 +1033,16 @@ export default function DeliveriesScreen() {
                     </View>
                     {paymentConnected && (
                       <TouchableOpacity
-                        style={[styles.goOnlineButton, { backgroundColor: colors.success }]}
+                        style={[styles.goOnlineButton, { backgroundColor: colors.success }, togglingOnline && { opacity: 0.5 }]}
                         onPress={toggleOnline}
+                        disabled={togglingOnline}
                       >
-                        <Ionicons name="power" size={18} color="#FFFFFF" />
-                        <Text style={styles.goOnlineButtonText}>Ficar Online</Text>
+                        {togglingOnline ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Ionicons name="power" size={18} color="#FFFFFF" />
+                        )}
+                        <Text style={styles.goOnlineButtonText}>{togglingOnline ? 'Conectando...' : 'Ficar Online'}</Text>
                       </TouchableOpacity>
                     )}
                   </>
