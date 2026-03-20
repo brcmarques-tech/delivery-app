@@ -125,6 +125,16 @@ export const ACCEPT_DELIVERY = gql`
         id
         orderNumber
         status
+        store {
+          name
+          latitude
+          longitude
+          street
+          number
+          neighborhood
+          city
+        }
+        deliveryAddress
       }
     }
   }
