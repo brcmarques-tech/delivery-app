@@ -479,6 +479,7 @@ export default function CheckoutScreen() {
       }
 
       setLoading(true);
+      console.log('[CHECKOUT] Calling createOrder mutation...', { storeId, isPickup, paymentMethod, selectedCardId, itemCount: checkoutItems.length });
       const { data } = await createOrder({
         variables: {
           input: {
@@ -505,6 +506,7 @@ export default function CheckoutScreen() {
       });
 
       const order = data.createOrder;
+      console.log('[CHECKOUT] Order created:', { id: order.id, orderNumber: order.orderNumber, status: order.status, checkoutUrl: order.checkoutUrl, paymentMethod: order.paymentMethod });
 
       // H1: Reconcile client-side price with server total
       const serverTotal = Number(order.total);
@@ -518,33 +520,10 @@ export default function CheckoutScreen() {
       }
       refetchCart();
 
-      if (paymentMethod === 'PIX') {
-        // Go straight to order screen where PIX QR code is shown inline
-        router.replace(`/order/${order.id}`);
-      } else if (paymentMethod === 'CREDIT_CARD' && order.checkoutUrl) {
-        alert(
-          'Pedido criado!',
-          'Voce sera redirecionado para o pagamento.',
-          [
-            {
-              text: 'Pagar agora',
-              onPress: () => {
-                Linking.openURL(order.checkoutUrl);
-                router.replace(`/order/${order.id}`);
-              },
-            },
-          ],
-        );
-      } else if (paymentMethod === 'CREDIT_CARD' && selectedCardId && !order.checkoutUrl) {
-        alert('Pedido realizado!', `Pagamento aprovado! Numero: ${order.orderNumber}`, [
-          { text: 'Ver pedido', onPress: () => router.replace(`/order/${order.id}`) },
-        ]);
-      } else {
-        alert('Pedido realizado!', `Numero: ${order.orderNumber}`, [
-          { text: 'Ver pedido', onPress: () => router.replace(`/order/${order.id}`) },
-        ]);
-      }
+      // Navigate directly to order screen — no alert blocking the flow
+      router.replace(`/order/${order.id}`);
     } catch (err: any) {
+      console.log('[CHECKOUT] ERROR:', err.message || err);
       alert('Erro', err.message || 'Nao foi possivel fazer o pedido');
     } finally {
       setLoading(false);
@@ -857,7 +836,7 @@ export default function CheckoutScreen() {
       {/* Card Registration Modal */}
       <Modal visible={showCardModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalContainer}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalContainer}>
             <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
               <View style={[styles.modalHeader, { borderBottomColor: themeColors.border }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -1224,11 +1203,12 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     maxHeight: '92%',
+    flex: 1,
   },
   modalContent: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '100%',
+    flex: 1,
   },
   modalHeader: {
     flexDirection: 'row',

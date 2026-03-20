@@ -452,7 +452,7 @@ export default function CardsScreen() {
         </ScrollView>
       )}
 
-      {loading ? (
+      {showForm ? null : loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#f97316" />
           <Text style={{ color: themeColors.textSecondary, marginTop: 12, fontSize: 12 }}>Carregando cartoes...</Text>
