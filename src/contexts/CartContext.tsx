@@ -38,16 +38,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
 
+  // H6: Proper error handling instead of silently swallowing errors
   const { data: cartData, loading: queryLoading, refetch } = useQuery(GET_MY_CART, {
     skip: !user,
     fetchPolicy: 'network-only',
-    onError: () => {},
+    onError: (err) => { Alert.alert('Erro', err.message || 'Erro ao carregar carrinho'); },
   });
 
-  const [addToCartMutation] = useMutation(ADD_TO_CART, { onError: () => {} });
-  const [updateCartItemMutation] = useMutation(UPDATE_CART_ITEM, { onError: () => {} });
-  const [removeFromCartMutation] = useMutation(REMOVE_FROM_CART, { onError: () => {} });
-  const [clearCartMutation] = useMutation(CLEAR_CART, { onError: () => {} });
+  const [addToCartMutation] = useMutation(ADD_TO_CART, {
+    onError: (err) => { Alert.alert('Erro', err.message || 'Erro ao atualizar carrinho'); refetch(); },
+  });
+  const [updateCartItemMutation] = useMutation(UPDATE_CART_ITEM, {
+    onError: (err) => { Alert.alert('Erro', err.message || 'Erro ao atualizar carrinho'); refetch(); },
+  });
+  const [removeFromCartMutation] = useMutation(REMOVE_FROM_CART, {
+    onError: (err) => { Alert.alert('Erro', err.message || 'Erro ao atualizar carrinho'); refetch(); },
+  });
+  const [clearCartMutation] = useMutation(CLEAR_CART, {
+    onError: (err) => { Alert.alert('Erro', err.message || 'Erro ao atualizar carrinho'); refetch(); },
+  });
 
   // Sync server cart to local state
   useEffect(() => {

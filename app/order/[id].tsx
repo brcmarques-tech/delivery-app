@@ -12,7 +12,9 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { fonts } from '../../src/theme';
 
+// M9: AWAITING_PAYMENT added as first status step
 const statusSteps = [
+  { key: 'AWAITING_PAYMENT', label: 'Aguardando pagamento', icon: 'card-outline' as const },
   { key: 'PENDING', label: 'Pendente', icon: 'time-outline' as const },
   { key: 'ACCEPTED', label: 'Aceito', icon: 'checkmark-circle-outline' as const },
   { key: 'PREPARING', label: 'Preparando', icon: 'restaurant-outline' as const },
@@ -97,10 +99,14 @@ export default function OrderDetailScreen() {
   }, [needsCustomerAction, delivererConfirmedAt]);
 
   // Auto-open PIX modal when arriving at order with pending PIX payment
+  // H5: Calculate PIX expiry from order creation time (30 min from creation, matching API's 30-minute expiry)
   useEffect(() => {
     if (order?.status === 'AWAITING_PAYMENT' && order?.paymentMethod === 'PIX' && order?.pixQrCode) {
+      const pixExpiry = order.createdAt
+        ? Math.max(0, 1800 - Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 1000))
+        : 600;
+      setPixTimeLeft(pixExpiry);
       setPixModalVisible(true);
-      setPixTimeLeft(600);
     }
   }, [order?.status, order?.paymentMethod, order?.pixQrCode]);
 
@@ -135,14 +141,27 @@ export default function OrderDetailScreen() {
     });
   };
 
+  // M10: Confirmation dialog before confirming receipt
   const handleConfirmReceipt = async () => {
-    try {
-      await confirmReceipt({ variables: { orderId: id } });
-      Alert.alert('Confirmado!', 'Recebimento confirmado com sucesso.');
-      refetch();
-    } catch (err: any) {
-      Alert.alert('Erro', err.message);
-    }
+    Alert.alert(
+      'Confirmar recebimento?',
+      'Ao confirmar, o pagamento sera liberado ao entregador.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            try {
+              await confirmReceipt({ variables: { orderId: id } });
+              Alert.alert('Confirmado!', 'Recebimento confirmado com sucesso.');
+              refetch();
+            } catch (err: any) {
+              Alert.alert('Erro', err.message);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleDenyDelivery = async () => {
@@ -197,7 +216,13 @@ export default function OrderDetailScreen() {
           onPress: async () => {
             try {
               await cancelOrder({ variables: { orderId: id } });
-              Alert.alert('Cancelado', 'Pedido cancelado com sucesso.');
+              // M8: Show payment-method-specific refund message
+              const refundMsg = order?.paymentMethod === 'PIX'
+                ? 'O reembolso via PIX sera processado em ate 24h.'
+                : order?.paymentMethod === 'CREDIT_CARD'
+                ? 'O estorno sera processado em ate 7 dias uteis.'
+                : 'Nenhuma cobranca foi efetuada.';
+              Alert.alert('Cancelado', `Pedido cancelado. ${refundMsg}`);
               refetch();
             } catch (err: any) {
               Alert.alert('Erro', err.message);

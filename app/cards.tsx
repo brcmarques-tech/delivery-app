@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useQuery, useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +13,9 @@ import { SAVE_CARD, DELETE_CARD } from '../src/lib/graphql/mutations';
 import { useAlert } from '../src/contexts/AlertContext';
 
 const PAGARME_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAGARME_PUBLIC_KEY || '';
+
+// H3: Warn in dev if public key is not configured
+if (__DEV__ && !PAGARME_PUBLIC_KEY) console.warn('[PAYMENT] EXPO_PUBLIC_PAGARME_PUBLIC_KEY nao configurada');
 
 function luhnCheck(number: string): boolean {
   const digits = number.replace(/\D/g, '');
@@ -79,11 +82,28 @@ export default function CardsScreen() {
   const [saveCardMut, { loading: saving }] = useMutation(SAVE_CARD);
   const [deleteCardMut] = useMutation(DELETE_CARD);
 
+  // H2: Double-tap prevention ref for save card
+  const submittingRef = useRef(false);
+
   const [showForm, setShowForm] = useState(false);
   const [cardNumber, setCardNumber] = useState('');
   const [holderName, setHolderName] = useState('');
   const [expiry, setExpiry] = useState('');
+  // L2: CVV held in component state is standard practice for card forms;
+  // it's never persisted and cleared on navigation (see L3 below).
   const [cvv, setCvv] = useState('');
+
+  // L3/L9: Clear sensitive card form fields when navigating away
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setCvv('');
+        setCardNumber('');
+        setHolderName('');
+        setExpiry('');
+      };
+    }, [])
+  );
   const [zipCode, setZipCode] = useState('');
   const [street, setStreet] = useState('');
   const [streetNumber, setStreetNumber] = useState('');
@@ -142,6 +162,10 @@ export default function CardsScreen() {
   }
 
   async function handleSaveCard() {
+    // H2: Double-tap prevention
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
     const e: Record<string, string> = {};
     const digits = cardNumber.replace(/\D/g, '');
 
@@ -169,10 +193,11 @@ export default function CardsScreen() {
     if (!state.trim() || state.trim().length !== 2) e.state = 'UF invalido';
 
     setErrors(e);
-    if (Object.keys(e).length > 0) return;
+    if (Object.keys(e).length > 0) { submittingRef.current = false; return; }
 
     if (!PAGARME_PUBLIC_KEY) {
       alert('Erro de Configuracao', 'Sistema de pagamento nao configurado. Entre em contato com o suporte.');
+      submittingRef.current = false;
       return;
     }
 
@@ -233,6 +258,8 @@ export default function CardsScreen() {
       if (err.message?.includes('network') || err.message?.includes('Network')) msg = 'Sem conexao com a internet. Verifique e tente novamente.';
       else if (err.message) msg = err.message;
       alert('Erro', msg);
+    } finally {
+      submittingRef.current = false;
     }
   }
 

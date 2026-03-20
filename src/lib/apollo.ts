@@ -5,6 +5,7 @@ import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient } from 'graphql-ws';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 
@@ -22,7 +23,8 @@ const httpLink = createHttpLink({
 });
 
 const authLink = setContext(async (_, { headers }) => {
-  const token = await AsyncStorage.getItem('token');
+  // C2: Read token from SecureStore instead of AsyncStorage
+  const token = await SecureStore.getItemAsync('token');
   return {
     headers: {
       ...headers,
@@ -38,7 +40,7 @@ try {
       url: WS_URL,
       retryAttempts: 5,
       connectionParams: async () => {
-        const token = await AsyncStorage.getItem('token');
+        const token = await SecureStore.getItemAsync('token');
         return { authorization: token ? `Bearer ${token}` : '' };
       },
       on: {},
@@ -56,7 +58,7 @@ const errorLink = onError(({ graphQLErrors }) => {
   if (sessionExpired && !sessionExpiredHandled) {
     sessionExpiredHandled = true;
     // Silent logout — the subscription handles the user-facing alert
-    AsyncStorage.multiRemove(['token', 'user']).then(() => {
+    Promise.all([SecureStore.deleteItemAsync('token'), AsyncStorage.removeItem('user')]).then(() => {
       sessionExpiredHandled = false;
       router.replace('/auth/login');
     });

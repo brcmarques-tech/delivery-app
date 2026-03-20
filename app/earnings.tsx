@@ -1,16 +1,17 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useQuery, useMutation } from '@apollo/client';
 import { useTheme } from '../src/contexts/ThemeContext';
+import { useAlert } from '../src/contexts/AlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MY_BALANCE, SIMULATE_ANTICIPATION, GET_ME } from '../src/lib/graphql/queries';
-import { REGISTER_RECIPIENT, REQUEST_ANTICIPATION, DISCONNECT_PAYMENT } from '../src/lib/graphql/mutations';
+import { REGISTER_RECIPIENT, REQUEST_ANTICIPATION, DISCONNECT_PAYMENT, TOGGLE_AUTO_ANTICIPATION } from '../src/lib/graphql/mutations';
 
 const BANKS = [
   { code: '001', name: 'Banco do Brasil' },
@@ -112,10 +113,15 @@ export default function EarningsScreen() {
 // ===== EARNINGS DASHBOARD =====
 function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () => void }) {
   const { isDark } = useTheme();
+  // L4: Use useAlert instead of Alert.alert where available
+  const { alert: showAlert } = useAlert();
   const { data: balanceData, loading, error: balanceError, refetch: refetchBalance } = useQuery(MY_BALANCE, { fetchPolicy: 'network-only' });
   const { data: simData, loading: loadingSim } = useQuery(SIMULATE_ANTICIPATION, { fetchPolicy: 'network-only' });
   const [requestAnticipation, { loading: requesting }] = useMutation(REQUEST_ANTICIPATION);
   const [disconnectPayment] = useMutation(DISCONNECT_PAYMENT);
+  // M4: Auto-anticipation toggle
+  const [toggleAutoAnticipation] = useMutation(TOGGLE_AUTO_ANTICIPATION);
+  const [autoAnticipationEnabled, setAutoAnticipationEnabled] = useState(false);
 
   const balance = balanceData?.myBalance;
   const sim = simData?.simulateAnticipation;
@@ -264,12 +270,55 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             ) : (
               <>
                 <Ionicons name="flash" size={16} color="#fff" />
-                <Text style={styles.primaryBtnText}>Quero Antecipar</Text>
+                {/* M5: Make text clear that it anticipates all available balance */}
+                <Text style={styles.primaryBtnText}>Antecipar todo o saldo disponivel</Text>
               </>
             )}
           </TouchableOpacity>
+          {/* M5: Note about partial anticipation */}
+          {/* TODO: Add partial anticipation amount when API supports amount parameter in RequestAnticipation mutation */}
         </View>
       )}
+
+      {/* M4: Auto-anticipation toggle */}
+      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flex: 1, marginRight: 12 }}>
+            <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 2 }]}>Antecipacao automatica</Text>
+            <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+              Antecipa recebiveis automaticamente quando disponiveis
+            </Text>
+          </View>
+          <Switch
+            value={autoAnticipationEnabled}
+            onValueChange={async (value) => {
+              try {
+                await toggleAutoAnticipation({ variables: { enabled: value } });
+                setAutoAnticipationEnabled(value);
+              } catch (err: any) {
+                showAlert('Erro', err.message || 'Erro ao alterar configuracao');
+              }
+            }}
+            trackColor={{ false: colors.border, true: '#f9731680' }}
+            thumbColor={autoAnticipationEnabled ? '#f97316' : '#f4f3f4'}
+          />
+        </View>
+      </View>
+
+      {/* M6: Transaction history placeholder */}
+      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <Ionicons name="list-outline" size={18} color="#f97316" />
+          <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Historico de transacoes</Text>
+        </View>
+        {/* TODO: Integrate myPayments query when available in the API */}
+        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+          <Ionicons name="time-outline" size={32} color={colors.textSecondary} />
+          <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 8, textAlign: 'center' }}>
+            Historico de transacoes em breve
+          </Text>
+        </View>
+      </View>
 
       {/* How it works */}
       <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -407,6 +456,24 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
         type: form.accountType,
       },
     };
+
+    // M7: Client-side validation of required fields before sending JSON to API
+    if (!recipientData.document || recipientData.document.length < 11) {
+      Alert.alert('Erro', 'CPF invalido. Verifique o documento informado.');
+      return;
+    }
+    if (!recipientData.type || !['individual', 'corporation'].includes(recipientData.type)) {
+      Alert.alert('Erro', 'Tipo de conta invalido.');
+      return;
+    }
+    if (!recipientData.name?.trim()) {
+      Alert.alert('Erro', 'Nome e obrigatorio.');
+      return;
+    }
+    if (!recipientData.bankAccount?.bank || !recipientData.bankAccount?.branchNumber || !recipientData.bankAccount?.accountNumber) {
+      Alert.alert('Erro', 'Dados bancarios incompletos. Verifique banco, agencia e conta.');
+      return;
+    }
 
     try {
       await registerRecipient({ variables: { recipientData: JSON.stringify(recipientData) } });
