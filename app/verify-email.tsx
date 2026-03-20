@@ -105,9 +105,9 @@ export default function VerifyEmailScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Verificar Email</Text>
         <View style={{ width: 40 }} />
@@ -115,7 +115,7 @@ export default function VerifyEmailScreen() {
 
       <View style={styles.content}>
         <View style={[styles.iconCircle, { backgroundColor: colors.primary + '15' }]}>
-          <Ionicons name="mail" size={48} color={colors.primary} />
+          <Ionicons name="mail" size={36} color={colors.primary} />
         </View>
 
         <Text style={[styles.title, { color: colors.text }]}>
@@ -137,7 +137,7 @@ export default function VerifyEmailScreen() {
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
-                <Ionicons name="send" size={20} color="#FFFFFF" />
+                <Ionicons name="send" size={18} color="#FFFFFF" />
                 <Text style={styles.sendButtonText}>Enviar Codigo</Text>
               </>
             )}
@@ -204,50 +204,50 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingBottom: 12,
   },
   backButton: { width: 40, height: 40, justifyContent: 'center' },
   headerTitle: { fontSize: fonts.large, fontWeight: '600' },
   content: { flex: 1, alignItems: 'center', paddingHorizontal: 32, paddingTop: 40 },
-  iconCircle: { width: 96, height: 96, borderRadius: 48, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+  iconCircle: { width: 96, height: 96, borderRadius: 48, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
   subtitle: { fontSize: fonts.regular, textAlign: 'center', marginBottom: 32, lineHeight: 22 },
   sendButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
+    gap: 6,
+    paddingVertical: 10,
     paddingHorizontal: 32,
-    borderRadius: 12,
+    borderRadius: 10,
     width: '100%',
   },
   sendButtonText: { color: '#FFFFFF', fontSize: fonts.regular, fontWeight: '600' },
-  codeRow: { flexDirection: 'row', gap: 8, marginBottom: 24 },
+  codeRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
   codeInput: {
     width: 48,
     height: 56,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 2,
     fontSize: 24,
     fontWeight: '700',
     textAlign: 'center',
   },
-  resendButton: { marginTop: 16 },
+  resendButton: { marginTop: 12 },
   resendText: { fontSize: fonts.regular, fontWeight: '500' },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     padding: 12,
     borderRadius: 10,
-    marginTop: 20,
+    marginTop: 14,
     width: '100%',
   },
   errorText: { fontSize: fonts.small, flex: 1 },
   successContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
-  successIcon: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  successIcon: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
   successTitle: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
   successSubtitle: { fontSize: fonts.regular, textAlign: 'center' },
 });

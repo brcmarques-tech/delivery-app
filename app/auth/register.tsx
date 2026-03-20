@@ -387,7 +387,7 @@ export default function RegisterScreen() {
   if (step === 1) {
     return (
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled">
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 10 }]} keyboardShouldPersistTaps="handled">
         {/* Step indicator */}
         <View style={styles.stepIndicator}>
           <View style={[styles.stepDot, styles.stepActive]} />
@@ -399,7 +399,7 @@ export default function RegisterScreen() {
         <Text style={styles.stepLabel}>Dados pessoais</Text>
 
         <View style={styles.headerIcon}>
-          <Ionicons name="person-add" size={40} color={colors.primary} />
+          <Ionicons name="person-add" size={26} color={colors.primary} />
         </View>
         <Text style={styles.title}>Criar conta</Text>
         <Text style={styles.subtitle}>Cadastre-se para comecar a pedir</Text>
@@ -413,13 +413,13 @@ export default function RegisterScreen() {
                 <Text style={styles.googleInfoEmail}>{email}</Text>
               </View>
               <TouchableOpacity onPress={() => { setIsGoogleRegister(false); setGoogleIdToken(''); setName(''); setEmail(''); }}>
-                <Ionicons name="close-circle" size={22} color={colors.gray} />
+                <Ionicons name="close-circle" size={18} color={colors.gray} />
               </TouchableOpacity>
             </View>
           ) : (
             <>
               <View style={styles.inputContainer}>
-                <Ionicons name="person-outline" size={20} color={colors.gray} style={styles.inputIcon} />
+                <Ionicons name="person-outline" size={18} color={colors.gray} style={styles.inputIcon} />
                 <TextInput
                   style={styles.inputWithIcon}
                   placeholder="Nome completo"
@@ -430,7 +430,7 @@ export default function RegisterScreen() {
               </View>
               <View>
                 <View style={[styles.inputContainer, fieldErrors.emailError ? styles.inputError : null]}>
-                  <Ionicons name="mail-outline" size={20} color={fieldErrors.emailError ? colors.danger : colors.gray} style={styles.inputIcon} />
+                  <Ionicons name="mail-outline" size={18} color={fieldErrors.emailError ? colors.danger : colors.gray} style={styles.inputIcon} />
                   <TextInput
                     style={styles.inputWithIcon}
                     placeholder="Email"
@@ -447,7 +447,7 @@ export default function RegisterScreen() {
           )}
           <View>
             <View style={[styles.inputContainer, fieldErrors.phoneError ? styles.inputError : null]}>
-              <Ionicons name="call-outline" size={20} color={fieldErrors.phoneError ? colors.danger : colors.gray} style={styles.inputIcon} />
+              <Ionicons name="call-outline" size={18} color={fieldErrors.phoneError ? colors.danger : colors.gray} style={styles.inputIcon} />
               <TextInput
                 style={styles.inputWithIcon}
                 placeholder="(DD) 99999-9999"
@@ -462,7 +462,7 @@ export default function RegisterScreen() {
           </View>
           <View>
             <View style={[styles.inputContainer, fieldErrors.cpfError ? styles.inputError : null]}>
-              <Ionicons name="document-text-outline" size={20} color={fieldErrors.cpfError ? colors.danger : colors.gray} style={styles.inputIcon} />
+              <Ionicons name="document-text-outline" size={18} color={fieldErrors.cpfError ? colors.danger : colors.gray} style={styles.inputIcon} />
               <TextInput
                 style={styles.inputWithIcon}
                 placeholder="CPF"
@@ -477,7 +477,7 @@ export default function RegisterScreen() {
           </View>
           {!isGoogleRegister && (
           <View style={styles.passwordContainer}>
-            <Ionicons name="lock-closed-outline" size={20} color={colors.gray} style={styles.inputIcon} />
+            <Ionicons name="lock-closed-outline" size={18} color={colors.gray} style={styles.inputIcon} />
             <TextInput
               style={styles.passwordInput}
               placeholder="Senha (min. 6 caracteres)"
@@ -492,7 +492,7 @@ export default function RegisterScreen() {
             >
               <Ionicons
                 name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                size={22}
+                size={18}
                 color={colors.gray}
               />
             </TouchableOpacity>
@@ -552,7 +552,7 @@ export default function RegisterScreen() {
   if (step === 2) {
     return (
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={[styles.otpContent, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.otpContent, { paddingTop: insets.top + 10 }]} keyboardShouldPersistTaps="handled">
           {/* Step indicator */}
           <View style={styles.stepIndicator}>
             <View style={[styles.stepDot, styles.stepDone]} />
@@ -564,11 +564,11 @@ export default function RegisterScreen() {
           <Text style={styles.stepLabel}>Verificacao</Text>
 
           <TouchableOpacity style={styles.backButtonOtp} onPress={() => setStep(1)}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <Ionicons name="arrow-back" size={18} color={colors.text} />
           </TouchableOpacity>
 
           <View style={styles.otpIconContainer}>
-            <Ionicons name="logo-whatsapp" size={48} color="#25D366" />
+            <Ionicons name="logo-whatsapp" size={36} color="#25D366" />
           </View>
           <Text style={styles.otpTitle}>Verifique seu WhatsApp</Text>
           <Text style={styles.otpSubtitle}>
@@ -624,7 +624,7 @@ export default function RegisterScreen() {
   return (
     <View style={styles.contractContainer}>
       {/* Step indicator */}
-      <View style={[styles.contractHeader, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.contractHeader, { paddingTop: insets.top + 8 }]}>
         <View style={[styles.stepIndicator, { marginTop: 0 }]}>
           <View style={[styles.stepDot, styles.stepDone]} />
           <View style={[styles.stepLine, styles.stepLineDone]} />
@@ -634,10 +634,10 @@ export default function RegisterScreen() {
         </View>
         <Text style={styles.stepLabel}>Contrato</Text>
 
-        <TouchableOpacity style={[styles.backButton, { top: insets.top + 12 }]} onPress={() => setStep(2)}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        <TouchableOpacity style={[styles.backButton, { top: insets.top + 8 }]} onPress={() => setStep(2)}>
+          <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
-        <Ionicons name="document-text" size={32} color={colors.primary} />
+        <Ionicons name="document-text" size={26} color={colors.primary} />
         <Text style={styles.contractTitle}>Termos de Uso</Text>
         <Text style={styles.contractSubtitle}>Leia o contrato antes de finalizar o cadastro</Text>
       </View>
@@ -666,7 +666,7 @@ export default function RegisterScreen() {
         )}
 
         <TouchableOpacity style={styles.pdfButton} onPress={handleDownloadPdf}>
-          <Ionicons name="download-outline" size={20} color={colors.primary} />
+          <Ionicons name="download-outline" size={18} color={colors.primary} />
           <Text style={styles.pdfButtonText}>Baixar contrato em PDF</Text>
         </TouchableOpacity>
 
@@ -677,7 +677,7 @@ export default function RegisterScreen() {
         >
           <Ionicons
             name={checked ? 'checkbox' : 'square-outline'}
-            size={24}
+            size={18}
             color={checked ? colors.primary : scrolledToEnd ? colors.gray : colors.grayLight}
           />
           <Text style={[styles.checkboxText, !scrolledToEnd && { color: colors.gray }]}>
@@ -738,7 +738,7 @@ const styles = StyleSheet.create({
     fontSize: fonts.small,
     color: colors.textLight,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
 
   // Header icon
@@ -749,15 +749,15 @@ const styles = StyleSheet.create({
 
   // Step 1 styles
   container: { flex: 1, backgroundColor: colors.white },
-  content: { padding: 24, paddingTop: 60 },
+  content: { padding: 12, paddingTop: 60 },
   title: { fontSize: fonts.title, fontWeight: 'bold', color: colors.text, textAlign: 'center' },
-  subtitle: { fontSize: fonts.regular, color: colors.textLight, marginTop: 8, marginBottom: 24, textAlign: 'center' },
-  form: { gap: 14 },
+  subtitle: { fontSize: fonts.regular, color: colors.textLight, marginTop: 8, marginBottom: 12, textAlign: 'center' },
+  form: { gap: 6 },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.grayLight,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   inputError: {
     borderWidth: 2,
@@ -771,19 +771,19 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   inputIcon: {
-    paddingLeft: 16,
+    paddingLeft: 12,
   },
   inputWithIcon: {
     flex: 1,
-    padding: 16,
+    padding: 12,
     paddingLeft: 12,
     fontSize: fonts.regular,
     color: colors.text,
   },
   input: {
     backgroundColor: colors.grayLight,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     fontSize: fonts.regular,
     color: colors.text,
   },
@@ -791,36 +791,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     backgroundColor: colors.grayLight,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   passwordInput: {
     flex: 1,
-    padding: 16,
+    padding: 12,
     paddingLeft: 12,
     fontSize: fonts.regular,
     color: colors.text,
   },
   eyeButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
   },
   button: {
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     alignItems: 'center',
     marginTop: 8,
   },
   buttonDisabled: { opacity: 0.4 },
   buttonText: { color: colors.white, fontSize: fonts.large, fontWeight: 'bold' },
-  link: { textAlign: 'center', color: colors.textLight, fontSize: fonts.regular, marginTop: 16 },
+  link: { textAlign: 'center', color: colors.textLight, fontSize: fonts.regular, marginTop: 12 },
   linkBold: { color: colors.primary, fontWeight: 'bold' },
 
   // Google styles
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
   },
   dividerLine: {
     flex: 1,
@@ -836,11 +836,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 10,
+    padding: 10,
     borderWidth: 1,
     borderColor: colors.grayLight,
-    gap: 10,
+    gap: 6,
   },
   googleIconBtn: {
     width: 20,
@@ -855,11 +855,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F0F9FF',
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 10,
+    padding: 10,
     borderWidth: 1,
     borderColor: '#BFDBFE',
-    gap: 10,
+    gap: 6,
   },
   googleInfoIcon: {
     width: 24,
@@ -877,23 +877,23 @@ const styles = StyleSheet.create({
 
   // Step 2: OTP styles
   otpContent: {
-    padding: 24,
+    padding: 12,
     paddingTop: 60,
     alignItems: 'center',
   },
   backButtonOtp: {
     alignSelf: 'flex-start',
     padding: 8,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   otpIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#E8F5E9',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 14,
   },
   otpTitle: {
     fontSize: fonts.xlarge,
@@ -915,13 +915,13 @@ const styles = StyleSheet.create({
   },
   otpRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 6,
     marginBottom: 32,
   },
   otpInput: {
     width: 48,
     height: 56,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: colors.grayLight,
     textAlign: 'center',
@@ -935,7 +935,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF5F0',
   },
   resendContainer: {
-    marginTop: 20,
+    marginTop: 14,
   },
   resendText: {
     fontSize: fonts.regular,
@@ -947,8 +947,8 @@ const styles = StyleSheet.create({
   contractContainer: { flex: 1, backgroundColor: colors.white },
   contractHeader: {
     paddingTop: 56,
-    paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: colors.grayLight,
@@ -973,12 +973,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   contractScroll: { flex: 1 },
-  contractScrollContent: { padding: 20, paddingBottom: 32 },
+  contractScrollContent: { padding: 10, paddingBottom: 32 },
   signeeBox: {
     backgroundColor: colors.grayLight,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 20,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
   },
   signeeLabel: {
     fontSize: fonts.tiny,
@@ -1002,7 +1002,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   contractFooter: {
-    padding: 16,
+    padding: 12,
     paddingBottom: 32,
     borderTopWidth: 1,
     borderTopColor: colors.grayLight,
@@ -1019,7 +1019,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     paddingVertical: 10,
     marginBottom: 12,
     borderWidth: 1,
@@ -1034,8 +1034,8 @@ const styles = StyleSheet.create({
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 16,
+    gap: 6,
+    marginBottom: 12,
   },
   checkboxText: {
     flex: 1,
@@ -1045,8 +1045,8 @@ const styles = StyleSheet.create({
   },
   acceptButton: {
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     alignItems: 'center',
   },
   acceptButtonText: {

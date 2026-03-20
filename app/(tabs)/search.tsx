@@ -125,10 +125,10 @@ export default function SearchScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.card, paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { backgroundColor: colors.card, paddingTop: insets.top + 8 }]}>
         <Text style={[styles.title, { color: colors.text }]}>Buscar</Text>
         <View style={[styles.searchBox, { backgroundColor: colors.grayLight }]}>
-          <Ionicons name="search" size={20} color={colors.gray} />
+          <Ionicons name="search" size={18} color={colors.gray} />
           <TextInput
             ref={inputRef}
             style={[styles.searchInput, { color: colors.text }]}
@@ -142,7 +142,7 @@ export default function SearchScreen() {
           />
           {query.length > 0 && (
             <TouchableOpacity onPress={() => { setQuery(''); inputRef.current?.focus(); }}>
-              <Ionicons name="close-circle" size={20} color={colors.gray} />
+              <Ionicons name="close-circle" size={18} color={colors.gray} />
             </TouchableOpacity>
           )}
         </View>
@@ -213,7 +213,7 @@ export default function SearchScreen() {
                   onPress={() => handleSearch(cat.query)}
                 >
                   <View style={[styles.categoryIcon, { backgroundColor: colors.primary + '15' }]}>
-                    <Ionicons name={cat.icon} size={24} color={colors.primary} />
+                    <Ionicons name={cat.icon} size={18} color={colors.primary} />
                   </View>
                   <Text style={[styles.categoryLabel, { color: colors.text }]}>{cat.label}</Text>
                 </TouchableOpacity>
@@ -239,7 +239,7 @@ export default function SearchScreen() {
                         <Image source={{ uri: promo.product?.imageUrl || promo.imageUrl }} style={styles.promoImage} />
                       ) : (
                         <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
-                          <Ionicons name="megaphone-outline" size={24} color="#FFFFFF" />
+                          <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
                         </View>
                       )}
                       {discount > 0 && (
@@ -328,14 +328,14 @@ export default function SearchScreen() {
                         <Image source={{ uri: store.logoUrl }} style={styles.storeLogo} />
                       ) : (
                         <View style={[styles.storeLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                          <Ionicons name="storefront-outline" size={24} color={colors.gray} />
+                          <Ionicons name="storefront-outline" size={18} color={colors.gray} />
                         </View>
                       )}
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                           <Text style={[styles.storeName, { color: colors.text }]} numberOfLines={1}>{store.name}</Text>
                           {store.verificationLevel && store.verificationLevel !== 'NONE' && (
-                            <Text style={{ fontSize: 14 }}>
+                            <Text style={{ fontSize: 12 }}>
                               {store.verificationLevel === 'BRONZE' ? '\u{1F949}' : store.verificationLevel === 'SILVER' ? '\u{1F948}' : store.verificationLevel === 'GOLD' ? '\u{1F947}' : '\u{1F48E}'}
                             </Text>
                           )}
@@ -343,7 +343,7 @@ export default function SearchScreen() {
                         {store.description ? (
                           <Text style={[styles.storeDesc, { color: colors.textLight }]} numberOfLines={1}>{store.description}</Text>
                         ) : null}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                           <View style={[styles.openBadge, { backgroundColor: store.isOpen ? colors.success + '20' : colors.danger + '20' }]}>
                             <Text style={{ fontSize: 10, fontWeight: '600', color: store.isOpen ? colors.success : colors.danger }}>
                               {store.isOpen ? 'Aberto' : 'Fechado'}
@@ -379,7 +379,7 @@ export default function SearchScreen() {
                           <Image source={{ uri: product.imageUrl }} style={styles.productImage} />
                         ) : (
                           <View style={[styles.productImage, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                            <Ionicons name="cube-outline" size={22} color={colors.gray} />
+                            <Ionicons name="cube-outline" size={18} color={colors.gray} />
                           </View>
                         )}
                         <View style={{ flex: 1 }}>
@@ -435,18 +435,18 @@ export default function SearchScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { padding: 20, paddingBottom: 12, gap: 12 },
+  header: { padding: 10, paddingBottom: 12, gap: 6 },
   title: { fontSize: fonts.xlarge, fontWeight: 'bold', marginBottom: 4 },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    gap: 8,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    gap: 6,
   },
   searchInput: { flex: 1, paddingVertical: 12, fontSize: fonts.regular },
   filtersRow: { marginTop: 4 },
-  filtersContent: { gap: 8 },
+  filtersContent: { gap: 6 },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -458,12 +458,12 @@ const styles = StyleSheet.create({
   filterChipText: { fontSize: fonts.tiny, fontWeight: '600' },
 
   // Idle state
-  idleContent: { padding: 20, gap: 28 },
-  section: { gap: 12 },
+  idleContent: { padding: 10, gap: 28 },
+  section: { gap: 6 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle: { fontSize: fonts.large, fontWeight: '600' },
   clearText: { fontSize: fonts.small, fontWeight: '500' },
-  recentList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  recentList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   recentChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -473,13 +473,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   recentText: { fontSize: fonts.small },
-  categoriesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  categoriesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   categoryCard: {
     width: '30%',
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 14,
-    gap: 8,
+    padding: 10,
+    borderRadius: 10,
+    gap: 6,
   },
   categoryIcon: {
     width: 48,
@@ -493,11 +493,11 @@ const styles = StyleSheet.create({
   // Promo cards (idle)
   promoCard: {
     width: 160,
-    borderRadius: 14,
+    borderRadius: 10,
     marginRight: 10,
     overflow: 'hidden',
   },
-  promoImage: { width: 160, height: 80 },
+  promoImage: { width: 160, height: 56 },
   promoBadge: {
     position: 'absolute',
     top: 6,
@@ -516,7 +516,7 @@ const styles = StyleSheet.create({
   // Promo cards (search results)
   promoCardSmall: {
     width: 180,
-    borderRadius: 12,
+    borderRadius: 10,
     marginRight: 10,
     flexDirection: 'row',
     overflow: 'hidden',
@@ -524,24 +524,24 @@ const styles = StyleSheet.create({
   promoImageSmall: { width: 60, height: 60 },
 
   // Results
-  resultsList: { padding: 16, gap: 4 },
-  resultSection: { marginBottom: 20, gap: 10 },
+  resultsList: { padding: 12, gap: 4 },
+  resultSection: { marginBottom: 14, gap: 6 },
   resultSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   resultSectionTitle: { fontSize: fonts.regular, fontWeight: '700' },
 
-  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center', paddingVertical: 12 },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', paddingVertical: 12 },
   loadingText: { fontSize: fonts.small },
 
   // Store result
   storeItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderRadius: 14,
+    gap: 6,
+    borderRadius: 10,
     padding: 12,
     marginBottom: 6,
   },
-  storeLogo: { width: 52, height: 52, borderRadius: 12 },
+  storeLogo: { width: 52, height: 52, borderRadius: 10 },
   storeName: { fontSize: fonts.regular, fontWeight: '600' },
   storeDesc: { fontSize: fonts.tiny, marginTop: 2 },
   openBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
@@ -550,8 +550,8 @@ const styles = StyleSheet.create({
   productItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderRadius: 14,
+    gap: 6,
+    borderRadius: 10,
     padding: 12,
     marginBottom: 6,
   },
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
   productPrice: { fontSize: fonts.regular, fontWeight: '700' },
 
   // Empty
-  emptyContainer: { alignItems: 'center', marginTop: 60, gap: 10, paddingHorizontal: 32 },
+  emptyContainer: { alignItems: 'center', marginTop: 60, gap: 6, paddingHorizontal: 32 },
   emptyText: { fontSize: fonts.regular, fontWeight: '500', textAlign: 'center' },
   emptySubtext: { fontSize: fonts.small, textAlign: 'center' },
 });

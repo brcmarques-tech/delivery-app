@@ -10,6 +10,7 @@ import {
   Platform,
   Vibration,
   AppState,
+  Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
@@ -470,7 +471,7 @@ export default function DeliveriesScreen() {
       <View style={[styles.card, { backgroundColor: colors.card }]}>
         <View style={styles.cardHeader}>
           <View style={styles.storeInfo}>
-            <Ionicons name="storefront" size={20} color={colors.primary} />
+            <Ionicons name="storefront" size={18} color={colors.primary} />
             <Text style={[styles.storeName, { color: colors.text }]}>{item.store.name}</Text>
           </View>
           <Text style={[styles.orderNumber, { color: colors.textLight }]}>#{item.orderNumber}</Text>
@@ -514,7 +515,7 @@ export default function DeliveriesScreen() {
             onPress={() => handleAccept(item.id, item.orderNumber)}
             disabled={!!actionLoading}
           >
-            <Ionicons name={actionLoading === item.id ? 'hourglass' : 'checkmark-circle'} size={20} color="#FFFFFF" />
+            <Ionicons name={actionLoading === item.id ? 'hourglass' : 'checkmark-circle'} size={18} color="#FFFFFF" />
             <Text style={styles.acceptButtonText}>{actionLoading === item.id ? 'Aceitando...' : 'Aceitar'}</Text>
           </TouchableOpacity>
         </View>
@@ -551,7 +552,7 @@ export default function DeliveriesScreen() {
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => Linking.openURL(`tel:${order.store.phone}`)}>
-                  <Ionicons name="call" size={20} color={colors.primary} />
+                  <Ionicons name="call" size={18} color={colors.primary} />
                 </TouchableOpacity>
               </View>
               <View style={[styles.addressDivider, { borderLeftColor: colors.gray }]} />
@@ -562,7 +563,7 @@ export default function DeliveriesScreen() {
                   <Text style={[styles.addressText, { color: colors.text }]}>{order.deliveryAddress}</Text>
                 </View>
                 <TouchableOpacity onPress={() => Linking.openURL(`tel:${order.customer.phone}`)}>
-                  <Ionicons name="call" size={20} color={colors.success} />
+                  <Ionicons name="call" size={18} color={colors.success} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -674,7 +675,7 @@ export default function DeliveriesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Delivery offer popup */}
-      {currentOffer && (
+      <Modal visible={!!currentOffer} transparent animationType="fade" statusBarTranslucent>
         <View style={[styles.offerOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.6)' }]}>
           <View style={[styles.offerCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.offerTitle, { color: colors.text }]}>Nova entrega!</Text>
@@ -682,15 +683,15 @@ export default function DeliveriesScreen() {
             <View style={[styles.offerInfo, { backgroundColor: colors.grayLight }]}>
               <View style={styles.offerRow}>
                 <Ionicons name="storefront" size={16} color={colors.success} />
-                <Text style={[styles.offerText, { color: colors.text }]}>{currentOffer.storeAddress}</Text>
+                <Text style={[styles.offerText, { color: colors.text }]}>{currentOffer?.storeAddress}</Text>
               </View>
               <View style={styles.offerRow}>
                 <Ionicons name="flag" size={16} color={colors.danger} />
-                <Text style={[styles.offerText, { color: colors.text }]}>{currentOffer.deliveryAddress}</Text>
+                <Text style={[styles.offerText, { color: colors.text }]}>{currentOffer?.deliveryAddress}</Text>
               </View>
               <View style={styles.offerRow}>
                 <Ionicons name="cash" size={16} color={colors.primary} />
-                <Text style={[styles.offerFee, { color: colors.success }]}>R$ {Number(currentOffer.deliveryFee).toFixed(2)}</Text>
+                <Text style={[styles.offerFee, { color: colors.success }]}>R$ {Number(currentOffer?.deliveryFee || 0).toFixed(2)}</Text>
               </View>
             </View>
             <View style={styles.offerButtons}>
@@ -698,18 +699,18 @@ export default function DeliveriesScreen() {
                 <Text style={[styles.offerDeclineText, { color: colors.textLight }]}>Recusar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.offerAccept, { backgroundColor: actionLoading ? colors.gray : colors.success }]} onPress={handleAcceptOffer} disabled={!!actionLoading}>
-                <Ionicons name={actionLoading ? 'hourglass' : 'checkmark-circle'} size={20} color="#FFFFFF" />
+                <Ionicons name={actionLoading ? 'hourglass' : 'checkmark-circle'} size={18} color="#FFFFFF" />
                 <Text style={styles.offerAcceptText}>{actionLoading ? 'Aceitando...' : 'Aceitar'}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
-      )}
+      </Modal>
 
-      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: colors.card }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: colors.card }]}>
         <View style={styles.titleRow}>
           <Text style={[styles.title, { color: colors.text }]}>Entregas</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             {activeDeliveryForTracking && (
               <View style={[styles.trackingBadge, { backgroundColor: colors.success + '15' }]}>
                 <View style={[styles.trackingDot, { backgroundColor: colors.success }]} />
@@ -742,7 +743,7 @@ export default function DeliveriesScreen() {
           >
             <View style={styles.mpBannerContent}>
               <View style={[styles.mpBannerIcon, { backgroundColor: colors.warning + '20' }]}>
-                <Ionicons name="wallet-outline" size={28} color={colors.warning} />
+                <Ionicons name="wallet-outline" size={18} color={colors.warning} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.mpBannerTitle, { color: colors.text }]}>Conecte sua conta para comecar</Text>
@@ -791,7 +792,7 @@ export default function DeliveriesScreen() {
                 {!isOnline ? (
                   <>
                     <View style={[styles.onlineGuideIcon, { backgroundColor: colors.primary + '15' }]}>
-                      <Ionicons name="radio-outline" size={48} color={colors.primary} />
+                      <Ionicons name="radio-outline" size={36} color={colors.primary} />
                     </View>
                     <Text style={[styles.emptyText, { color: colors.text }]}>Fique online para receber entregas</Text>
                     <Text style={[styles.emptySubtext, { color: colors.gray }]}>
@@ -826,7 +827,7 @@ export default function DeliveriesScreen() {
                         style={[styles.goOnlineButton, { backgroundColor: colors.success }]}
                         onPress={toggleOnline}
                       >
-                        <Ionicons name="power" size={20} color="#FFFFFF" />
+                        <Ionicons name="power" size={18} color="#FFFFFF" />
                         <Text style={styles.goOnlineButtonText}>Ficar Online</Text>
                       </TouchableOpacity>
                     )}
@@ -870,8 +871,8 @@ export default function DeliveriesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { padding: 24, paddingTop: 56 },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  header: { padding: 12, paddingTop: 56 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   title: { fontSize: fonts.xlarge, fontWeight: 'bold' },
   trackingBadge: {
     flexDirection: 'row',
@@ -892,15 +893,15 @@ const styles = StyleSheet.create({
   },
   mpBanner: {
     borderWidth: 1.5,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    gap: 14,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    gap: 6,
   },
   mpBannerContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: 6,
   },
   mpBannerIcon: {
     width: 48,
@@ -922,9 +923,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     backgroundColor: '#65A300',
-    borderRadius: 12,
+    borderRadius: 10,
     paddingVertical: 12,
   },
   mpBannerButtonText: {
@@ -932,7 +933,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: fonts.regular,
   },
-  tabBar: { flexDirection: 'row', gap: 8 },
+  tabBar: { flexDirection: 'row', gap: 6 },
   tabButton: {
     flex: 1,
     paddingVertical: 10,
@@ -940,8 +941,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabText: { fontSize: fonts.small, fontWeight: '600' },
-  list: { padding: 16, gap: 12 },
-  card: { borderRadius: 16, padding: 16 },
+  list: { padding: 12, gap: 6 },
+  card: { borderRadius: 10, padding: 12 },
   cardActive: { borderLeftWidth: 4 },
   cardHeader: {
     flexDirection: 'row',
@@ -949,18 +950,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  storeInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  storeInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   storeName: { fontSize: fonts.large, fontWeight: '600' },
   orderNumber: { fontSize: fonts.small, marginTop: 2 },
   statusBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   statusText: { fontSize: fonts.tiny, fontWeight: '600' },
   addressSection: {
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 12,
     marginBottom: 12,
-    gap: 8,
+    gap: 6,
   },
-  addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   addressLabel: { fontSize: fonts.tiny, fontWeight: '600' },
   addressText: { fontSize: fonts.small, marginTop: 2 },
   addressDivider: {
@@ -983,8 +984,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    borderRadius: 12,
-    paddingHorizontal: 20,
+    borderRadius: 10,
+    paddingHorizontal: 10,
     paddingVertical: 12,
   },
   acceptButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: fonts.regular },
@@ -993,8 +994,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    borderRadius: 10,
+    paddingHorizontal: 12,
     paddingVertical: 10,
   },
   actionButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: fonts.small },
@@ -1002,9 +1003,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     backgroundColor: '#4285F4',
-    borderRadius: 12,
+    borderRadius: 10,
     paddingVertical: 12,
     marginBottom: 12,
   },
@@ -1014,7 +1015,7 @@ const styles = StyleSheet.create({
     fontSize: fonts.regular,
   },
   completedSection: {
-    gap: 8,
+    gap: 6,
   },
   completedInfo: {
     flexDirection: 'row',
@@ -1040,7 +1041,7 @@ const styles = StyleSheet.create({
     fontSize: fonts.tiny,
     fontStyle: 'italic',
   },
-  emptyContainer: { alignItems: 'center', marginTop: 48, gap: 12, paddingHorizontal: 32 },
+  emptyContainer: { alignItems: 'center', marginTop: 48, gap: 6, paddingHorizontal: 32 },
   emptyText: { fontSize: fonts.large, fontWeight: '600' },
   emptySubtext: { fontSize: fonts.regular, textAlign: 'center', lineHeight: 22 },
   onlineGuideIcon: {
@@ -1052,27 +1053,27 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   onlineGuideSteps: {
-    borderRadius: 16,
-    padding: 16,
-    gap: 14,
+    borderRadius: 10,
+    padding: 12,
+    gap: 6,
     width: '100%',
     marginTop: 8,
   },
   onlineGuideStep: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
   },
   stepNumber: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   stepNumberText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 10,
     fontWeight: 'bold',
   },
   stepText: {
@@ -1084,9 +1085,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderRadius: 12,
-    paddingVertical: 14,
+    gap: 6,
+    borderRadius: 10,
+    paddingVertical: 10,
     paddingHorizontal: 32,
     marginTop: 8,
     width: '100%',
@@ -1124,11 +1125,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 100,
-    padding: 24,
+    padding: 12,
   },
   offerCard: {
     borderRadius: 20,
-    padding: 24,
+    padding: 12,
     width: '100%',
     maxWidth: 400,
   },
@@ -1144,15 +1145,15 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   offerInfo: {
-    borderRadius: 12,
-    padding: 16,
-    gap: 10,
-    marginVertical: 16,
+    borderRadius: 10,
+    padding: 12,
+    gap: 6,
+    marginVertical: 12,
   },
   offerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   offerText: {
     fontSize: fonts.small,
@@ -1164,12 +1165,12 @@ const styles = StyleSheet.create({
   },
   offerButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 6,
   },
   offerDecline: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
     alignItems: 'center',
   },
   offerDeclineText: {
@@ -1179,11 +1180,11 @@ const styles = StyleSheet.create({
   offerAccept: {
     flex: 2,
     flexDirection: 'row',
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
   },
   offerAcceptText: {
     fontSize: fonts.regular,

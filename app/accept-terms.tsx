@@ -511,13 +511,13 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         {readOnly && onClose && (
-          <TouchableOpacity style={[styles.closeButton, { top: insets.top + 12 }]} onPress={onClose}>
-            <Ionicons name="close" size={24} color={colors.text} />
+          <TouchableOpacity style={[styles.closeButton, { top: insets.top + 8 }]} onPress={onClose}>
+            <Ionicons name="close" size={18} color={colors.text} />
           </TouchableOpacity>
         )}
-        <Ionicons name="document-text" size={32} color={colors.primary} />
+        <Ionicons name="document-text" size={26} color={colors.primary} />
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.subtitle}>
           {readOnly
@@ -549,7 +549,7 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
       {readOnly ? (
         <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
           <TouchableOpacity style={styles.pdfButton} onPress={handleDownloadPdf}>
-            <Ionicons name="download-outline" size={20} color={colors.primary} />
+            <Ionicons name="download-outline" size={18} color={colors.primary} />
             <Text style={styles.pdfButtonText}>Baixar contrato em PDF</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.closeFooterButton} onPress={onClose}>
@@ -571,7 +571,7 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
           >
             <Ionicons
               name={checked ? 'checkbox' : 'square-outline'}
-              size={24}
+              size={18}
               color={checked ? colors.primary : scrolledToEnd ? colors.gray : colors.grayLight}
             />
             <Text style={[styles.checkboxText, !scrolledToEnd && { color: colors.gray }]}>
@@ -603,8 +603,8 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 56,
-    paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: colors.grayLight,
@@ -632,14 +632,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contractContent: {
-    padding: 20,
+    padding: 10,
     paddingBottom: 32,
   },
   signeeBox: {
     backgroundColor: colors.grayLight,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 20,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
   },
   signeeLabel: {
     fontSize: fonts.tiny,
@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   footer: {
-    padding: 16,
+    padding: 12,
     paddingBottom: 32,
     borderTopWidth: 1,
     borderTopColor: colors.grayLight,
@@ -679,8 +679,8 @@ const styles = StyleSheet.create({
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 16,
+    gap: 6,
+    marginBottom: 12,
   },
   checkboxText: {
     flex: 1,
@@ -690,8 +690,8 @@ const styles = StyleSheet.create({
   },
   acceptButton: {
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     alignItems: 'center',
   },
   buttonDisabled: {
@@ -706,7 +706,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     paddingVertical: 10,
     marginBottom: 12,
     borderWidth: 1,
@@ -720,8 +720,8 @@ const styles = StyleSheet.create({
   },
   closeFooterButton: {
     backgroundColor: colors.grayLight,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     alignItems: 'center',
   },
   closeFooterText: {

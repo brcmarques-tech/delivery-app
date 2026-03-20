@@ -33,11 +33,11 @@ export default function PromotionScreen() {
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.topBar, { top: insets.top + 8 }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <Ionicons name="arrow-back" size={18} color={colors.text} />
           </TouchableOpacity>
         </View>
         <View style={styles.emptyCenter}>
-          <Ionicons name="megaphone-outline" size={48} color={colors.gray} />
+          <Ionicons name="megaphone-outline" size={36} color={colors.gray} />
           <Text style={[styles.emptyText, { color: colors.textLight }]}>Promocao nao encontrada</Text>
         </View>
       </View>
@@ -66,11 +66,11 @@ export default function PromotionScreen() {
       {/* Top bar */}
       <View style={[styles.topBar, { backgroundColor: 'transparent', top: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
-          <Ionicons name="arrow-back" size={22} color="#FFF" />
+          <Ionicons name="arrow-back" size={18} color="#FFF" />
         </TouchableOpacity>
         {itemCount > 0 && (
           <TouchableOpacity onPress={() => router.push('/cart')} style={[styles.backBtn, { backgroundColor: staticColors.primary }]}>
-            <Ionicons name="cart" size={22} color="#FFF" />
+            <Ionicons name="cart" size={18} color="#FFF" />
             <View style={styles.cartBadge}>
               <Text style={styles.cartBadgeText}>{itemCount}</Text>
             </View>
@@ -146,7 +146,7 @@ export default function PromotionScreen() {
                   <Image source={{ uri: promo.product.imageUrl }} style={styles.productImage} />
                 ) : (
                   <View style={[styles.productImage, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                    <Ionicons name="cube-outline" size={24} color={colors.gray} />
+                    <Ionicons name="cube-outline" size={18} color={colors.gray} />
                   </View>
                 )}
                 <View style={styles.productInfo}>
@@ -175,14 +175,14 @@ export default function PromotionScreen() {
                   <Image source={{ uri: promo.store.logoUrl }} style={styles.storeLogo} />
                 ) : (
                   <View style={[styles.storeLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                    <Ionicons name="storefront-outline" size={24} color={colors.gray} />
+                    <Ionicons name="storefront-outline" size={18} color={colors.gray} />
                   </View>
                 )}
                 <View style={{ flex: 1 }}>
                   <View style={styles.storeNameRow}>
                     <Text style={[styles.storeName, { color: colors.text }]}>{promo.store.name}</Text>
                     {promo.store.verificationLevel && promo.store.verificationLevel !== 'NONE' && (
-                      <Text style={{ fontSize: 14 }}>
+                      <Text style={{ fontSize: 12 }}>
                         {promo.store.verificationLevel === 'BRONZE' ? '🥉' : promo.store.verificationLevel === 'SILVER' ? '🥈' : promo.store.verificationLevel === 'GOLD' ? '🥇' : '💎'}
                       </Text>
                     )}
@@ -205,7 +205,7 @@ export default function PromotionScreen() {
                   </View>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.gray} />
+              <Ionicons name="chevron-forward" size={18} color={colors.gray} />
             </TouchableOpacity>
           ) : null}
 
@@ -217,7 +217,7 @@ export default function PromotionScreen() {
       {promo.product && promo.store?.isOpen && (
         <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: insets.bottom + 16 }]}>
           <TouchableOpacity style={styles.addButton} onPress={handleAddToCart}>
-            <Ionicons name="cart-outline" size={20} color="#FFF" />
+            <Ionicons name="cart-outline" size={18} color="#FFF" />
             <Text style={styles.addButtonText}>Adicionar ao carrinho - R$ {promoPrice.toFixed(2)}</Text>
           </TouchableOpacity>
         </View>
@@ -266,17 +266,17 @@ const styles = StyleSheet.create({
     top: width * 0.65 - 20,
     right: 16,
     backgroundColor: staticColors.danger,
-    borderRadius: 12,
-    paddingHorizontal: 14,
+    borderRadius: 10,
+    paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  discountText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  discountText: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
   content: {
     marginTop: -20,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingHorizontal: 16,
-    paddingTop: 24,
+    paddingHorizontal: 12,
+    paddingTop: 12,
   },
   titleRow: {
     marginBottom: 8,
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   timerText: {
     fontSize: fonts.small,
@@ -297,12 +297,12 @@ const styles = StyleSheet.create({
     color: staticColors.danger,
   },
   priceCard: {
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 10,
+    padding: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   priceLeft: {},
   originalPrice: {
@@ -322,8 +322,8 @@ const styles = StyleSheet.create({
   },
   discountPill: {
     backgroundColor: staticColors.danger,
-    borderRadius: 12,
-    paddingHorizontal: 14,
+    borderRadius: 10,
+    paddingHorizontal: 10,
     paddingVertical: 8,
   },
   discountPillText: {
@@ -332,9 +332,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   section: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: fonts.large,
@@ -347,13 +347,13 @@ const styles = StyleSheet.create({
   },
   productRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 6,
     alignItems: 'center',
   },
   productImage: {
     width: 72,
     height: 72,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   productInfo: {
     flex: 1,
@@ -382,23 +382,23 @@ const styles = StyleSheet.create({
     color: staticColors.primary,
   },
   storeCard: {
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   storeLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
     flex: 1,
   },
   storeLogo: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   storeNameRow: {
     flexDirection: 'row',
@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
   storeDetails: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 6,
     marginTop: 4,
   },
   storeDetail: {
@@ -433,19 +433,19 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 16,
+    padding: 12,
     paddingBottom: 32,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.05)',
   },
   addButton: {
     backgroundColor: staticColors.primary,
-    borderRadius: 14,
-    paddingVertical: 16,
+    borderRadius: 10,
+    paddingVertical: 12,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   addButtonText: {
     color: '#FFF',
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     paddingVertical: 12,
   },
   differentStoreText: {
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
   },
   emptyText: {
     fontSize: fonts.regular,

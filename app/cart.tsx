@@ -156,7 +156,7 @@ export default function CartScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: colors.white }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: colors.white }]}>
         <View style={{ width: 24 }} />
         <Text style={[styles.title, { color: colors.text }]}>Carrinho</Text>
         <TouchableOpacity onPress={clearCart}>
@@ -171,7 +171,7 @@ export default function CartScreen() {
       >
         <Ionicons
           name={selectedIds.size === items.length ? 'checkbox' : 'square-outline'}
-          size={22}
+          size={18}
           color={selectedIds.size === items.length ? colors.primary : colors.gray}
         />
         <Text style={[styles.selectAllText, { color: colors.text }]}>
@@ -194,7 +194,7 @@ export default function CartScreen() {
             >
               <Ionicons
                 name={allSelected ? 'checkbox' : someSelected ? 'remove-circle-outline' : 'square-outline'}
-                size={20}
+                size={18}
                 color={allSelected ? colors.primary : colors.gray}
               />
               <Ionicons name="storefront-outline" size={18} color={colors.primary} />
@@ -224,7 +224,7 @@ export default function CartScreen() {
               >
                 <Ionicons
                   name={isSelected ? 'checkbox' : 'square-outline'}
-                  size={22}
+                  size={18}
                   color={isSelected ? colors.primary : colors.gray}
                 />
               </TouchableOpacity>
@@ -311,7 +311,7 @@ export default function CartScreen() {
             disabled={selectedCount === 0 || multipleStoresSelected}
           >
             <Text style={styles.checkoutText}>Comprar</Text>
-            <Ionicons name="arrow-forward" size={20} color="#fff" />
+            <Ionicons name="arrow-forward" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -321,15 +321,15 @@ export default function CartScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: staticColors.background },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16, backgroundColor: staticColors.background },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 6, backgroundColor: staticColors.background },
   emptyText: { fontSize: fonts.regular, color: staticColors.textLight },
-  emptyButton: { backgroundColor: staticColors.primary, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
+  emptyButton: { backgroundColor: staticColors.primary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12 },
   emptyButtonText: { color: '#fff', fontWeight: 'bold' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 24,
+    padding: 12,
     paddingTop: 56,
     backgroundColor: staticColors.white,
   },
@@ -338,19 +338,19 @@ const styles = StyleSheet.create({
   selectAllRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
+    gap: 6,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: staticColors.white,
     borderBottomWidth: 1,
     borderBottomColor: staticColors.grayLight,
   },
   selectAllText: { fontSize: fonts.small, color: staticColors.text, fontWeight: '600' },
-  list: { padding: 16, paddingBottom: 140 },
+  list: { padding: 12, paddingBottom: 140 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     paddingVertical: 10,
     paddingHorizontal: 4,
     marginTop: 8,
@@ -362,12 +362,12 @@ const styles = StyleSheet.create({
   },
   itemCard: {
     backgroundColor: staticColors.white,
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 12,
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 6,
   },
   itemCardSelected: {
     borderWidth: 1.5,
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
   itemName: { fontSize: fonts.regular, fontWeight: '600', color: staticColors.text },
   itemPrice: { fontSize: fonts.small, color: staticColors.primary, fontWeight: '600', marginTop: 2 },
   itemNotes: { fontSize: fonts.tiny, color: staticColors.textLight, marginTop: 2, fontStyle: 'italic' },
-  quantityRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  quantityRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   qtyButton: {
     width: 30,
     height: 30,
@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
     backgroundColor: staticColors.white,
     borderTopWidth: 1,
     borderTopColor: staticColors.grayLight,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingTop: 12,
   },
   footerRow: {
@@ -418,12 +418,12 @@ const styles = StyleSheet.create({
   },
   checkoutButton: {
     backgroundColor: staticColors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   checkoutDisabled: { opacity: 0.4 },
   checkoutText: { color: '#fff', fontSize: fonts.regular, fontWeight: 'bold' },

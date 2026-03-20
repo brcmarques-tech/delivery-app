@@ -268,21 +268,21 @@ export default function CardsScreen() {
       style={[styles.container, { backgroundColor: themeColors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: themeColors.card, borderBottomColor: themeColors.border, borderBottomWidth: 1 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: themeColors.card, borderBottomColor: themeColors.border, borderBottomWidth: 1 }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Ionicons name="arrow-back" size={24} color={themeColors.text} />
+          <Ionicons name="arrow-back" size={18} color={themeColors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: themeColors.text }]}>Meus Cartoes</Text>
         <TouchableOpacity onPress={() => { setShowForm(!showForm); setErrors({}); }}>
-          <Ionicons name={showForm ? 'close' : 'add-circle-outline'} size={24} color="#f97316" />
+          <Ionicons name={showForm ? 'close' : 'add-circle-outline'} size={18} color="#f97316" />
         </TouchableOpacity>
       </View>
 
       {showForm && (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: insets.bottom + 16 }} keyboardShouldPersistTaps="handled">
           <View style={[styles.formCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <Ionicons name="card" size={20} color="#f97316" />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <Ionicons name="card" size={18} color="#f97316" />
               <Text style={[styles.formTitle, { color: themeColors.text }]}>Novo Cartao</Text>
             </View>
 
@@ -298,7 +298,7 @@ export default function CardsScreen() {
               />
               {errors.cardNumber && <Text style={styles.fieldError}>{errors.cardNumber}</Text>}
               {!errors.cardNumber && detectBrand(cardNumber) ? (
-                <Text style={{ fontSize: 11, color: getBrandColor(detectBrand(cardNumber)), marginTop: 3, fontWeight: '600' }}>
+                <Text style={{ fontSize: 10, color: getBrandColor(detectBrand(cardNumber)), marginTop: 3, fontWeight: '600' }}>
                   {detectBrand(cardNumber)}
                 </Text>
               ) : null}
@@ -345,7 +345,7 @@ export default function CardsScreen() {
             </View>
 
             <View style={{ marginTop: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                 <Ionicons name="home" size={18} color="#f97316" />
                 <Text style={[styles.formTitle, { color: themeColors.text }]}>Endereco de cobranca</Text>
               </View>
@@ -446,7 +446,7 @@ export default function CardsScreen() {
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
               <Ionicons name="shield-checkmark" size={12} color={themeColors.textSecondary} />
-              <Text style={{ fontSize: 11, color: themeColors.textSecondary }}>Seus dados sao criptografados e protegidos</Text>
+              <Text style={{ fontSize: 10, color: themeColors.textSecondary }}>Seus dados sao criptografados e protegidos</Text>
             </View>
           </View>
         </ScrollView>
@@ -455,12 +455,12 @@ export default function CardsScreen() {
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#f97316" />
-          <Text style={{ color: themeColors.textSecondary, marginTop: 12, fontSize: 14 }}>Carregando cartoes...</Text>
+          <Text style={{ color: themeColors.textSecondary, marginTop: 12, fontSize: 12 }}>Carregando cartoes...</Text>
         </View>
       ) : fetchError ? (
         <View style={styles.loadingContainer}>
-          <Ionicons name="cloud-offline-outline" size={48} color={themeColors.textSecondary} />
-          <Text style={{ color: themeColors.textSecondary, marginTop: 12, fontSize: 14, textAlign: 'center' }}>
+          <Ionicons name="cloud-offline-outline" size={36} color={themeColors.textSecondary} />
+          <Text style={{ color: themeColors.textSecondary, marginTop: 12, fontSize: 12, textAlign: 'center' }}>
             Nao foi possivel carregar seus cartoes.{'\n'}Verifique sua conexao.
           </Text>
           <TouchableOpacity
@@ -468,18 +468,18 @@ export default function CardsScreen() {
             onPress={() => refetch()}
           >
             <Ionicons name="refresh" size={16} color="#f97316" />
-            <Text style={{ color: '#f97316', fontWeight: '600', fontSize: 14 }}>Tentar novamente</Text>
+            <Text style={{ color: '#f97316', fontWeight: '600', fontSize: 12 }}>Tentar novamente</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <FlatList
           data={cards}
           keyExtractor={(item: any) => item.id}
-          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
+          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 16 }]}
           renderItem={({ item }: { item: any }) => (
             <View style={[styles.cardItem, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
               <View style={[styles.cardIconBg, { backgroundColor: getBrandColor(item.brand) + '15' }]}>
-                <Ionicons name={getBrandIcon(item.brand) as any} size={22} color={getBrandColor(item.brand)} />
+                <Ionicons name={getBrandIcon(item.brand) as any} size={18} color={getBrandColor(item.brand)} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.cardBrand, { color: themeColors.text }]}>
@@ -507,14 +507,14 @@ export default function CardsScreen() {
             !showForm ? (
               <View style={styles.emptyContainer}>
                 <View style={[styles.emptyIcon, { backgroundColor: isDark ? '#431407' : '#fff7ed' }]}>
-                  <Ionicons name="card-outline" size={40} color="#f97316" />
+                  <Ionicons name="card-outline" size={26} color="#f97316" />
                 </View>
                 <Text style={[styles.emptyTitle, { color: themeColors.text }]}>Nenhum cartao salvo</Text>
                 <Text style={[styles.emptySubtitle, { color: themeColors.textSecondary }]}>
                   Adicione um cartao para facilitar seus pagamentos
                 </Text>
                 <TouchableOpacity style={styles.addButton} onPress={() => setShowForm(true)}>
-                  <Ionicons name="add" size={20} color="#fff" />
+                  <Ionicons name="add" size={18} color="#fff" />
                   <Text style={styles.addButtonText}>Adicionar cartao</Text>
                 </TouchableOpacity>
               </View>
@@ -530,48 +530,48 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingBottom: 14,
+    paddingHorizontal: 12, paddingBottom: 10,
   },
-  title: { fontSize: 18, fontWeight: 'bold' },
+  title: { fontSize: 12, fontWeight: 'bold' },
   formCard: {
-    margin: 16, borderRadius: 16, padding: 16, gap: 12, borderWidth: 1,
+    margin: 12, borderRadius: 10, padding: 12, gap: 6, borderWidth: 1,
   },
-  formTitle: { fontSize: 16, fontWeight: '600' },
+  formTitle: { fontSize: 12, fontWeight: '600' },
   input: {
-    borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14,
+    borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 12,
   },
-  formRow: { flexDirection: 'row', gap: 12 },
+  formRow: { flexDirection: 'row', gap: 6 },
   saveButton: {
-    backgroundColor: '#f97316', borderRadius: 12, padding: 14,
+    backgroundColor: '#f97316', borderRadius: 10, padding: 10,
     alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6,
   },
-  saveButtonText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
-  fieldError: { fontSize: 11, color: '#ef4444', marginTop: 3 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  saveButtonText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
+  fieldError: { fontSize: 10, color: '#ef4444', marginTop: 3 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 12 },
   retryBtn: {
-    flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 16,
-    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1,
+    flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 12,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1,
   },
-  list: { padding: 16, gap: 12 },
+  list: { padding: 12, gap: 6 },
   cardItem: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: 16, padding: 16, borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderRadius: 10, padding: 12, borderWidth: 1,
   },
   cardIconBg: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  cardBrand: { fontSize: 14, fontWeight: '600' },
+  cardBrand: { fontSize: 12, fontWeight: '600' },
   cardHolder: { fontSize: 12, marginTop: 2 },
-  cardExpiry: { fontSize: 11, marginTop: 2 },
+  cardExpiry: { fontSize: 10, marginTop: 2 },
   deleteBtn: {
     width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(239,68,68,0.08)',
   },
-  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 12, paddingHorizontal: 32 },
-  emptyIcon: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  emptyTitle: { fontSize: 18, fontWeight: '600' },
-  emptySubtitle: { fontSize: 14, textAlign: 'center' },
+  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 6, paddingHorizontal: 32 },
+  emptyIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  emptyTitle: { fontSize: 12, fontWeight: '600' },
+  emptySubtitle: { fontSize: 12, textAlign: 'center' },
   addButton: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#f97316', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 14, marginTop: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#f97316', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginTop: 4,
   },
-  addButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  addButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 10 },
 });

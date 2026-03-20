@@ -16,10 +16,10 @@ export const colors = {
 };
 
 export const fonts = {
-  regular: 16,
-  small: 14,
-  tiny: 12,
-  large: 18,
-  xlarge: 24,
-  title: 28,
+  regular: 14,
+  small: 12,
+  tiny: 10,
+  large: 16,
+  xlarge: 18,
+  title: 22,
 };

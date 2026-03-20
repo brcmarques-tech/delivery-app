@@ -206,7 +206,7 @@ export default function OnboardingAddressScreen() {
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
         <View style={styles.iconCircle}>
-          <Ionicons name="location" size={40} color={colors.primary} />
+          <Ionicons name="location" size={26} color={colors.primary} />
         </View>
         <Text style={styles.title}>Onde voce esta?</Text>
         <Text style={styles.subtitle}>
@@ -219,7 +219,7 @@ export default function OnboardingAddressScreen() {
           <ActivityIndicator size="small" color={colors.white} />
         ) : (
           <>
-            <Ionicons name="navigate" size={20} color={colors.white} />
+            <Ionicons name="navigate" size={18} color={colors.white} />
             <Text style={styles.gpsButtonText}>Usar minha localizacao atual</Text>
           </>
         )}
@@ -308,8 +308,8 @@ export default function OnboardingAddressScreen() {
               data={ESTADOS_BR}
               keyExtractor={(item) => item}
               numColumns={4}
-              contentContainerStyle={{ gap: 8 }}
-              columnWrapperStyle={{ gap: 8 }}
+              contentContainerStyle={{ gap: 6 }}
+              columnWrapperStyle={{ gap: 6 }}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[
@@ -415,16 +415,16 @@ export default function OnboardingAddressScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
-  content: { padding: 24, paddingTop: 60, paddingBottom: 40 },
+  content: { padding: 12, paddingTop: 60, paddingBottom: 40 },
   header: { alignItems: 'center', marginBottom: 32 },
   iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   title: {
     fontSize: fonts.title,
@@ -443,10 +443,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 6,
     backgroundColor: colors.primary,
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
   },
   gpsButtonText: {
     color: colors.white,
@@ -456,8 +456,8 @@ const styles = StyleSheet.create({
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 20,
-    gap: 12,
+    marginVertical: 14,
+    gap: 6,
   },
   dividerLine: {
     flex: 1,
@@ -468,21 +468,21 @@ const styles = StyleSheet.create({
     fontSize: fonts.small,
     color: colors.gray,
   },
-  form: { gap: 12 },
-  formRow: { flexDirection: 'row', gap: 10 },
+  form: { gap: 6 },
+  formRow: { flexDirection: 'row', gap: 6 },
   input: {
     backgroundColor: colors.background,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 10,
+    padding: 10,
     fontSize: fonts.regular,
     color: colors.text,
   },
   saveButton: {
     backgroundColor: colors.primary,
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: 12,
   },
   saveButtonText: {
     color: colors.white,
@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
   },
   skipButton: {
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 12,
     padding: 12,
   },
   skipText: {
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 24,
+    padding: 12,
     maxHeight: '50%',
   },
   modalTitle: {
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.text,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   stateChip: {
     flex: 1,
@@ -549,8 +549,8 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   mapSection: {
-    marginTop: 24,
-    gap: 8,
+    marginTop: 12,
+    gap: 6,
   },
   mapTitle: {
     fontSize: fonts.large,
@@ -572,7 +572,7 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     height: 250,
-    borderRadius: 16,
+    borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: colors.grayLight,
   },
@@ -581,13 +581,13 @@ const styles = StyleSheet.create({
   },
   mapButtons: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
+    gap: 6,
+    marginTop: 12,
   },
   mapBackButton: {
     flex: 1,
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.grayLight,
