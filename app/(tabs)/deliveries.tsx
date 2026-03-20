@@ -28,6 +28,14 @@ import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscript
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../src/theme';
 
+let MapView: any = View;
+let Marker: any = View;
+if (Platform.OS !== 'web') {
+  const maps = require('react-native-maps');
+  MapView = maps.default;
+  Marker = maps.Marker;
+}
+
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000; // meters
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -72,10 +80,19 @@ interface DeliveryOffer {
   orderId: string;
   orderNumber: string;
   storeAddress: string;
+  storeLat?: number;
+  storeLng?: number;
   deliveryAddress: string;
   deliveryFee: number;
   itemCount: number;
   timeoutSeconds: number;
+}
+
+interface AcceptedStore {
+  name: string;
+  latitude: number;
+  longitude: number;
+  address: string;
 }
 
 export default function DeliveriesScreen() {
@@ -86,6 +103,8 @@ export default function DeliveriesScreen() {
   const [tab, setTab] = useState<Tab>('available');
   const [isOnline, setIsOnline] = useState(false);
   const [currentOffer, setCurrentOffer] = useState<DeliveryOffer | null>(null);
+  const [acceptedStore, setAcceptedStore] = useState<AcceptedStore | null>(null);
+  const [clientLocation, setClientLocation] = useState<{ latitude: number; longitude: number; address: string } | null>(null);
   const [offerCountdown, setOfferCountdown] = useState(0);
   const socketRef = useRef<Socket | null>(null);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
@@ -94,6 +113,7 @@ export default function DeliveriesScreen() {
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   const statusLabels: Record<string, { label: string; color: string }> = {
+    READY: { label: 'Aguardando coleta', color: colors.warning },
     VENDOR_CONFIRMED_PICKUP: { label: 'Aguardando coleta', color: colors.warning },
     PICKED_UP: { label: 'Coletado', color: colors.warning },
     DELIVERING: { label: 'A caminho', color: colors.primary },
@@ -155,7 +175,7 @@ export default function DeliveriesScreen() {
       return false;
     }
 
-    const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
     const { latitude, longitude } = current.coords;
 
     const socket = io(WS_URL, { transports: ['websocket'] });
@@ -163,23 +183,29 @@ export default function DeliveriesScreen() {
 
     socket.on('connect', () => {
       socket.emit('delivererOnline', { userId: user?.id, latitude, longitude });
+      // Refresh data on reconnect
+      refetchAvailable();
+      refetchMy();
     });
 
     // Listen for delivery offers
     socket.on('deliveryOffer', (offer: DeliveryOffer) => {
       setCurrentOffer(offer);
       setOfferCountdown(offer.timeoutSeconds);
+      refetchAvailable();
       try { Vibration.vibrate([0, 500, 200, 500]); } catch {}
     });
 
     // Listen for broadcast available deliveries
     socket.on('newAvailableDelivery', () => {
       refetchAvailable();
+      refetchMy();
     });
 
-    // Start watching location
+    // Start watching location (low power — just for "nearest deliverer" ranking)
+    // High accuracy tracking is handled by useDeliveryTracking when a delivery is active
     locationSubRef.current = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.High, distanceInterval: 50, timeInterval: 15000 },
+      { accuracy: Location.Accuracy.Balanced, distanceInterval: 100, timeInterval: 60000 },
       (loc) => {
         setCurrentLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
         socket.emit('delivererLocationUpdate', {
@@ -284,38 +310,70 @@ export default function DeliveriesScreen() {
 
   // Offer countdown timer
   useEffect(() => {
-    if (!currentOffer || offerCountdown <= 0) return;
+    if (!currentOffer) return;
     const timer = setInterval(() => {
       setOfferCountdown((prev) => {
         if (prev <= 1) {
           setCurrentOffer(null);
+          clearInterval(timer);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [currentOffer, offerCountdown]);
+  }, [currentOffer]);
 
   async function handleAcceptOffer() {
-    if (!currentOffer || !socketRef.current) return;
+    if (!currentOffer) return;
     if (!paymentConnected) {
       alert('Conta nao conectada', 'Conecte sua conta de pagamento para aceitar entregas.');
       setCurrentOffer(null);
       return;
     }
-    const { orderId } = currentOffer;
-    setCurrentOffer(null);
-    socketRef.current.emit('acceptOffer', { orderId, delivererId: user?.id });
+    const offer = currentOffer;
+    const { orderId } = offer;
     setActionLoading(orderId);
     try {
-      await acceptDelivery({ variables: { orderId } });
+      // Notify server via socket (best-effort, don't block on it)
+      if (socketRef.current?.connected) {
+        socketRef.current.emit('acceptOffer', { orderId, delivererId: user?.id });
+      }
+      // Use GraphQL mutation as the reliable acceptance method
+      const { data: acceptData } = await acceptDelivery({ variables: { orderId } });
+      setCurrentOffer(null);
+      await refetchMy();
       refetchAvailable();
-      refetchMy();
       setTab('my');
-      alert('Sucesso', 'Entrega aceita! Va ate a loja para coletar.');
-    } catch {
-      alert('Erro', 'Nao foi possivel aceitar a entrega.');
+
+      // Show store map modal
+      const store = acceptData?.acceptDelivery?.order?.store;
+      if (store?.latitude && store?.longitude) {
+        const addr = [store.street, store.number, store.neighborhood, store.city].filter(Boolean).join(', ');
+        setAcceptedStore({
+          name: store.name,
+          latitude: Number(store.latitude),
+          longitude: Number(store.longitude),
+          address: addr,
+        });
+      } else if (offer.storeLat && offer.storeLng) {
+        setAcceptedStore({
+          name: 'Loja',
+          latitude: offer.storeLat,
+          longitude: offer.storeLng,
+          address: offer.storeAddress,
+        });
+      } else {
+        alert('Sucesso', 'Entrega aceita! Va ate a loja para coletar.');
+      }
+    } catch (e: any) {
+      setCurrentOffer(null);
+      const msg = e?.message || '';
+      if (msg.includes('already') || msg.includes('assigned')) {
+        alert('Oferta expirada', 'Essa entrega ja foi aceita por outro entregador.');
+      } else {
+        alert('Erro', 'Nao foi possivel aceitar a entrega.');
+      }
     } finally {
       setActionLoading(null);
     }
@@ -346,13 +404,13 @@ export default function DeliveriesScreen() {
     data: availableData,
     loading: loadingAvailable,
     refetch: refetchAvailable,
-  } = useQuery(GET_AVAILABLE_DELIVERIES, { pollInterval: 10000 });
+  } = useQuery(GET_AVAILABLE_DELIVERIES);
 
   const {
     data: myData,
     loading: loadingMy,
     refetch: refetchMy,
-  } = useQuery(GET_MY_DELIVERIES, { pollInterval: 10000 });
+  } = useQuery(GET_MY_DELIVERIES);
 
   // Real-time updates
   useSubscription(ORDER_UPDATED, {
@@ -406,11 +464,23 @@ export default function DeliveriesScreen() {
           if (actionLoading) return;
           setActionLoading(orderId);
           try {
-            await acceptDelivery({ variables: { orderId } });
+            const { data: acceptData } = await acceptDelivery({ variables: { orderId } });
             refetchAvailable();
-            refetchMy();
+            await refetchMy();
             setTab('my');
-            alert('Sucesso', 'Entrega aceita! Va ate a loja para coletar.');
+            // Show store map modal
+            const store = acceptData?.acceptDelivery?.order?.store;
+            if (store?.latitude && store?.longitude) {
+              const addr = [store.street, store.number, store.neighborhood, store.city].filter(Boolean).join(', ');
+              setAcceptedStore({
+                name: store.name,
+                latitude: Number(store.latitude),
+                longitude: Number(store.longitude),
+                address: addr,
+              });
+            } else {
+              alert('Sucesso', 'Entrega aceita! Va ate a loja para coletar.');
+            }
           } catch {
             alert('Erro', 'Nao foi possivel aceitar a entrega.');
           } finally {
@@ -421,7 +491,7 @@ export default function DeliveriesScreen() {
     ]);
   }
 
-  async function handleConfirmPickup(deliveryId: string) {
+  async function handleConfirmPickup(deliveryId: string, order?: any) {
     if (actionLoading) return;
     alert('Confirmar coleta', 'Voce ja retirou o pedido na loja?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -432,7 +502,17 @@ export default function DeliveriesScreen() {
           setActionLoading(deliveryId);
           try {
             await confirmPickup({ variables: { deliveryId } });
-            refetchMy();
+            await refetchMy();
+            // Show client map modal
+            const lat = Number(order?.deliveryLatitude);
+            const lng = Number(order?.deliveryLongitude);
+            if (lat && lng) {
+              setClientLocation({
+                latitude: lat,
+                longitude: lng,
+                address: order?.deliveryAddress || 'Cliente',
+              });
+            }
           } catch {
             alert('Erro', 'Nao foi possivel confirmar a coleta.');
           } finally {
@@ -568,33 +648,6 @@ export default function DeliveriesScreen() {
               </View>
             </View>
 
-            {order.status === 'VENDOR_CONFIRMED_PICKUP' && (
-              <TouchableOpacity
-                style={styles.navigateButton}
-                onPress={() => openNavigation(
-                  Number(order.store.latitude),
-                  Number(order.store.longitude),
-                  order.store.name,
-                )}
-              >
-                <Ionicons name="navigate" size={18} color="#FFFFFF" />
-                <Text style={styles.navigateButtonText}>Navegar ate a loja</Text>
-              </TouchableOpacity>
-            )}
-
-            {(order.status === 'PICKED_UP' || order.status === 'DELIVERING') && (
-              <TouchableOpacity
-                style={styles.navigateButton}
-                onPress={() => openNavigation(
-                  Number(order.deliveryLatitude),
-                  Number(order.deliveryLongitude),
-                  'Cliente',
-                )}
-              >
-                <Ionicons name="navigate" size={18} color="#FFFFFF" />
-                <Text style={styles.navigateButtonText}>Navegar ate o cliente</Text>
-              </TouchableOpacity>
-            )}
 
             <View style={styles.itemsList}>
               {order.items.map((oi: any) => (
@@ -606,7 +659,7 @@ export default function DeliveriesScreen() {
 
             <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
               <Text style={[styles.totalText, { color: colors.text }]}>R$ {Number(order.total).toFixed(2)}</Text>
-              {order.status === 'VENDOR_CONFIRMED_PICKUP' && (() => {
+              {(order.status === 'READY' || order.status === 'VENDOR_CONFIRMED_PICKUP') && (() => {
                 const storeLat = Number(order.store.latitude);
                 const storeLng = Number(order.store.longitude);
                 const nearStore = currentLocation
@@ -615,7 +668,7 @@ export default function DeliveriesScreen() {
                 return nearStore ? (
                   <TouchableOpacity
                     style={[styles.actionButton, { backgroundColor: actionLoading ? colors.gray : colors.primary }]}
-                    onPress={() => handleConfirmPickup(item.id)}
+                    onPress={() => handleConfirmPickup(item.id, order)}
                     disabled={!!actionLoading}
                   >
                     <Ionicons name={actionLoading === item.id ? 'hourglass' : 'bag-check'} size={18} color="#FFFFFF" />
@@ -701,6 +754,119 @@ export default function DeliveriesScreen() {
               <TouchableOpacity style={[styles.offerAccept, { backgroundColor: actionLoading ? colors.gray : colors.success }]} onPress={handleAcceptOffer} disabled={!!actionLoading}>
                 <Ionicons name={actionLoading ? 'hourglass' : 'checkmark-circle'} size={18} color="#FFFFFF" />
                 <Text style={styles.offerAcceptText}>{actionLoading ? 'Aceitando...' : 'Aceitar'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal: Store map after accepting delivery */}
+      <Modal visible={!!acceptedStore} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden', maxHeight: '80%' }}>
+            <View style={{ padding: 16, alignItems: 'center' }}>
+              <Text style={{ fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text }}>Va ate a loja!</Text>
+              <Text style={{ fontSize: fonts.regular, color: colors.textLight, marginTop: 4 }}>{acceptedStore?.name}</Text>
+              <Text style={{ fontSize: fonts.small, color: colors.textLight, marginTop: 2, textAlign: 'center' }}>{acceptedStore?.address}</Text>
+            </View>
+            {acceptedStore && Platform.OS !== 'web' && (
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => {
+                  if (acceptedStore) openNavigation(acceptedStore.latitude, acceptedStore.longitude, acceptedStore.name);
+                }}
+              >
+                <MapView
+                  style={{ width: '100%', height: 250 }}
+                  initialRegion={{
+                    latitude: acceptedStore.latitude,
+                    longitude: acceptedStore.longitude,
+                    latitudeDelta: 0.005,
+                    longitudeDelta: 0.005,
+                  }}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                  pitchEnabled={false}
+                  rotateEnabled={false}
+                >
+                  <Marker
+                    coordinate={{ latitude: acceptedStore.latitude, longitude: acceptedStore.longitude }}
+                    title={acceptedStore.name}
+                  />
+                </MapView>
+              </TouchableOpacity>
+            )}
+            <View style={{ padding: 16, gap: 10 }}>
+              <TouchableOpacity
+                style={{ backgroundColor: colors.primary, padding: 14, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                onPress={() => {
+                  if (acceptedStore) openNavigation(acceptedStore.latitude, acceptedStore.longitude, acceptedStore.name);
+                }}
+              >
+                <Ionicons name="navigate" size={18} color="#FFFFFF" />
+                <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: fonts.regular }}>Abrir no Maps</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ padding: 14, borderRadius: 12, alignItems: 'center', backgroundColor: colors.grayLight }}
+                onPress={() => setAcceptedStore(null)}
+              >
+                <Text style={{ color: colors.text, fontWeight: '600', fontSize: fonts.regular }}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal: Client map after confirming pickup */}
+      <Modal visible={!!clientLocation} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden', maxHeight: '80%' }}>
+            <View style={{ padding: 16, alignItems: 'center' }}>
+              <Text style={{ fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text }}>Entregar ao cliente</Text>
+              <Text style={{ fontSize: fonts.small, color: colors.textLight, marginTop: 2, textAlign: 'center' }}>{clientLocation?.address}</Text>
+            </View>
+            {clientLocation && Platform.OS !== 'web' && (
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => {
+                  if (clientLocation) openNavigation(clientLocation.latitude, clientLocation.longitude, 'Cliente');
+                }}
+              >
+                <MapView
+                  style={{ width: '100%', height: 250 }}
+                  initialRegion={{
+                    latitude: clientLocation.latitude,
+                    longitude: clientLocation.longitude,
+                    latitudeDelta: 0.005,
+                    longitudeDelta: 0.005,
+                  }}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                  pitchEnabled={false}
+                  rotateEnabled={false}
+                >
+                  <Marker
+                    coordinate={{ latitude: clientLocation.latitude, longitude: clientLocation.longitude }}
+                    title="Cliente"
+                  />
+                </MapView>
+              </TouchableOpacity>
+            )}
+            <View style={{ padding: 16, gap: 10 }}>
+              <TouchableOpacity
+                style={{ backgroundColor: colors.primary, padding: 14, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                onPress={() => {
+                  if (clientLocation) openNavigation(clientLocation.latitude, clientLocation.longitude, 'Cliente');
+                }}
+              >
+                <Ionicons name="navigate" size={18} color="#FFFFFF" />
+                <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: fonts.regular }}>Abrir no Maps</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ padding: 14, borderRadius: 12, alignItems: 'center', backgroundColor: colors.grayLight }}
+                onPress={() => setClientLocation(null)}
+              >
+                <Text style={{ color: colors.text, fontWeight: '600', fontSize: fonts.regular }}>Fechar</Text>
               </TouchableOpacity>
             </View>
           </View>
