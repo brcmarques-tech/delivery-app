@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,8 +19,13 @@ import { colors as staticColors, fonts } from '../../src/theme';
 export default function OrdersScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, loading, refetch } = useQuery(GET_MY_ORDERS, { pollInterval: 15000 });
+  const { data, loading, refetch } = useQuery(GET_MY_ORDERS, { pollInterval: 30000 });
   const orders = data?.myOrders || [];
+  const refetchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const debouncedRefetch = useCallback(() => {
+    clearTimeout(refetchTimeoutRef.current);
+    refetchTimeoutRef.current = setTimeout(() => refetch(), 1000);
+  }, [refetch]);
 
   const statusLabels: Record<string, { label: string; color: string }> = {
     AWAITING_PAYMENT: { label: 'Aguardando pagamento', color: colors.warning },
@@ -41,9 +46,9 @@ export default function OrdersScreen() {
     EXPIRED: { label: 'Expirado', color: colors.gray },
   };
 
-  // Real-time order updates
+  // Real-time order updates (debounced to prevent excessive refetches)
   useSubscription(ORDER_UPDATED, {
-    onData: () => { refetch(); },
+    onData: () => { debouncedRefetch(); },
   });
 
   return (
