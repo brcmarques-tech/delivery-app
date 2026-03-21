@@ -1,11 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import {
   View,
-  Image,
   StyleSheet,
   Animated,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { colors } from '../theme';
 
 const { width } = Dimensions.get('window');
@@ -76,7 +76,7 @@ export function SplashLoading({ onReady }: { onReady?: () => void } = {}) {
           { opacity: fadeIn, transform: [{ scale: scaleLogo }] },
         ]}
       >
-        <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+        <Image source={LOGO} style={styles.logo} contentFit="contain" />
       </Animated.View>
 
       {/* Loading dots */}

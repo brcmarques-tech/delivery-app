@@ -6,10 +6,10 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  Image,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useQuery, useLazyQuery } from '@apollo/client';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -236,7 +236,7 @@ export default function SearchScreen() {
                       onPress={() => router.push(`/promotion/${promo.id}`)}
                     >
                       {(promo.product?.imageUrl || promo.imageUrl) ? (
-                        <Image source={{ uri: promo.product?.imageUrl || promo.imageUrl }} style={styles.promoImage} />
+                        <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy="memory-disk" />
                       ) : (
                         <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
                           <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
@@ -294,7 +294,7 @@ export default function SearchScreen() {
                           onPress={() => router.push(`/promotion/${promo.id}`)}
                         >
                           {(promo.product?.imageUrl || promo.imageUrl) ? (
-                            <Image source={{ uri: promo.product?.imageUrl || promo.imageUrl }} style={styles.promoImageSmall} />
+                            <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImageSmall} cachePolicy="memory-disk" />
                           ) : (
                             <View style={[styles.promoImageSmall, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
                               <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
@@ -325,7 +325,7 @@ export default function SearchScreen() {
                       onPress={() => router.push(`/store/${store.id}`)}
                     >
                       {store.logoUrl ? (
-                        <Image source={{ uri: store.logoUrl }} style={styles.storeLogo} />
+                        <Image source={store.logoUrl} style={styles.storeLogo} cachePolicy="memory-disk" />
                       ) : (
                         <View style={[styles.storeLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                           <Ionicons name="storefront-outline" size={18} color={colors.gray} />
@@ -376,7 +376,7 @@ export default function SearchScreen() {
                         onPress={() => router.push(`/store/${product.store?.id}`)}
                       >
                         {product.imageUrl ? (
-                          <Image source={{ uri: product.imageUrl }} style={styles.productImage} />
+                          <Image source={product.imageUrl} style={styles.productImage} cachePolicy="memory-disk" />
                         ) : (
                           <View style={[styles.productImage, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                             <Ionicons name="cube-outline" size={18} color={colors.gray} />

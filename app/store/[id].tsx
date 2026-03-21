@@ -4,12 +4,12 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Image,
   SectionList,
   Modal,
   Pressable,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery, useSubscription, useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,7 +28,7 @@ export default function StoreScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data, loading, refetch } = useQuery(GET_STORE, { variables: { id }, pollInterval: 15000 });
+  const { data, loading, refetch } = useQuery(GET_STORE, { variables: { id } });
 
   // Follow system
   const { data: followData, refetch: refetchFollow } = useQuery(IS_FOLLOWING_STORE, {
@@ -217,7 +217,7 @@ export default function StoreScreen() {
             <View style={styles.productRight}>
               {item.imageUrl ? (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setZoomedImage(item.imageUrl)}>
-                  <Image source={{ uri: item.imageUrl }} style={styles.productImage} />
+                  <Image source={item.imageUrl} style={styles.productImage} cachePolicy="memory-disk" recyclingKey={item.id} />
                 </TouchableOpacity>
               ) : (
                 <View style={[styles.productImage, styles.productImagePlaceholder, { backgroundColor: colors.grayLight }]}>
@@ -262,7 +262,7 @@ export default function StoreScreen() {
         <Pressable style={styles.imageModalOverlay} onPress={() => setZoomedImage(null)}>
           <View style={styles.imageModalContainer}>
             {zoomedImage && (
-              <Image source={{ uri: zoomedImage }} style={styles.imageModalImage} resizeMode="contain" />
+              <Image source={zoomedImage} style={styles.imageModalImage} contentFit="contain" cachePolicy="memory-disk" />
             )}
           </View>
           <TouchableOpacity style={[styles.imageModalClose, { top: insets.top + 8 }]} onPress={() => setZoomedImage(null)}>
@@ -280,7 +280,7 @@ export default function StoreScreen() {
                 {/* Imagem */}
                 {selectedProduct.imageUrl && (
                   <TouchableOpacity activeOpacity={0.9} onPress={() => { setSelectedProduct(null); setTimeout(() => setZoomedImage(selectedProduct.imageUrl), 300); }}>
-                    <Image source={{ uri: selectedProduct.imageUrl }} style={styles.addModalImage} />
+                    <Image source={selectedProduct.imageUrl} style={styles.addModalImage} cachePolicy="memory-disk" />
                   </TouchableOpacity>
                 )}
 

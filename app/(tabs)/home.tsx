@@ -4,10 +4,10 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Image,
   RefreshControl,
   ScrollView,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useQuery, useSubscription } from '@apollo/client';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,31 +33,21 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
-  const { data: promosData, refetch: refetchPromos, loading: promosLoading } = useQuery(GET_ACTIVE_PROMOTIONS, {
-    pollInterval: 120000,
-  });
+  const { data: promosData, refetch: refetchPromos, loading: promosLoading } = useQuery(GET_ACTIVE_PROMOTIONS);
   const { data: popularData, refetch: refetchPopular } = useQuery(GET_POPULAR_PRODUCTS, {
     variables: { limit: 12 },
-    pollInterval: 300000,
   });
   const { data: reorderData, refetch: refetchReorder } = useQuery(GET_REORDER_SUGGESTIONS, {
     variables: { limit: 10 },
-    pollInterval: 300000,
   });
   const { data: frequentData, refetch: refetchFrequent } = useQuery(GET_FREQUENT_STORES, {
     variables: { limit: 6 },
-    pollInterval: 300000,
   });
   const { data: topData, refetch: refetchTop } = useQuery(GET_TOP_STORES_WEEKLY, {
     variables: { limit: 5 },
-    pollInterval: 300000,
   });
-  const { data: followedData, refetch: refetchFollowed } = useQuery(GET_FOLLOWED_STORES, {
-    pollInterval: 300000,
-  });
-  const { data: pricingData } = useQuery(GET_DELIVERY_PRICING, {
-    pollInterval: 3600000,
-  });
+  const { data: followedData, refetch: refetchFollowed } = useQuery(GET_FOLLOWED_STORES);
+  const { data: pricingData } = useQuery(GET_DELIVERY_PRICING);
 
   const basePrice = pricingData?.deliveryBasePrice ?? 3;
   const pricePerKm = pricingData?.deliveryPricePerKm ?? 1.5;
@@ -111,7 +101,7 @@ export default function HomeScreen() {
         onPress={() => router.push(`/store/${product.storeId}`)}
       >
         {product.imageUrl ? (
-          <Image source={{ uri: product.imageUrl }} style={isSmall ? styles.productImageSmall : styles.productImage} />
+          <Image source={product.imageUrl} style={isSmall ? styles.productImageSmall : styles.productImage} cachePolicy="memory-disk" recyclingKey={product.id} />
         ) : (
           <View style={[isSmall ? styles.productImageSmall : styles.productImage, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
             <Ionicons name="cube-outline" size={isSmall ? 20 : 28} color={colors.gray} />
@@ -212,7 +202,7 @@ export default function HomeScreen() {
                   >
                     <View>
                       {(promo.product?.imageUrl || promo.imageUrl) ? (
-                        <Image source={{ uri: promo.product?.imageUrl || promo.imageUrl }} style={styles.promoImage} />
+                        <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy="memory-disk" />
                       ) : (
                         <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
                           <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
@@ -300,7 +290,7 @@ export default function HomeScreen() {
                   onPress={() => router.push(`/store/${store.id}`)}
                 >
                   {store.logoUrl ? (
-                    <Image source={{ uri: store.logoUrl }} style={styles.frequentStoreLogo} />
+                    <Image source={store.logoUrl} style={styles.frequentStoreLogo} cachePolicy="memory-disk" />
                   ) : (
                     <View style={[styles.frequentStoreLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                       <Ionicons name="storefront-outline" size={18} color={colors.gray} />
@@ -348,7 +338,7 @@ export default function HomeScreen() {
                   onPress={() => router.push(`/store/${store.id}`)}
                 >
                   {store.logoUrl ? (
-                    <Image source={{ uri: store.logoUrl }} style={styles.frequentStoreLogo} />
+                    <Image source={store.logoUrl} style={styles.frequentStoreLogo} cachePolicy="memory-disk" />
                   ) : (
                     <View style={[styles.frequentStoreLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                       <Ionicons name="storefront-outline" size={18} color={colors.gray} />
@@ -391,7 +381,7 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                   {store.logoUrl ? (
-                    <Image source={{ uri: store.logoUrl }} style={styles.topStoreLogo} />
+                    <Image source={store.logoUrl} style={styles.topStoreLogo} cachePolicy="memory-disk" />
                   ) : (
                     <View style={[styles.topStoreLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                       <Ionicons name="storefront-outline" size={18} color={colors.gray} />
