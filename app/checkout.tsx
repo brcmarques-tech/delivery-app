@@ -111,7 +111,12 @@ export default function CheckoutScreen() {
   const storeName = params.storeName;
   // L1: Checkout items are passed via URL params. For very large carts this could hit URL length limits.
   // Consider moving to a shared state/context if carts grow significantly.
-  const checkoutItems: CheckoutItem[] = params.selectedItems ? JSON.parse(params.selectedItems) : [];
+  let checkoutItems: CheckoutItem[] = [];
+  try {
+    checkoutItems = params.selectedItems ? JSON.parse(params.selectedItems) : [];
+  } catch {
+    checkoutItems = [];
+  }
 
   const subtotal = checkoutItems.reduce((sum, item) => {
     if (item.isVariableWeight) {

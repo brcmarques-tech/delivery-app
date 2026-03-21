@@ -156,6 +156,7 @@ export const GET_MY_ORDERS = gql`
       status
       total
       customerConfirmedAt
+      rejectionReason
       createdAt
       store {
         id

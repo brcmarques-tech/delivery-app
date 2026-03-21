@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const LOCATION_TASK_NAME = 'DELIVERY_BACKGROUND_LOCATION';
 const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
-const WS_URL = __DEV__ ? `http://${DEV_HOST}:3000` : 'https://delivery-api-fdc4.onrender.com';
+const WS_URL = 'https://delivery-api-fdc4.onrender.com'; // Force production even in dev mode
 
 let socketInstance: Socket | null = null;
 let activeDeliveryId: string | null = null;
@@ -15,9 +15,16 @@ let activeOrderId: string | null = null;
 
 function getSocket(): Socket {
   if (!socketInstance || !socketInstance.connected) {
+    if (socketInstance) {
+      socketInstance.removeAllListeners();
+      socketInstance.disconnect();
+    }
     socketInstance = io(WS_URL, {
       transports: ['websocket'],
       autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
     });
   }
   return socketInstance;
