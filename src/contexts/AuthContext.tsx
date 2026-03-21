@@ -87,6 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.remove();
   }, [token]);
 
+  // Periodic token refresh (every 5 minutes)
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(validateToken, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [token]);
+
   async function validateToken() {
     try {
       const { data } = await apolloClient.query({

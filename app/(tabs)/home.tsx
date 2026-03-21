@@ -34,28 +34,30 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
 
   const { data: promosData, refetch: refetchPromos, loading: promosLoading } = useQuery(GET_ACTIVE_PROMOTIONS, {
-    pollInterval: 30000,
+    pollInterval: 120000,
   });
   const { data: popularData, refetch: refetchPopular } = useQuery(GET_POPULAR_PRODUCTS, {
     variables: { limit: 12 },
-    pollInterval: 60000,
+    pollInterval: 300000,
   });
   const { data: reorderData, refetch: refetchReorder } = useQuery(GET_REORDER_SUGGESTIONS, {
     variables: { limit: 10 },
-    pollInterval: 60000,
+    pollInterval: 300000,
   });
   const { data: frequentData, refetch: refetchFrequent } = useQuery(GET_FREQUENT_STORES, {
     variables: { limit: 6 },
-    pollInterval: 60000,
+    pollInterval: 300000,
   });
   const { data: topData, refetch: refetchTop } = useQuery(GET_TOP_STORES_WEEKLY, {
     variables: { limit: 5 },
-    pollInterval: 60000,
+    pollInterval: 300000,
   });
   const { data: followedData, refetch: refetchFollowed } = useQuery(GET_FOLLOWED_STORES, {
-    pollInterval: 60000,
+    pollInterval: 300000,
   });
-  const { data: pricingData } = useQuery(GET_DELIVERY_PRICING);
+  const { data: pricingData } = useQuery(GET_DELIVERY_PRICING, {
+    pollInterval: 3600000,
+  });
 
   const basePrice = pricingData?.deliveryBasePrice ?? 3;
   const pricePerKm = pricingData?.deliveryPricePerKm ?? 1.5;

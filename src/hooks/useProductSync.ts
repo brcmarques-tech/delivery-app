@@ -1,9 +1,9 @@
 import { useSubscription } from '@apollo/client';
-import { PRODUCT_UPDATED } from '../lib/graphql/subscriptions';
+import { PRODUCT_UPDATED, PRODUCT_DELETED } from '../lib/graphql/subscriptions';
 import { apolloClient } from '../lib/apollo';
 
 /**
- * Global hook that listens to PRODUCT_UPDATED subscription (all stores)
+ * Global hook that listens to PRODUCT_UPDATED/PRODUCT_DELETED subscriptions
  * and updates Apollo cache so prices refresh instantly everywhere.
  */
 export function useProductSync() {
@@ -12,9 +12,6 @@ export function useProductSync() {
       const product = subData?.data?.productUpdated;
       if (!product?.id) return;
 
-      // Write the updated product fields directly to the cache.
-      // Apollo normalizes by __typename + id, so any query referencing
-      // this product will automatically show the new price.
       apolloClient.cache.modify({
         id: apolloClient.cache.identify({ __typename: 'Product', id: product.id }),
         fields: {
@@ -26,6 +23,15 @@ export function useProductSync() {
           stock: () => product.stock,
         },
       });
+    },
+  });
+
+  useSubscription(PRODUCT_DELETED, {
+    onData: ({ data: subData }) => {
+      const deleted = subData?.data?.productDeleted;
+      if (!deleted?.id) return;
+      apolloClient.cache.evict({ id: apolloClient.cache.identify({ __typename: 'Product', id: deleted.id }) });
+      apolloClient.cache.gc();
     },
   });
 }
