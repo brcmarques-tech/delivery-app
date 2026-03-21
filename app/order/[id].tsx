@@ -311,7 +311,12 @@ export default function OrderDetailScreen() {
       {isAwaitingPayment && order.paymentMethod === 'CREDIT_CARD' && order.checkoutUrl && (
         <TouchableOpacity
           style={[styles.payButton, { backgroundColor: colors.primary }]}
-          onPress={() => Linking.openURL(order.checkoutUrl)}
+          onPress={() => {
+            const url = order.checkoutUrl;
+            if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
+              Linking.openURL(url);
+            }
+          }}
         >
           <Ionicons name="card-outline" size={18} color="#FFFFFF" />
           <Text style={[styles.payButtonText, { color: '#FFFFFF' }]}>Ir para pagamento</Text>

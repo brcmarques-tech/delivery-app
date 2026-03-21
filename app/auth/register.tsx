@@ -248,8 +248,16 @@ export default function RegisterScreen() {
         alert('Erro', 'Preencha todos os campos');
         return;
       }
-      if (password.length < 6) {
-        alert('Erro', 'A senha deve ter pelo menos 6 caracteres');
+      if (password.length < 8) {
+        alert('Erro', 'A senha deve ter pelo menos 8 caracteres');
+        return;
+      }
+      if (!/[0-9]/.test(password)) {
+        alert('Erro', 'A senha deve conter pelo menos um numero');
+        return;
+      }
+      if (!/[A-Z]/.test(password)) {
+        alert('Erro', 'A senha deve conter pelo menos uma letra maiuscula');
         return;
       }
     }

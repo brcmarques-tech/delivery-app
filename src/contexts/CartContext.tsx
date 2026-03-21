@@ -123,7 +123,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   function removeItem(cartItemId: string) {
     setItems((prev) => prev.filter((i) => i.id !== cartItemId));
     if (user) {
-      removeFromCartMutation({ variables: { cartItemId } }).then(() => refetch());
+      removeFromCartMutation({ variables: { cartItemId } }).then(() => refetch()).catch(() => refetch());
     }
   }
 
@@ -138,7 +138,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (user) {
       updateCartItemMutation({
         variables: { input: { cartItemId, quantity } },
-      }).then(() => refetch());
+      }).then(() => refetch()).catch(() => refetch());
     }
   }
 
@@ -153,14 +153,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (user) {
       updateCartItemMutation({
         variables: { input: { cartItemId, weightGrams } },
-      }).then(() => refetch());
+      }).then(() => refetch()).catch(() => refetch());
     }
   }
 
   function clearCart() {
     setItems([]);
     if (user) {
-      clearCartMutation().then(() => refetch());
+      clearCartMutation().then(() => refetch()).catch(() => refetch());
     }
   }
 

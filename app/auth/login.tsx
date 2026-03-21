@@ -58,9 +58,13 @@ export default function LoginScreen() {
           await loginWithGoogle(params.accessToken as string);
           router.replace('/');
         } else if (params.token && params.user) {
-          const userData = JSON.parse(params.user as string);
-          await setAuthData(params.token as string, userData);
-          router.replace('/');
+          try {
+            const userData = JSON.parse(params.user as string);
+            await setAuthData(params.token as string, userData);
+            router.replace('/');
+          } catch {
+            alert('Erro', 'Dados de autenticacao invalidos.');
+          }
         }
       }
     } catch (err: any) {

@@ -673,7 +673,7 @@ export default function DeliveriesScreen() {
                     {order.store.street}, {order.store.number} - {order.store.neighborhood}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => Linking.openURL(`tel:${order.store.phone}`)}>
+                <TouchableOpacity onPress={() => Linking.openURL(`tel:${(order.store.phone || '').replace(/[^\d+\-]/g, '')}`)}>
                   <Ionicons name="call" size={18} color={colors.primary} />
                 </TouchableOpacity>
               </View>
@@ -684,7 +684,7 @@ export default function DeliveriesScreen() {
                   <Text style={[styles.addressLabel, { color: colors.textLight }]}>Cliente: {order.customer.name}</Text>
                   <Text style={[styles.addressText, { color: colors.text }]}>{order.deliveryAddress}</Text>
                 </View>
-                <TouchableOpacity onPress={() => Linking.openURL(`tel:${order.customer.phone}`)}>
+                <TouchableOpacity onPress={() => Linking.openURL(`tel:${(order.customer.phone || '').replace(/[^\d+\-]/g, '')}`)}>
                   <Ionicons name="call" size={18} color={colors.success} />
                 </TouchableOpacity>
               </View>

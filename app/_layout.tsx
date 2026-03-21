@@ -12,6 +12,7 @@ import { useOrderNotifications } from '../src/hooks/useOrderNotifications';
 import { usePushNotifications } from '../src/hooks/usePushNotifications';
 import { useProductSync } from '../src/hooks/useProductSync';
 import { DeliveryConfirmationModal } from '../src/components/DeliveryConfirmationModal';
+import { ErrorBoundary } from '../src/components/ErrorBoundary';
 
 // Keep native splash visible while app loads
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -30,21 +31,23 @@ function ThemedStatusBar() {
 
 export default function RootLayout() {
   return (
-    <ApolloProvider client={apolloClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <AlertProvider>
-            <LocationProvider>
-              <CartProvider>
-                <NotificationListener />
-                <DeliveryConfirmationModal />
-                <ThemedStatusBar />
-                <Stack screenOptions={{ headerShown: false }} />
-              </CartProvider>
-            </LocationProvider>
-          </AlertProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </ApolloProvider>
+    <ErrorBoundary>
+      <ApolloProvider client={apolloClient}>
+        <ThemeProvider>
+          <AuthProvider>
+            <AlertProvider>
+              <LocationProvider>
+                <CartProvider>
+                  <NotificationListener />
+                  <DeliveryConfirmationModal />
+                  <ThemedStatusBar />
+                  <Stack screenOptions={{ headerShown: false }} />
+                </CartProvider>
+              </LocationProvider>
+            </AlertProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </ApolloProvider>
+    </ErrorBoundary>
   );
 }
