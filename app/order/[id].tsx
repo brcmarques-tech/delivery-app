@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator, Alert, Modal, TextInput, Share, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator, Alert, Modal, TextInput, Share } from 'react-native';
+import { Image } from 'expo-image';
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
@@ -43,7 +44,6 @@ export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, loading, refetch } = useQuery(GET_ORDER, {
     variables: { id },
-    pollInterval: 5000,
   });
 
   // Real-time updates for this order
@@ -602,9 +602,9 @@ export default function OrderDetailScreen() {
             {order?.pixQrCodeBase64 ? (
               <View style={styles.pixQrContainer}>
                 <Image
-                  source={{ uri: order.pixQrCodeBase64 }}
+                  source={order.pixQrCodeBase64}
                   style={styles.pixQrImage}
-                  resizeMode="contain"
+                  contentFit="contain"
                 />
               </View>
             ) : null}

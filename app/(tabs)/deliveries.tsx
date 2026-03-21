@@ -1000,6 +1000,10 @@ export default function DeliveriesScreen() {
           data={availableOrders}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          removeClippedSubviews
+          maxToRenderPerBatch={6}
+          windowSize={5}
+          initialNumToRender={4}
           refreshControl={<RefreshControl refreshing={loadingAvailable} onRefresh={refetchAvailable} />}
           renderItem={renderAvailableOrder}
           ListEmptyComponent={
@@ -1071,6 +1075,10 @@ export default function DeliveriesScreen() {
           data={[...activeDeliveries, ...completedDeliveries]}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          removeClippedSubviews
+          maxToRenderPerBatch={6}
+          windowSize={5}
+          initialNumToRender={4}
           refreshControl={<RefreshControl refreshing={loadingMy} onRefresh={refetchMy} />}
           renderItem={renderMyDelivery}
           ListEmptyComponent={

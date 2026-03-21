@@ -12,7 +12,7 @@ import { router } from 'expo-router';
 const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
 const PROD_URL = 'https://delivery-api-fdc4.onrender.com';
 
-const USE_LOCAL = __DEV__;
+const USE_LOCAL = false; // Force production API even in dev mode
 
 const BASE_URL = USE_LOCAL ? `http://${DEV_HOST}:3000` : PROD_URL;
 const API_URL = `${BASE_URL}/graphql`;
@@ -39,6 +39,8 @@ try {
     createClient({
       url: WS_URL,
       retryAttempts: 5,
+      shouldRetry: () => true,
+      keepAlive: 10000,
       connectionParams: async () => {
         const token = await SecureStore.getItemAsync('token');
         return { authorization: token ? `Bearer ${token}` : '' };
@@ -79,7 +81,29 @@ const link = wsLink
     )
   : authLink.concat(httpLink);
 
+const cache = new InMemoryCache({
+  typePolicies: {
+    Query: {
+      fields: {
+        myOrders: { merge: (_existing, incoming) => incoming },
+        storeOrders: { merge: (_existing, incoming) => incoming },
+        popularProducts: { merge: (_existing, incoming) => incoming },
+        activePromotions: { merge: (_existing, incoming) => incoming },
+      },
+    },
+    Order: { keyFields: ['id'] },
+    Product: { keyFields: ['id'] },
+    Store: { keyFields: ['id'] },
+    Delivery: { keyFields: ['id'] },
+  },
+});
+
 export const apolloClient = new ApolloClient({
   link: errorLink.concat(link),
-  cache: new InMemoryCache(),
+  cache,
 });
+
+// Periodic cache GC — evict unreachable objects every 5 minutes
+setInterval(() => {
+  apolloClient.cache.gc();
+}, 5 * 60 * 1000);

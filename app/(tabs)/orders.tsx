@@ -19,7 +19,7 @@ import { colors as staticColors, fonts } from '../../src/theme';
 export default function OrdersScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, loading, refetch } = useQuery(GET_MY_ORDERS, { pollInterval: 30000 });
+  const { data, loading, refetch } = useQuery(GET_MY_ORDERS);
   const orders = data?.myOrders || [];
   const refetchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const debouncedRefetch = useCallback(() => {
@@ -61,6 +61,10 @@ export default function OrdersScreen() {
         data={orders}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
+        removeClippedSubviews
+        maxToRenderPerBatch={8}
+        windowSize={5}
+        initialNumToRender={6}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} />}
         renderItem={({ item }) => {
           const status = statusLabels[item.status] || { label: item.status, color: colors.gray };

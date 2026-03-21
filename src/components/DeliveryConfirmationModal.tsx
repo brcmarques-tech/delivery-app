@@ -8,10 +8,11 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { useQuery, useMutation } from '@apollo/client';
+import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { GET_MY_ORDERS } from '../lib/graphql/queries';
 import { CONFIRM_RECEIPT } from '../lib/graphql/mutations';
+import { ORDER_UPDATED } from '../lib/graphql/subscriptions';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlert } from '../contexts/AlertContext';
 import { colors, fonts } from '../theme';
@@ -28,9 +29,13 @@ export function DeliveryConfirmationModal() {
   const [confirming, setConfirming] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
-  const { data } = useQuery(GET_MY_ORDERS, {
-    pollInterval: 15000,
+  const { data, refetch } = useQuery(GET_MY_ORDERS, {
     skip: !user || user.role !== 'CUSTOMER',
+  });
+
+  useSubscription(ORDER_UPDATED, {
+    skip: !user || user.role !== 'CUSTOMER',
+    onData: () => { refetch(); },
   });
 
   const [confirmReceipt] = useMutation(CONFIRM_RECEIPT);

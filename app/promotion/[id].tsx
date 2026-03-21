@@ -3,11 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   ScrollView,
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
@@ -81,7 +81,7 @@ export default function PromotionScreen() {
       <ScrollView bounces={false}>
         {/* Hero image */}
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.heroImage} />
+          <Image source={imageUrl} style={styles.heroImage} cachePolicy="memory-disk" />
         ) : (
           <View style={[styles.heroImage, { backgroundColor: staticColors.primary, justifyContent: 'center', alignItems: 'center' }]}>
             <Ionicons name="megaphone-outline" size={64} color="#FFF" />
@@ -143,7 +143,7 @@ export default function PromotionScreen() {
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Produto</Text>
               <View style={styles.productRow}>
                 {promo.product.imageUrl ? (
-                  <Image source={{ uri: promo.product.imageUrl }} style={styles.productImage} />
+                  <Image source={promo.product.imageUrl} style={styles.productImage} cachePolicy="memory-disk" />
                 ) : (
                   <View style={[styles.productImage, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                     <Ionicons name="cube-outline" size={18} color={colors.gray} />
@@ -172,7 +172,7 @@ export default function PromotionScreen() {
             >
               <View style={styles.storeLeft}>
                 {promo.store.logoUrl ? (
-                  <Image source={{ uri: promo.store.logoUrl }} style={styles.storeLogo} />
+                  <Image source={promo.store.logoUrl} style={styles.storeLogo} cachePolicy="memory-disk" />
                 ) : (
                   <View style={[styles.storeLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                     <Ionicons name="storefront-outline" size={18} color={colors.gray} />

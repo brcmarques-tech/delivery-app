@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, Modal, ScrollView, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, Modal, ScrollView } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMutation, useQuery } from '@apollo/client';
 import * as ImagePicker from 'expo-image-picker';
+import { compressImage } from '../../src/lib/compressImage';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -114,12 +116,12 @@ export default function ProfileScreen() {
           mediaTypes: ['images'],
           allowsEditing: true,
           aspect: [1, 1],
-          quality: 0.5,
-          base64: true,
+          quality: 1,
           presentationStyle: ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN,
         });
-        if (!result.canceled && result.assets[0].base64) {
-          uploadAvatar(`data:image/jpeg;base64,${result.assets[0].base64}`);
+        if (!result.canceled) {
+          const compressed = await compressImage(result.assets[0].uri, 400, 0.8);
+          uploadAvatar(`data:image/jpeg;base64,${compressed.base64}`);
         }
       } catch {}
     }, 400);
@@ -134,11 +136,11 @@ export default function ProfileScreen() {
         const result = await ImagePicker.launchCameraAsync({
           allowsEditing: true,
           aspect: [1, 1],
-          quality: 0.5,
-          base64: true,
+          quality: 1,
         });
-        if (!result.canceled && result.assets[0].base64) {
-          uploadAvatar(`data:image/jpeg;base64,${result.assets[0].base64}`);
+        if (!result.canceled) {
+          const compressed = await compressImage(result.assets[0].uri, 400, 0.8);
+          uploadAvatar(`data:image/jpeg;base64,${compressed.base64}`);
         }
       } catch {}
     }, 400);
@@ -182,7 +184,7 @@ export default function ProfileScreen() {
       <View style={[styles.header, { backgroundColor: colors.white, paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => setShowAvatarPicker(true)} disabled={uploadingAvatar} activeOpacity={0.7}>
           {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+            <Image source={avatarUrl} style={styles.avatarImage} cachePolicy="memory-disk" />
           ) : (
             <View style={[styles.avatar, isDeliverer && { backgroundColor: colors.success }]}>
               <Text style={[styles.avatarText, { color: '#FFFFFF' }]}>

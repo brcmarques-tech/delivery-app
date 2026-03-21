@@ -17,6 +17,7 @@ import { useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { compressImage } from '../src/lib/compressImage';
 import { REGISTER_AS_DELIVERER, UPLOAD_IMAGE, VALIDATE_FACE_PHOTO, VALIDATE_DOCUMENT_PHOTO } from '../src/lib/graphql/mutations';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useAlert } from '../src/contexts/AlertContext';
@@ -86,12 +87,12 @@ function FaceCameraScreen({
     setTaking(true);
     try {
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.4,
-        base64: true,
+        quality: 1,
         exif: false,
       });
-      if (photo && photo.uri && photo.base64) {
-        onCapture(photo.uri, photo.base64);
+      if (photo && photo.uri) {
+        const compressed = await compressImage(photo.uri, 800, 0.8);
+        onCapture(compressed.uri, compressed.base64);
       }
     } catch {
       setTaking(false);
@@ -347,17 +348,14 @@ export default function DelivererRegisterScreen() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      quality: 0.4,
+      quality: 1,
       allowsEditing: false,
-      base64: true,
       exif: false,
     });
 
     if (!result.canceled && result.assets[0]) {
-      const base64 = result.assets[0].base64;
-      if (base64) {
-        uploadAndValidateFace(result.assets[0].uri, base64);
-      }
+      const compressed = await compressImage(result.assets[0].uri, 800, 0.8);
+      uploadAndValidateFace(compressed.uri, compressed.base64);
     }
   }
 
@@ -419,25 +417,21 @@ export default function DelivererRegisterScreen() {
     const result = fromCamera
       ? await ImagePicker.launchCameraAsync({
           mediaTypes: ['images'],
-          quality: 0.4,
+          quality: 1,
           allowsEditing: false,
-          base64: true,
           exif: false,
           cameraType: ImagePicker.CameraType.back,
         })
       : await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ['images'],
-          quality: 0.4,
+          quality: 1,
           allowsEditing: false,
-          base64: true,
           exif: false,
         });
 
     if (!result.canceled && result.assets[0]) {
-      const base64 = result.assets[0].base64;
-      if (base64) {
-        await uploadAndValidateDoc(result.assets[0].uri, base64, side);
-      }
+      const compressed = await compressImage(result.assets[0].uri, 800, 0.8);
+      await uploadAndValidateDoc(compressed.uri, compressed.base64, side);
     }
   }
 

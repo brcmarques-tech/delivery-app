@@ -1,62 +1,24 @@
 import { useEffect, useRef } from 'react';
-import { useQuery } from '@apollo/client';
-import { GET_MY_ORDERS, GET_ME } from '../lib/graphql/queries';
+import { useQuery, useSubscription } from '@apollo/client';
+import { GET_ME } from '../lib/graphql/queries';
+import { ORDER_UPDATED } from '../lib/graphql/subscriptions';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlert } from '../contexts/AlertContext';
-
-const statusLabels: Record<string, string> = {
-  AWAITING_PAYMENT: 'Aguardando pagamento',
-  PENDING: 'Pendente',
-  ACCEPTED: 'Aceito',
-  PREPARING: 'Preparando',
-  READY: 'Pronto',
-  PICKED_UP: 'Coletado',
-  DELIVERING: 'A caminho',
-  DELIVERED: 'Entregue',
-  CANCELLED: 'Cancelado',
-  EXPIRED: 'Expirado',
-};
-
-interface Order {
-  id: string;
-  orderNumber: string;
-  status: string;
-}
 
 export function useOrderNotifications() {
   const { user, updateUser } = useAuth();
   const { alert } = useAlert();
-  const prevStatusesRef = useRef<Record<string, string>>({});
   const initializedRef = useRef(0);
 
-  const { data: ordersData } = useQuery(GET_MY_ORDERS, {
-    pollInterval: 30000,
+  const { data: meData, refetch: refetchMe } = useQuery(GET_ME, {
     skip: !user,
   });
 
-  const { data: meData } = useQuery(GET_ME, {
-    pollInterval: 30000,
+  // Refresh user data when orders change (role/approval may update)
+  useSubscription(ORDER_UPDATED, {
     skip: !user,
+    onData: () => { refetchMe(); },
   });
-
-  // Monitor order status changes
-  useEffect(() => {
-    if (!ordersData?.myOrders) return;
-
-    const orders: Order[] = ordersData.myOrders;
-    const prevStatuses = prevStatusesRef.current;
-    const isFirstLoad = Object.keys(prevStatuses).length === 0;
-
-    orders.forEach((order) => {
-      if (!isFirstLoad && prevStatuses[order.id] && prevStatuses[order.id] !== order.status) {
-        const statusLabel = statusLabels[order.status] || order.status;
-        alert(`Pedido #${order.orderNumber}`, `Status atualizado: ${statusLabel}`);
-      }
-      prevStatuses[order.id] = order.status;
-    });
-
-    prevStatusesRef.current = prevStatuses;
-  }, [ordersData]);
 
   // Sync user data from server (role changes, approval, rejection, etc)
   useEffect(() => {
