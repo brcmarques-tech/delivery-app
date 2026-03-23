@@ -18,7 +18,7 @@ export const ORDER_UPDATED = gql`
       store {
         id
         name
-        imageUrl
+        logoUrl
       }
       items {
         id
@@ -69,7 +69,7 @@ export const STORE_UPDATED = gql`
       name
       isOpen
       isActive
-      imageUrl
+      logoUrl
     }
   }
 `;
