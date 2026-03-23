@@ -80,8 +80,8 @@ export function useDeliveryTracking(activeDelivery: ActiveDelivery | null) {
     foregroundSubRef.current = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.High,
-        distanceInterval: 10, // atualiza a cada 10 metros
-        timeInterval: 5000, // ou a cada 5 segundos
+        distanceInterval: 50, // atualiza a cada 50 metros
+        timeInterval: 30000, // ou a cada 30 segundos
       },
       (location) => {
         sendLocation(location.coords.latitude, location.coords.longitude);
@@ -97,8 +97,8 @@ export function useDeliveryTracking(activeDelivery: ActiveDelivery | null) {
           if (!isTaskRegistered) {
             await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
               accuracy: Location.Accuracy.High,
-              distanceInterval: 20,
-              timeInterval: 10000,
+              distanceInterval: 50,
+              timeInterval: 30000,
               showsBackgroundLocationIndicator: true,
               foregroundService: {
                 notificationTitle: 'bcmTech Delivery',
