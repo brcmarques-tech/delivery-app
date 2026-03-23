@@ -107,10 +107,11 @@ export default function StoreScreen() {
 
   function confirmAdd() {
     if (!selectedProduct) return;
+    const info = { productId: selectedProduct.id, name: selectedProduct.name, price: selectedProduct.promotionalPrice ?? selectedProduct.price, imageUrl: selectedProduct.imageUrl, isVariableWeight: selectedProduct.isVariableWeight, storeId: store.id, storeName: store.name };
     if (selectedProduct.isVariableWeight) {
-      addItem(selectedProduct.id, 1, undefined, weightGrams);
+      addItem(info, 1, undefined, weightGrams);
     } else {
-      addItem(selectedProduct.id, quantity);
+      addItem(info, quantity);
     }
     setSelectedProduct(null);
   }
@@ -228,7 +229,7 @@ export default function StoreScreen() {
                 <TouchableOpacity
                   style={[styles.quickAddBtn, { backgroundColor: colors.primary }]}
                   onPress={() => {
-                    addItem(item.id, 1);
+                    addItem({ productId: item.id, name: item.name, price: item.promotionalPrice ?? item.price, imageUrl: item.imageUrl, storeId: store.id, storeName: store.name }, 1);
                   }}
                 >
                   <Ionicons name="add" size={18} color="#FFFFFF" />
@@ -310,17 +311,17 @@ export default function StoreScreen() {
                   <View style={[styles.quantityRow, { borderTopColor: colors.border }]}>
                     <TouchableOpacity
                       style={[styles.quantityBtn, { backgroundColor: colors.grayLight }, weightGrams <= 100 && styles.quantityBtnDisabled]}
-                      onPress={() => weightGrams > 100 && setWeightGrams(weightGrams - 100)}
-                      disabled={weightGrams <= 100}
+                      onPress={() => weightGrams > 50 && setWeightGrams(weightGrams - 50)}
+                      disabled={weightGrams <= 50}
                     >
-                      <Ionicons name="remove" size={18} color={weightGrams <= 100 ? colors.gray : colors.primary} />
+                      <Ionicons name="remove" size={18} color={weightGrams <= 50 ? colors.gray : colors.primary} />
                     </TouchableOpacity>
                     <Text style={[styles.quantityText, { color: colors.text }]}>
                       {weightGrams >= 1000 ? `${(weightGrams / 1000).toFixed(weightGrams % 1000 === 0 ? 0 : 1)}kg` : `${weightGrams}g`}
                     </Text>
                     <TouchableOpacity
                       style={[styles.quantityBtn, { backgroundColor: colors.grayLight }]}
-                      onPress={() => setWeightGrams(weightGrams + 100)}
+                      onPress={() => setWeightGrams(weightGrams + 50)}
                     >
                       <Ionicons name="add" size={18} color={colors.primary} />
                     </TouchableOpacity>
