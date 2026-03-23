@@ -104,10 +104,8 @@ export default function DeliveriesScreen() {
   const [tab, setTab] = useState<Tab>('available');
   const [isOnline, setIsOnline] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
-  const [currentOffer, setCurrentOffer] = useState<DeliveryOffer | null>(null);
   const [acceptedStore, setAcceptedStore] = useState<AcceptedStore | null>(null);
   const [clientLocation, setClientLocation] = useState<{ latitude: number; longitude: number; address: string } | null>(null);
-  const [offerCountdown, setOfferCountdown] = useState(0);
   const socketRef = useRef<Socket | null>(null);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
   const isOnlineRef = useRef(false);
@@ -180,8 +178,18 @@ export default function DeliveriesScreen() {
       return false;
     }
 
-    const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    const { latitude, longitude } = current.coords;
+    // Use last known position (instant) to connect fast, update later
+    let latitude = 0, longitude = 0;
+    const lastKnown = await Location.getLastKnownPositionAsync();
+    if (lastKnown) {
+      latitude = lastKnown.coords.latitude;
+      longitude = lastKnown.coords.longitude;
+    } else {
+      // Fallback: get current position only if no cached position
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+      latitude = current.coords.latitude;
+      longitude = current.coords.longitude;
+    }
 
     const socket = io(WS_URL, { transports: ['websocket'] });
     socketRef.current = socket;
@@ -201,8 +209,6 @@ export default function DeliveriesScreen() {
     // Listen for delivery offers
     socket.on('deliveryOffer', (offer: DeliveryOffer) => {
       console.log(`[APP-SOCKET] deliveryOffer received: orderId=${offer.orderId}, orderNumber=${offer.orderNumber}, fee=${offer.deliveryFee}, timeout=${offer.timeoutSeconds}s`);
-      setCurrentOffer(offer);
-      setOfferCountdown(offer.timeoutSeconds);
       refetchAvailable();
       try { Vibration.vibrate([0, 500, 200, 500]); } catch {}
     });
@@ -257,7 +263,6 @@ export default function DeliveriesScreen() {
         setIsOnline(false);
         isOnlineRef.current = false;
         AsyncStorage.setItem('deliverer_online', 'false');
-        setCurrentOffer(null);
         return;
       }
 
@@ -329,70 +334,6 @@ export default function DeliveriesScreen() {
     return () => subscription.remove();
   }, [connectSocket]);
 
-  // Offer countdown timer
-  useEffect(() => {
-    if (!currentOffer) return;
-    const timer = setInterval(() => {
-      setOfferCountdown((prev) => {
-        if (prev <= 1) {
-          setCurrentOffer(null);
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [currentOffer]);
-
-  async function handleAcceptOffer() {
-    if (!currentOffer) return;
-    console.log(`[APP-ACCEPT-OFFER] orderId=${currentOffer.orderId}, orderNumber=${currentOffer.orderNumber}`);
-    if (!paymentConnected) {
-      console.log(`[APP-ACCEPT-OFFER] BLOCKED: payment not connected`);
-      alert('Conta nao conectada', 'Conecte sua conta de pagamento para aceitar entregas.');
-      setCurrentOffer(null);
-      return;
-    }
-    const offer = currentOffer;
-    const { orderId } = offer;
-    setActionLoading(orderId);
-    try {
-      // Accept via socket - the backend handles creating the delivery
-      if (socketRef.current?.connected) {
-        console.log(`[APP-ACCEPT-OFFER] Emitting acceptOffer via socket`);
-        socketRef.current.emit('acceptOffer', { orderId, delivererId: user?.id });
-      } else {
-        // Fallback: if socket is not connected, use GraphQL mutation
-        console.log(`[APP-ACCEPT-OFFER] Socket not connected, using mutation fallback`);
-        await acceptDelivery({ variables: { orderId } });
-      }
-      console.log(`[APP-ACCEPT-OFFER] SUCCESS`);
-      setCurrentOffer(null);
-      setTab('my');
-      refetchAvailable();
-      await refetchMy();
-    } catch (e: any) {
-      console.error(`[APP-ACCEPT-OFFER] FAILED:`, e?.message);
-      setCurrentOffer(null);
-      const msg = e?.message || '';
-      if (msg.includes('already') || msg.includes('assigned')) {
-        alert('Oferta expirada', 'Essa entrega ja foi aceita por outro entregador.');
-      } else {
-        alert('Erro', 'Nao foi possivel aceitar a entrega.');
-      }
-    } finally {
-      setActionLoading(null);
-    }
-  }
-
-  function handleDeclineOffer() {
-    if (!currentOffer || !socketRef.current) return;
-    console.log(`[APP-DECLINE] orderId=${currentOffer.orderId}, orderNumber=${currentOffer.orderNumber}`);
-    socketRef.current.emit('declineOffer', { orderId: currentOffer.orderId, delivererId: user?.id });
-    setCurrentOffer(null);
-  }
-
   // Cleanup on unmount - disconnect socket but do NOT send delivererOffline
   // (deliverer stays "online" until they explicitly press the button)
   useEffect(() => {
@@ -418,7 +359,7 @@ export default function DeliveriesScreen() {
     data: myData,
     loading: loadingMy,
     refetch: refetchMy,
-  } = useQuery(GET_MY_DELIVERIES);
+  } = useQuery(GET_MY_DELIVERIES, { fetchPolicy: 'cache-and-network' });
 
   // Real-time updates
   useSubscription(ORDER_UPDATED, {
@@ -426,6 +367,7 @@ export default function DeliveriesScreen() {
       const o = subData?.data?.orderUpdated;
       console.log(`[APP-SUB] orderUpdated: #${o?.orderNumber || '?'}, status=${o?.status || '?'}`);
       refetchAvailable();
+      refetchMy();
     },
   });
   useSubscription(DELIVERY_UPDATED, {
@@ -441,7 +383,51 @@ export default function DeliveriesScreen() {
   const [confirmDeliveryMut] = useMutation(CONFIRM_DELIVERY);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Track when each available order first appeared (for countdown timer)
+  const offerTimersRef = useRef<Record<string, number>>({});
   const availableOrders = availableData?.availableDeliveries || [];
+
+  // Initialize timers for new orders, clean up removed ones
+  useEffect(() => {
+    const now = Date.now();
+    const currentIds = new Set(availableOrders.map((o: any) => o.id));
+    // Add new orders
+    availableOrders.forEach((o: any) => {
+      if (!offerTimersRef.current[o.id]) {
+        offerTimersRef.current[o.id] = now;
+      }
+    });
+    // Clean up removed orders
+    Object.keys(offerTimersRef.current).forEach((id) => {
+      if (!currentIds.has(id)) delete offerTimersRef.current[id];
+    });
+  }, [availableOrders]);
+
+  // Tick every second when there are available orders (for countdown)
+  const [, setOfferTick] = useState(0);
+  useEffect(() => {
+    if (availableOrders.length === 0 || tab !== 'available') return;
+    const timer = setInterval(() => {
+      setOfferTick((t) => t + 1);
+      // Auto-refetch when any timer expires
+      const now = Date.now();
+      const anyExpired = availableOrders.some((o: any) => {
+        const started = offerTimersRef.current[o.id];
+        return started && now - started >= 60000;
+      });
+      if (anyExpired) {
+        refetchAvailable();
+        // Reset expired timers
+        availableOrders.forEach((o: any) => {
+          const started = offerTimersRef.current[o.id];
+          if (started && now - started >= 60000) {
+            offerTimersRef.current[o.id] = now;
+          }
+        });
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [availableOrders.length, tab]);
   const myDeliveries = myData?.myDeliveries || [];
   const activeDeliveries = myDeliveries.filter((d: any) => !d.deliveredAt);
   const completedDeliveries = myDeliveries.filter((d: any) => d.deliveredAt);
@@ -629,6 +615,27 @@ export default function DeliveriesScreen() {
             <Text style={styles.acceptButtonText}>{actionLoading === item.id ? 'Aceitando...' : 'Aceitar'}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Countdown timer bar */}
+        {(() => {
+          const started = offerTimersRef.current[item.id] || Date.now();
+          const elapsed = Math.min((Date.now() - started) / 1000, 60);
+          const remaining = Math.max(0, 60 - elapsed);
+          const progress = remaining / 60;
+          const barColor = remaining <= 10 ? colors.danger : remaining <= 30 ? colors.warning : colors.primary;
+          return (
+            <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ flex: 1, height: 4, backgroundColor: colors.grayLight, borderRadius: 2, overflow: 'hidden' }}>
+                  <View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: barColor, borderRadius: 2 }} />
+                </View>
+                <Text style={{ fontSize: fonts.tiny, color: barColor, fontWeight: '600', minWidth: 28 }}>
+                  {Math.ceil(remaining)}s
+                </Text>
+              </View>
+            </View>
+          );
+        })()}
       </View>
     );
   }
@@ -769,39 +776,6 @@ export default function DeliveriesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Delivery offer popup */}
-      <Modal visible={!!currentOffer} transparent animationType="fade" statusBarTranslucent>
-        <View style={[styles.offerOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.6)' }]}>
-          <View style={[styles.offerCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.offerTitle, { color: colors.text }]}>Nova entrega!</Text>
-            <Text style={[styles.offerTimer, { color: colors.danger }]}>{offerCountdown}s</Text>
-            <View style={[styles.offerInfo, { backgroundColor: colors.grayLight }]}>
-              <View style={styles.offerRow}>
-                <Ionicons name="storefront" size={16} color={colors.success} />
-                <Text style={[styles.offerText, { color: colors.text }]}>{currentOffer?.storeAddress}</Text>
-              </View>
-              <View style={styles.offerRow}>
-                <Ionicons name="flag" size={16} color={colors.danger} />
-                <Text style={[styles.offerText, { color: colors.text }]}>{currentOffer?.deliveryAddress}</Text>
-              </View>
-              <View style={styles.offerRow}>
-                <Ionicons name="cash" size={16} color={colors.primary} />
-                <Text style={[styles.offerFee, { color: colors.success }]}>R$ {Number(currentOffer?.deliveryFee || 0).toFixed(2)}</Text>
-              </View>
-            </View>
-            <View style={styles.offerButtons}>
-              <TouchableOpacity style={[styles.offerDecline, { backgroundColor: colors.grayLight }]} onPress={handleDeclineOffer}>
-                <Text style={[styles.offerDeclineText, { color: colors.textLight }]}>Recusar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.offerAccept, { backgroundColor: actionLoading ? colors.gray : colors.success }]} onPress={handleAcceptOffer} disabled={!!actionLoading}>
-                <Ionicons name={actionLoading ? 'hourglass' : 'checkmark-circle'} size={18} color="#FFFFFF" />
-                <Text style={styles.offerAcceptText}>{actionLoading ? 'Aceitando...' : 'Aceitar'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
       {/* Modal: Store map after accepting delivery */}
       <Modal visible={!!acceptedStore} transparent animationType="slide">
         <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} onPress={() => setAcceptedStore(null)}>
@@ -1343,81 +1317,5 @@ const styles = StyleSheet.create({
   onlineText: {
     fontSize: fonts.small,
     fontWeight: '600',
-  },
-  // Offer popup
-  offerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 100,
-    padding: 12,
-  },
-  offerCard: {
-    borderRadius: 20,
-    padding: 12,
-    width: '100%',
-    maxWidth: 400,
-  },
-  offerTitle: {
-    fontSize: fonts.xlarge,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  offerTimer: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginVertical: 8,
-  },
-  offerInfo: {
-    borderRadius: 10,
-    padding: 12,
-    gap: 6,
-    marginVertical: 12,
-  },
-  offerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  offerText: {
-    fontSize: fonts.small,
-    flex: 1,
-  },
-  offerFee: {
-    fontSize: fonts.large,
-    fontWeight: 'bold',
-  },
-  offerButtons: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  offerDecline: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  offerDeclineText: {
-    fontSize: fonts.regular,
-    fontWeight: '600',
-  },
-  offerAccept: {
-    flex: 2,
-    flexDirection: 'row',
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  offerAcceptText: {
-    fontSize: fonts.regular,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
   },
 });
