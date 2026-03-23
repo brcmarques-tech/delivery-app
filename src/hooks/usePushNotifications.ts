@@ -12,20 +12,14 @@ let Device: any = null;
 try {
   Notifications = require('expo-notifications');
   Device = require('expo-device');
-  console.log('[PUSH] expo-notifications loaded OK');
-} catch (e) {
-  console.log('[PUSH] expo-notifications NOT available:', e);
+} catch {
 }
 
 if (Notifications) {
   Notifications.setNotificationHandler({
     handleNotification: async (notification: any) => {
-      const data = notification?.request?.content?.data;
       const title = notification?.request?.content?.title;
       const body = notification?.request?.content?.body;
-      console.log('[PUSH] handleNotification called:', data?.type, title);
-
-      // Show in-app alert for ANY foreground notification (test)
       setTimeout(() => {
         Alert.alert(
           title || 'Notificação',
@@ -103,11 +97,10 @@ export function usePushNotifications() {
     if (!user || !token || registeredRef.current || !Notifications) return;
 
     registerForPushNotifications().then((pushToken) => {
-      console.log('[PUSH] Got push token:', pushToken ? pushToken.substring(0, 30) + '...' : 'null');
       if (pushToken) {
         registerToken({ variables: { token: pushToken } })
-          .then(() => { registeredRef.current = true; console.log('[PUSH] Token registered with API'); })
-          .catch((err: any) => console.log('[PUSH] Failed to register push token:', err));
+          .then(() => { registeredRef.current = true; })
+          .catch(() => {});
       }
     });
   }, [user, token]);
@@ -116,14 +109,10 @@ export function usePushNotifications() {
   useEffect(() => {
     if (!user || !Notifications) return;
 
-    console.log('[PUSH] Setting up notification listeners for user:', user?.id);
     notificationListener.current = Notifications.addNotificationReceivedListener((notification: any) => {
-      console.log('[PUSH] === NOTIFICATION RECEIVED IN FOREGROUND ===');
-      console.log('[PUSH] Full notification:', JSON.stringify(notification?.request?.content, null, 2));
       const data = notification.request.content.data;
       const title = notification.request.content.title;
       const body = notification.request.content.body;
-      console.log('[PUSH] Foreground notification:', data?.type, data?.orderId);
 
       if (data?.type === 'REQUEST_CANCEL_DISPUTE' && data?.orderId) {
         Alert.alert(

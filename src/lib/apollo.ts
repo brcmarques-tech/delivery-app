@@ -11,14 +11,12 @@ import { router } from 'expo-router';
 
 const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
 const PROD_URL = 'https://delivery-api-fdc4.onrender.com';
-const NGROK_URL = 'https://acrimoniously-nondisciplinary-emory.ngrok-free.dev'; // TEMP: local tunnel while Render is suspended
 
-const USE_LOCAL = __DEV__; // Auto: local in dev, prod in production
-const USE_NGROK = false; // ngrok only needed for external webhooks (Pagar.me)
+const USE_LOCAL = __DEV__;
 
-const BASE_URL = USE_NGROK ? NGROK_URL : USE_LOCAL ? `http://${DEV_HOST}:3000` : PROD_URL;
+const BASE_URL = USE_LOCAL ? `http://${DEV_HOST}:3000` : PROD_URL;
 const API_URL = `${BASE_URL}/graphql`;
-const WS_URL = `${USE_NGROK ? 'wss://acrimoniously-nondisciplinary-emory.ngrok-free.dev' : USE_LOCAL ? `ws://${DEV_HOST}:3000` : 'wss://delivery-api-fdc4.onrender.com'}/graphql`;
+const WS_URL = `${USE_LOCAL ? `ws://${DEV_HOST}:3000` : 'wss://delivery-api-fdc4.onrender.com'}/graphql`;
 
 const httpLink = createHttpLink({
   uri: API_URL,
@@ -49,8 +47,6 @@ try {
         return { authorization: token ? `Bearer ${token}` : '' };
       },
       on: {
-        connected: () => console.log('[WS] Connected to', WS_URL),
-        closed: (event: any) => console.log('[WS] Closed:', event?.code, event?.reason),
         error: (err: any) => console.log('[WS] Error:', err?.message || err),
       },
     }),
