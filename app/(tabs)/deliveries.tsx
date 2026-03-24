@@ -73,7 +73,8 @@ async function openNavigation(lat: number, lng: number, label: string) {
 }
 
 const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
-const WS_URL = 'https://delivery-api-fdc4.onrender.com'; // Force production even in dev mode
+const PROD_WS = 'https://delivery-api-fdc4.onrender.com';
+const WS_URL = __DEV__ ? `http://${DEV_HOST}:3000` : PROD_WS;
 
 type Tab = 'available' | 'my';
 
