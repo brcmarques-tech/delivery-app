@@ -206,6 +206,7 @@ export const GET_ORDER = gql`
       rejectionReason
       createdAt
       store {
+        id
         name
         phone
       }
@@ -216,10 +217,13 @@ export const GET_ORDER = gql`
         unitPrice
         totalPrice
         product {
+          id
           name
           imageUrl
         }
       }
+      deliveryLatitude
+      deliveryLongitude
       delivery {
         id
         currentLatitude
@@ -228,6 +232,7 @@ export const GET_ORDER = gql`
         deliverer {
           name
           phone
+          profilePhotoUrl
         }
       }
     }

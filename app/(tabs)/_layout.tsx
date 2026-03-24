@@ -3,9 +3,14 @@ import { Tabs, usePathname, router } from 'expo-router';
 import { View, Text, StyleSheet, BackHandler } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery, useSubscription } from '@apollo/client';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCart } from '../../src/contexts/CartContext';
+import { GET_MY_ORDERS, GET_AVAILABLE_DELIVERIES } from '../../src/lib/graphql/queries';
+import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
+
+const ACTIVE_ORDER_STATUSES = ['AWAITING_PAYMENT', 'PAYMENT_REVIEW', 'PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'PICKED_UP', 'DELIVERING', 'VENDOR_CONFIRMED_PICKUP', 'DELIVERER_CONFIRMED_DELIVERY'];
 
 export default function TabsLayout() {
   const pathname = usePathname();
@@ -26,6 +31,22 @@ export default function TabsLayout() {
   const { itemCount } = useCart();
   const isDeliverer = user?.isDeliverer === true || user?.role === 'DELIVERER';
   const insets = useSafeAreaInsets();
+
+  // Active orders count for badge (auto-updates via subscription)
+  const { data: ordersData, refetch: refetchOrders } = useQuery(GET_MY_ORDERS, { skip: !user, fetchPolicy: 'cache-and-network' });
+  const activeOrderCount = (ordersData?.myOrders || []).filter((o: any) => ACTIVE_ORDER_STATUSES.includes(o.status)).length;
+  useSubscription(ORDER_UPDATED, {
+    skip: !user,
+    onData: () => { refetchOrders(); },
+  });
+
+  // Available deliveries count for badge (auto-updates via subscription)
+  const { data: deliveriesData, refetch: refetchDeliveries } = useQuery(GET_AVAILABLE_DELIVERIES, { skip: !isDeliverer, fetchPolicy: 'cache-and-network' });
+  const availableDeliveryCount = (deliveriesData?.availableDeliveries || []).length;
+  useSubscription(DELIVERY_UPDATED, {
+    skip: !isDeliverer,
+    onData: () => { refetchDeliveries(); },
+  });
 
   return (
     <Tabs
@@ -66,7 +87,14 @@ export default function TabsLayout() {
         options={{
           title: 'Pedidos',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="receipt-outline" size={size} color={color} />
+            <View>
+              <Ionicons name="receipt-outline" size={size} color={color} />
+              {activeOrderCount > 0 && (
+                <View style={[tabStyles.badge, { backgroundColor: colors.primary }]}>
+                  <Text style={tabStyles.badgeText}>{activeOrderCount > 99 ? '99+' : activeOrderCount}</Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />
@@ -78,7 +106,14 @@ export default function TabsLayout() {
           title: 'Entregas',
           href: isDeliverer ? '/(tabs)/deliveries' : null,
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bicycle-outline" size={size} color={color} />
+            <View>
+              <Ionicons name="bicycle-outline" size={size} color={color} />
+              {availableDeliveryCount > 0 && (
+                <View style={[tabStyles.badge, { backgroundColor: colors.primary }]}>
+                  <Text style={tabStyles.badgeText}>{availableDeliveryCount > 99 ? '99+' : availableDeliveryCount}</Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />

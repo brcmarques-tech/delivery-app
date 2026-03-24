@@ -12,7 +12,7 @@ import { router } from 'expo-router';
 const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
 const PROD_URL = 'https://delivery-api-fdc4.onrender.com';
 
-const USE_LOCAL = false; // Force production API even in dev mode
+const USE_LOCAL = __DEV__;
 
 const BASE_URL = USE_LOCAL ? `http://${DEV_HOST}:3000` : PROD_URL;
 const API_URL = `${BASE_URL}/graphql`;
@@ -29,6 +29,7 @@ const authLink = setContext(async (_, { headers }) => {
     headers: {
       ...headers,
       authorization: token ? `Bearer ${token}` : '',
+      'apollo-require-preflight': 'true',
     },
   };
 });
@@ -45,7 +46,9 @@ try {
         const token = await SecureStore.getItemAsync('token');
         return { authorization: token ? `Bearer ${token}` : '' };
       },
-      on: {},
+      on: {
+        error: (err: any) => console.log('[WS] Error:', err?.message || err),
+      },
     }),
   );
 } catch {
@@ -86,15 +89,13 @@ const cache = new InMemoryCache({
     Query: {
       fields: {
         myOrders: { merge: (_existing, incoming) => incoming },
+        myDeliveries: { merge: (_existing, incoming) => incoming },
+        availableDeliveries: { merge: (_existing, incoming) => incoming },
         storeOrders: { merge: (_existing, incoming) => incoming },
         popularProducts: { merge: (_existing, incoming) => incoming },
         activePromotions: { merge: (_existing, incoming) => incoming },
       },
     },
-    Order: { keyFields: ['id'] },
-    Product: { keyFields: ['id'] },
-    Store: { keyFields: ['id'] },
-    Delivery: { keyFields: ['id'] },
   },
 });
 
@@ -102,8 +103,3 @@ export const apolloClient = new ApolloClient({
   link: errorLink.concat(link),
   cache,
 });
-
-// Periodic cache GC — evict unreachable objects every 5 minutes
-setInterval(() => {
-  apolloClient.cache.gc();
-}, 5 * 60 * 1000);

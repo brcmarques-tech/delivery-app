@@ -57,7 +57,7 @@ export default function PromotionScreen() {
 
   function handleAddToCart() {
     if (!promo.product || !promo.store) return;
-    addItem(promo.product.id, 1);
+    addItem({ productId: promo.product.id, name: promo.product.name, price: promo.promotionalPrice ?? promo.product.price, imageUrl: promo.product.imageUrl, storeId: promo.store.id, storeName: promo.store.name }, 1);
     router.push('/(tabs)/cart');
   }
 

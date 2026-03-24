@@ -422,6 +422,15 @@ export const DISPUTE_COMPLETED_ORDER = gql`
   }
 `;
 
+export const CANCEL_DISPUTE = gql`
+  mutation CancelDispute($orderId: String!) {
+    cancelDispute(orderId: $orderId) {
+      id
+      status
+    }
+  }
+`;
+
 export const CANCEL_ORDER = gql`
   mutation CancelOrder($orderId: String!) {
     cancelOrder(orderId: $orderId) {

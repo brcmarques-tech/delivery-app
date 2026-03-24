@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { useMutation } from '@apollo/client';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,18 +13,29 @@ try {
   Notifications = require('expo-notifications');
   Device = require('expo-device');
 } catch {
-  // expo-notifications not available (Expo Go)
 }
 
 if (Notifications) {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: false,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
+    handleNotification: async (notification: any) => {
+      const title = notification?.request?.content?.title;
+      const body = notification?.request?.content?.body;
+      setTimeout(() => {
+        Alert.alert(
+          title || 'Notificação',
+          body || 'Você recebeu uma notificação.',
+          [{ text: 'OK' }],
+        );
+      }, 300);
+
+      return {
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      };
+    },
   });
 }
 
@@ -81,25 +92,48 @@ export function usePushNotifications() {
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
 
+  // Register push token (once)
   useEffect(() => {
     if (!user || !token || registeredRef.current || !Notifications) return;
 
     registerForPushNotifications().then((pushToken) => {
       if (pushToken) {
         registerToken({ variables: { token: pushToken } })
-          .then(() => {
-            registeredRef.current = true;
-          })
-          .catch((err: any) => console.log('Failed to register push token:', err));
+          .then(() => { registeredRef.current = true; })
+          .catch(() => {});
       }
     });
+  }, [user, token]);
 
-    notificationListener.current = Notifications.addNotificationReceivedListener(() => {});
+  // Notification listeners (always active when logged in)
+  useEffect(() => {
+    if (!user || !Notifications) return;
+
+    notificationListener.current = Notifications.addNotificationReceivedListener((notification: any) => {
+      const data = notification.request.content.data;
+      const title = notification.request.content.title;
+      const body = notification.request.content.body;
+
+      if (data?.type === 'REQUEST_CANCEL_DISPUTE' && data?.orderId) {
+        Alert.alert(
+          title || 'Solicitação da loja',
+          body || 'A loja pediu para você cancelar a reclamação.',
+          [
+            { text: 'Ignorar', style: 'cancel' },
+            { text: 'Ver pedido', onPress: () => router.push(`/order/${data.orderId}`) },
+          ],
+        );
+      }
+    });
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response: any) => {
       const data = response.notification.request.content.data;
 
-      if (data?.type === 'ORDER_STATUS' || data?.type === 'NEW_ORDER') {
+      if (data?.type === 'REQUEST_CANCEL_DISPUTE' && data?.orderId) {
+        router.push(`/order/${data.orderId}`);
+      } else if (data?.type === 'PAYMENT_CONFIRMED' && data?.orderId) {
+        router.push(`/order/${data.orderId}`);
+      } else if (data?.type === 'ORDER_STATUS' || data?.type === 'NEW_ORDER') {
         router.push('/(tabs)/orders');
       } else if (data?.type === 'DELIVERY_OFFER') {
         router.push('/(tabs)/deliveries');
@@ -110,5 +144,5 @@ export function usePushNotifications() {
       notificationListener.current?.remove();
       responseListener.current?.remove();
     };
-  }, [user, token]);
+  }, [user]);
 }

@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   SectionList,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,11 +16,40 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { colors as staticColors, fonts } from '../src/theme';
 
+function formatWeight(grams: number) {
+  if (grams >= 1000) {
+    const kg = grams / 1000;
+    return `${kg % 1 === 0 ? kg.toFixed(0) : kg.toFixed(1)}kg`;
+  }
+  return `${grams}g`;
+}
+
 export default function CartScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { items, updateQuantity, updateWeight, removeItem, clearCart } = useCart();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Adjustment modal state
+  const [editingItem, setEditingItem] = useState<CartItem | null>(null);
+  const [editValue, setEditValue] = useState(0);
+
+  function openEditor(item: CartItem) {
+    setEditingItem(item);
+    setEditValue(item.isVariableWeight ? (item.weightGrams || 100) : item.quantity);
+  }
+
+  function confirmEdit() {
+    if (!editingItem) return;
+    if (editingItem.isVariableWeight) {
+      if (editValue <= 0) removeItem(editingItem.id);
+      else updateWeight(editingItem.id, editValue);
+    } else {
+      if (editValue <= 0) removeItem(editingItem.id);
+      else updateQuantity(editingItem.id, editValue);
+    }
+    setEditingItem(null);
+  }
 
   // Group items by store
   const sections = useMemo(() => {
@@ -62,11 +93,8 @@ export default function CartScreen() {
   function toggleItem(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -77,40 +105,29 @@ export default function CartScreen() {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       for (const item of storeItems) {
-        if (allSelected) {
-          next.delete(item.id);
-        } else {
-          next.add(item.id);
-        }
+        if (allSelected) next.delete(item.id);
+        else next.add(item.id);
       }
       return next;
     });
   }
 
   function selectAll() {
-    if (selectedIds.size === items.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(items.map((i) => i.id)));
-    }
+    if (selectedIds.size === items.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(items.map((i) => i.id)));
   }
 
   function handleCheckout() {
     if (selectedCount === 0) return;
-
-    // Check all selected are from same store
     const storeIds = new Set(
       items.filter((i) => selectedIds.has(i.id)).map((i) => i.storeId),
     );
-    if (storeIds.size > 1) {
-      return; // Button should be disabled, but safeguard
-    }
+    if (storeIds.size > 1) return;
 
     const selected = items.filter((i) => selectedIds.has(i.id));
     const storeId = selected[0].storeId;
     const storeName = selected[0].storeName;
 
-    // Pass selected items via query params (encoded)
     router.push({
       pathname: '/checkout',
       params: {
@@ -153,6 +170,12 @@ export default function CartScreen() {
       </View>
     );
   }
+
+  // Editor modal step values
+  const isWeight = editingItem?.isVariableWeight;
+  const step = isWeight ? 50 : 1;
+  const minValue = step;
+  const displayValue = isWeight ? formatWeight(editValue) : `${editValue}`;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -208,6 +231,10 @@ export default function CartScreen() {
             ? (item.price * (item.weightGrams || 0)) / 1000
             : item.price * item.quantity;
 
+          const qtyLabel = item.isVariableWeight
+            ? formatWeight(item.weightGrams || 0)
+            : `${item.quantity}`;
+
           return (
             <View style={[
               styles.itemCard,
@@ -237,51 +264,22 @@ export default function CartScreen() {
                 ) : null}
               </View>
 
-              {item.isVariableWeight ? (
-                <View style={styles.quantityRow}>
-                  <TouchableOpacity
-                    style={[styles.qtyButton, { backgroundColor: colors.primary + '15' }]}
-                    onPress={() => updateWeight(item.id, (item.weightGrams || 0) - 100)}
-                  >
-                    <Ionicons
-                      name={(item.weightGrams || 0) <= 100 ? 'trash-outline' : 'remove'}
-                      size={18}
-                      color={colors.primary}
-                    />
-                  </TouchableOpacity>
-                  <Text style={[styles.qtyText, { color: colors.text }]}>
-                    {(item.weightGrams || 0) >= 1000
-                      ? `${((item.weightGrams || 0) / 1000).toFixed((item.weightGrams || 0) % 1000 === 0 ? 0 : 1)}kg`
-                      : `${item.weightGrams || 0}g`}
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.qtyButton, { backgroundColor: colors.primary + '15' }]}
-                    onPress={() => updateWeight(item.id, (item.weightGrams || 0) + 100)}
-                  >
-                    <Ionicons name="add" size={18} color={colors.primary} />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.quantityRow}>
-                  <TouchableOpacity
-                    style={[styles.qtyButton, { backgroundColor: colors.primary + '15' }]}
-                    onPress={() => updateQuantity(item.id, item.quantity - 1)}
-                  >
-                    <Ionicons
-                      name={item.quantity === 1 ? 'trash-outline' : 'remove'}
-                      size={18}
-                      color={colors.primary}
-                    />
-                  </TouchableOpacity>
-                  <Text style={[styles.qtyText, { color: colors.text }]}>{item.quantity}</Text>
-                  <TouchableOpacity
-                    style={[styles.qtyButton, { backgroundColor: colors.primary + '15' }]}
-                    onPress={() => updateQuantity(item.id, item.quantity + 1)}
-                  >
-                    <Ionicons name="add" size={18} color={colors.primary} />
-                  </TouchableOpacity>
-                </View>
-              )}
+              {/* Delete button */}
+              <TouchableOpacity
+                style={[styles.deleteButton, { backgroundColor: colors.danger + '15' }]}
+                onPress={() => removeItem(item.id)}
+              >
+                <Ionicons name="trash-outline" size={16} color={colors.danger} />
+              </TouchableOpacity>
+
+              {/* Quantity/weight badge - tap to edit */}
+              <TouchableOpacity
+                style={[styles.qtyBadge, { backgroundColor: colors.primary + '15' }]}
+                onPress={() => openEditor(item)}
+              >
+                <Text style={[styles.qtyBadgeText, { color: colors.primary }]}>{qtyLabel}</Text>
+                <Ionicons name="pencil-outline" size={12} color={colors.primary} />
+              </TouchableOpacity>
             </View>
           );
         }}
@@ -315,6 +313,49 @@ export default function CartScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Quantity/Weight editor modal */}
+      <Modal visible={!!editingItem} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setEditingItem(null)}>
+          <Pressable style={[styles.editorCard, { backgroundColor: colors.card }]} onPress={() => {}}>
+            <Text style={[styles.editorTitle, { color: colors.text }]}>
+              {isWeight ? 'Ajustar peso' : 'Ajustar quantidade'}
+            </Text>
+            <Text style={[styles.editorItemName, { color: colors.textLight }]}>{editingItem?.name}</Text>
+
+            <View style={styles.editorRow}>
+              <TouchableOpacity
+                style={[styles.editorBtn, { backgroundColor: colors.primary + '15' }]}
+                onPress={() => setEditValue((v) => Math.max(minValue, v - step))}
+              >
+                <Ionicons name="remove" size={24} color={colors.primary} />
+              </TouchableOpacity>
+
+              <Text style={[styles.editorValue, { color: colors.text }]}>{displayValue}</Text>
+
+              <TouchableOpacity
+                style={[styles.editorBtn, { backgroundColor: colors.primary + '15' }]}
+                onPress={() => setEditValue((v) => v + step)}
+              >
+                <Ionicons name="add" size={24} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+
+            {isWeight && editingItem && (
+              <Text style={[styles.editorSubtext, { color: colors.textLight }]}>
+                R$ {((editingItem.price * editValue) / 1000).toFixed(2)}
+              </Text>
+            )}
+
+            <TouchableOpacity
+              style={[styles.editorConfirm, { backgroundColor: colors.primary }]}
+              onPress={confirmEdit}
+            >
+              <Text style={styles.editorConfirmText}>OK</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -367,30 +408,30 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
-  itemCardSelected: {
-    borderWidth: 1.5,
-    borderColor: staticColors.primary + '40',
-    backgroundColor: staticColors.primary + '05',
-  },
-  checkboxArea: {
-    padding: 4,
-  },
+  checkboxArea: { padding: 4 },
   itemInfo: { flex: 1 },
   itemName: { fontSize: fonts.regular, fontWeight: '600', color: staticColors.text },
   itemPrice: { fontSize: fonts.small, color: staticColors.primary, fontWeight: '600', marginTop: 2 },
   itemNotes: { fontSize: fonts.tiny, color: staticColors.textLight, marginTop: 2, fontStyle: 'italic' },
-  quantityRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  qtyButton: {
-    width: 30,
-    height: 30,
+  deleteButton: {
+    width: 32,
+    height: 32,
     borderRadius: 8,
-    backgroundColor: staticColors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  qtyText: { fontSize: fonts.small, fontWeight: 'bold', color: staticColors.text, minWidth: 24, textAlign: 'center' },
+  qtyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  qtyBadgeText: { fontSize: fonts.small, fontWeight: 'bold' },
+  // Footer
   footerBar: {
     position: 'absolute',
     bottom: 0,
@@ -427,4 +468,44 @@ const styles = StyleSheet.create({
   },
   checkoutDisabled: { opacity: 0.4 },
   checkoutText: { color: '#fff', fontSize: fonts.regular, fontWeight: 'bold' },
+  // Editor modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  editorCard: {
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+    alignItems: 'center',
+    gap: 12,
+  },
+  editorTitle: { fontSize: fonts.large, fontWeight: 'bold' },
+  editorItemName: { fontSize: fonts.small },
+  editorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+    marginVertical: 8,
+  },
+  editorBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editorValue: { fontSize: 28, fontWeight: 'bold', minWidth: 80, textAlign: 'center' },
+  editorSubtext: { fontSize: fonts.small },
+  editorConfirm: {
+    borderRadius: 10,
+    paddingHorizontal: 32,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  editorConfirmText: { color: '#fff', fontSize: fonts.regular, fontWeight: 'bold' },
 });

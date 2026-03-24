@@ -29,6 +29,7 @@ export default function OrdersScreen() {
 
   const statusLabels: Record<string, { label: string; color: string }> = {
     AWAITING_PAYMENT: { label: 'Aguardando pagamento', color: colors.warning },
+    PAYMENT_REVIEW: { label: 'Em análise', color: colors.warning },
     PENDING: { label: 'Pendente', color: colors.warning },
     ACCEPTED: { label: 'Aceito', color: colors.primary },
     PREPARING: { label: 'Preparando', color: colors.primary },
@@ -40,10 +41,10 @@ export default function OrdersScreen() {
     // H4: Missing statuses added
     COMPLETED: { label: 'Entregue', color: colors.success },
     REJECTED: { label: 'Rejeitado', color: colors.danger },
-    DISPUTED: { label: 'Em disputa', color: colors.warning },
+    DISPUTED: { label: 'Em reclamação', color: colors.warning },
     VENDOR_CONFIRMED_PICKUP: { label: 'Retirado', color: colors.primary },
     DELIVERER_CONFIRMED_DELIVERY: { label: 'Entrega confirmada', color: colors.success },
-    EXPIRED: { label: 'Expirado', color: colors.gray },
+    EXPIRED: { label: 'Não aceito', color: colors.danger },
   };
 
   // Real-time order updates (debounced to prevent excessive refetches)

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator, Alert, Modal, TextInput, Share } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking, ActivityIndicator, Alert, Modal, TextInput, Share } from 'react-native';
 import { Image } from 'expo-image';
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { GET_ORDER } from '../../src/lib/graphql/queries';
-import { CONFIRM_RECEIPT, CONFIRM_PICKUP, CONFIRM_DELIVERY, CUSTOMER_DENY_DELIVERY, CANCEL_ORDER, DISPUTE_COMPLETED_ORDER } from '../../src/lib/graphql/mutations';
+import { CONFIRM_RECEIPT, CONFIRM_PICKUP, CONFIRM_DELIVERY, CUSTOMER_DENY_DELIVERY, CANCEL_ORDER, DISPUTE_COMPLETED_ORDER, CANCEL_DISPUTE } from '../../src/lib/graphql/mutations';
 import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -16,6 +16,7 @@ import { fonts } from '../../src/theme';
 // M9: AWAITING_PAYMENT added as first status step
 const statusSteps = [
   { key: 'AWAITING_PAYMENT', label: 'Aguardando pagamento', icon: 'card-outline' as const },
+  { key: 'PAYMENT_REVIEW', label: 'Em análise', icon: 'shield-checkmark-outline' as const },
   { key: 'PENDING', label: 'Pendente', icon: 'time-outline' as const },
   { key: 'ACCEPTED', label: 'Aceito', icon: 'checkmark-circle-outline' as const },
   { key: 'PREPARING', label: 'Preparando', icon: 'restaurant-outline' as const },
@@ -27,7 +28,7 @@ const statusSteps = [
   { key: 'COMPLETED', label: 'Finalizado', icon: 'checkmark-circle' as const },
 ];
 
-const terminalStatuses = ['REJECTED', 'DISPUTED', 'CANCELLED'];
+const terminalStatuses = ['REJECTED', 'DISPUTED', 'CANCELLED', 'EXPIRED'];
 
 const denyReasonOptions = [
   'Pedido não chegou',
@@ -44,12 +45,14 @@ export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, loading, refetch } = useQuery(GET_ORDER, {
     variables: { id },
+    fetchPolicy: 'cache-and-network',
   });
 
   // Real-time updates for this order
   useSubscription(ORDER_UPDATED, {
     variables: { orderId: id },
-    onData: () => { refetch(); },
+    onData: ({ data: subData }) => { console.log('[SUB] orderUpdated received:', subData?.data?.orderUpdated?.status); refetch(); },
+    onError: (err) => { console.log('[SUB] orderUpdated error:', err?.message); },
   });
   useSubscription(DELIVERY_UPDATED, {
     variables: { orderId: id },
@@ -62,6 +65,7 @@ export default function OrderDetailScreen() {
   const [confirmDelivery, { loading: delivering }] = useMutation(CONFIRM_DELIVERY);
   const [cancelOrder, { loading: cancelling }] = useMutation(CANCEL_ORDER);
   const [disputeCompleted, { loading: disputing }] = useMutation(DISPUTE_COMPLETED_ORDER);
+  const [cancelDisputeMutation, { loading: cancellingDispute }] = useMutation(CANCEL_DISPUTE);
 
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [denyModalVisible, setDenyModalVisible] = useState(false);
@@ -73,6 +77,7 @@ export default function OrderDetailScreen() {
   const [pixModalVisible, setPixModalVisible] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
   const [pixTimeLeft, setPixTimeLeft] = useState(600); // 10 min
+  const [refreshing, setRefreshing] = useState(false);
 
   const order = data?.order;
   const isDeliverer = user?.role === 'DELIVERER' || user?.isDeliverer;
@@ -282,7 +287,17 @@ export default function OrderDetailScreen() {
     : null;
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={async () => { setRefreshing(true); await refetch(); setRefreshing(false); }}
+          tintColor={colors.primary}
+          colors={[colors.primary || '#FF6B35']}
+        />
+      }
+    >
       <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: colors.card }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={18} color={colors.text} />
@@ -342,12 +357,51 @@ export default function OrderDetailScreen() {
         <View style={[styles.terminalBanner, { backgroundColor: isDark ? '#4A3A1A' : '#FFF3CD' }]}>
           <Ionicons name="warning" size={18} color={colors.warning} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.terminalBannerTitle, { color: isDark ? '#FBBF24' : '#856404' }]}>Em disputa</Text>
-            {order.disputeReason && (
-              <Text style={[styles.terminalBannerSub, { color: isDark ? '#FBBF24' : '#856404' }]}>
-                Motivo: {order.disputeReason}
-              </Text>
-            )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.terminalBannerTitle, { color: isDark ? '#FBBF24' : '#856404' }]}>Em reclamação</Text>
+                {order.disputeReason && (
+                  <Text style={[styles.terminalBannerSub, { color: isDark ? '#FBBF24' : '#856404' }]}>
+                    Motivo: {order.disputeReason}
+                  </Text>
+                )}
+              </View>
+              {!isDeliverer && (
+                <TouchableOpacity
+                  style={{ backgroundColor: colors.success, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginLeft: 8 }}
+                  disabled={cancellingDispute}
+                  onPress={() => {
+                    Alert.alert('Cancelar reclamação', 'Tem certeza que deseja cancelar a reclamação? O pedido voltará para "Finalizado".', [
+                      { text: 'Não', style: 'cancel' },
+                      { text: 'Sim, cancelar', onPress: async () => {
+                        try {
+                          await cancelDisputeMutation({ variables: { orderId: id } });
+                          refetch();
+                        } catch (err: any) {
+                          Alert.alert('Erro', err?.message || 'Não foi possível cancelar a reclamação.');
+                        }
+                      }},
+                    ]);
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>
+                    {cancellingDispute ? 'Cancelando...' : 'Cancelar'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      )}
+
+      {order.status === 'EXPIRED' && (
+        <View style={[styles.terminalBanner, { backgroundColor: isDark ? '#3A1A1A' : '#F8D7DA' }]}>
+          <Ionicons name="time-outline" size={18} color={colors.danger} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.terminalBannerTitle, { color: isDark ? '#FCA5A5' : '#721C24' }]}>Pedido não foi aceito</Text>
+            <Text style={[styles.terminalBannerSub, { color: isDark ? '#FCA5A5' : '#721C24' }]}>
+              A loja não respondeu a tempo. Seu pagamento será estornado automaticamente.
+            </Text>
           </View>
         </View>
       )}
@@ -398,14 +452,38 @@ export default function OrderDetailScreen() {
 
       {order.delivery?.deliverer && (
         <View style={[styles.delivererCard, { backgroundColor: colors.card }]}>
-          <Ionicons name="bicycle" size={18} color={colors.primary} />
+          {order.delivery.deliverer.profilePhotoUrl ? (
+            <Image
+              source={{ uri: order.delivery.deliverer.profilePhotoUrl }}
+              style={{ width: 48, height: 48, borderRadius: 24 }}
+            />
+          ) : (
+            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary + '20', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: colors.primary, fontWeight: 'bold', fontSize: 18 }}>
+                {order.delivery.deliverer.name?.charAt(0)?.toUpperCase()}
+              </Text>
+            </View>
+          )}
           <View style={{ flex: 1 }}>
             <Text style={[styles.delivererName, { color: colors.text }]}>{order.delivery.deliverer.name}</Text>
-            <Text style={[styles.delivererPhone, { color: colors.textLight }]}>{order.delivery.deliverer.phone}</Text>
+            <Text style={[styles.delivererPhone, { color: colors.textLight }]}>
+              {order.status === 'DELIVERING' ? 'Saiu para entrega' : order.status === 'DELIVERER_CONFIRMED_DELIVERY' ? 'Entrega confirmada' : 'Entregador a caminho'}
+            </Text>
           </View>
-          <TouchableOpacity style={styles.callButton}>
+          <TouchableOpacity
+            style={styles.callButton}
+            onPress={() => order.delivery.deliverer.phone && Linking.openURL(`https://wa.me/55${order.delivery.deliverer.phone.replace(/\D/g, '')}`)}
+          >
             <Ionicons name="call" size={18} color={colors.primary} />
           </TouchableOpacity>
+          {order.delivery.currentLatitude && order.deliveryLatitude && (
+            <TouchableOpacity
+              style={styles.callButton}
+              onPress={() => Linking.openURL(`https://www.google.com/maps/dir/${order.delivery.currentLatitude},${order.delivery.currentLongitude}/${order.deliveryLatitude},${order.deliveryLongitude}`)}
+            >
+              <Ionicons name="map" size={18} color={colors.success} />
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -778,8 +856,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
-    paddingTop: 56,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
   },
   title: { fontSize: fonts.large, fontWeight: 'bold' },
   statusContainer: {
