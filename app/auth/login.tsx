@@ -20,7 +20,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { colors, fonts } from '../../src/theme';
 
-const API_BASE = 'https://delivery-api-fdc4.onrender.com';
+const API_BASE = 'https://api.bcmtech.com.br';
 const RETURN_URL = Constants.appOwnership === 'expo'
   ? Linking.createURL('google-auth')
   : 'delivery-app://google-auth';

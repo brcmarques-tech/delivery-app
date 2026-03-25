@@ -27,7 +27,7 @@ import { VALIDATE_REGISTRATION, SEND_VERIFICATION_CODE, VERIFY_CODE } from '../.
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../src/theme';
 
-const API_BASE = 'https://delivery-api-fdc4.onrender.com';
+const API_BASE = 'https://api.bcmtech.com.br';
 const RETURN_URL = Constants.appOwnership === 'expo'
   ? Linking.createURL('google-auth')
   : 'delivery-app://google-auth';
