@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const LOCATION_TASK_NAME = 'DELIVERY_BACKGROUND_LOCATION';
 const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
-const PROD_WS = 'https://delivery-api-fdc4.onrender.com';
+const PROD_WS = 'https://api.bcmtech.com.br';
 const WS_URL = __DEV__ ? `http://${DEV_HOST}:3000` : PROD_WS;
 
 let socketInstance: Socket | null = null;

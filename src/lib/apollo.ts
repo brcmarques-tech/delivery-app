@@ -10,13 +10,13 @@ import { Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 
 const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
-const PROD_URL = 'https://delivery-api-fdc4.onrender.com';
+const PROD_URL = 'https://api.bcmtech.com.br';
 
 const USE_LOCAL = __DEV__;
 
 const BASE_URL = USE_LOCAL ? `http://${DEV_HOST}:3000` : PROD_URL;
 const API_URL = `${BASE_URL}/graphql`;
-const WS_URL = `${USE_LOCAL ? `ws://${DEV_HOST}:3000` : 'wss://delivery-api-fdc4.onrender.com'}/graphql`;
+const WS_URL = `${USE_LOCAL ? `ws://${DEV_HOST}:3000` : 'wss://api.bcmtech.com.br'}/graphql`;
 
 const httpLink = createHttpLink({
   uri: API_URL,
