@@ -226,13 +226,19 @@ export default function DeliveriesScreen() {
     locationSubRef.current = await Location.watchPositionAsync(
       { accuracy: Location.Accuracy.Balanced, distanceInterval: 100, timeInterval: 60000 },
       (loc) => {
-        console.log(`[APP-GPS] Location update: lat=${loc.coords.latitude.toFixed(5)}, lng=${loc.coords.longitude.toFixed(5)}`);
-        setCurrentLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
-        socket.emit('delivererLocationUpdate', {
-          userId: user?.id,
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
+        try {
+          console.log(`[APP-GPS] Location update: lat=${loc.coords.latitude.toFixed(5)}, lng=${loc.coords.longitude.toFixed(5)}`);
+          setCurrentLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+          if (socket.connected) {
+            socket.emit('delivererLocationUpdate', {
+              userId: user?.id,
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            });
+          }
+        } catch {
+          // Prevent crash from unhandled error in location callback
+        }
       },
     );
 
