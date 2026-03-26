@@ -24,8 +24,11 @@ function getSocket(): Socket {
       transports: ['websocket'],
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 5000,
+    });
+    socketInstance.on('connect_error', () => {
+      // Silently handle connection errors to prevent crash
     });
   }
   return socketInstance;
@@ -34,12 +37,18 @@ function getSocket(): Socket {
 function sendLocation(latitude: number, longitude: number) {
   if (!activeDeliveryId || !activeOrderId) return;
 
-  const socket = getSocket();
-  socket.emit('updateLocation', {
-    deliveryId: activeDeliveryId,
-    latitude,
-    longitude,
-  });
+  try {
+    const socket = getSocket();
+    if (socket.connected) {
+      socket.emit('updateLocation', {
+        deliveryId: activeDeliveryId,
+        latitude,
+        longitude,
+      });
+    }
+  } catch {
+    // Socket not available — skip this update silently
+  }
 }
 
 // Background task handler - runs even when app is minimized
@@ -85,7 +94,11 @@ export function useDeliveryTracking(activeDelivery: ActiveDelivery | null) {
         timeInterval: 30000, // ou a cada 30 segundos
       },
       (location) => {
-        sendLocation(location.coords.latitude, location.coords.longitude);
+        try {
+          sendLocation(location.coords.latitude, location.coords.longitude);
+        } catch {
+          // Prevent crash from unhandled error in location callback
+        }
       },
     );
 
