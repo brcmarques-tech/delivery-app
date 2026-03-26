@@ -112,6 +112,7 @@ export default function DeliveriesScreen() {
   const isOnlineRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const lastLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
 
   const statusLabels: Record<string, { label: string; color: string }> = {
     READY: { label: 'Aguardando coleta', color: colors.warning },
@@ -227,13 +228,18 @@ export default function DeliveriesScreen() {
       { accuracy: Location.Accuracy.Balanced, distanceInterval: 100, timeInterval: 60000 },
       (loc) => {
         try {
-          console.log(`[APP-GPS] Location update: lat=${loc.coords.latitude.toFixed(5)}, lng=${loc.coords.longitude.toFixed(5)}`);
-          setCurrentLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+          const { latitude, longitude } = loc.coords;
+          // Only update state if position changed significantly (>50m) to avoid re-render spam
+          const prev = lastLocationRef.current;
+          if (!prev || Math.abs(prev.latitude - latitude) > 0.0005 || Math.abs(prev.longitude - longitude) > 0.0005) {
+            setCurrentLocation({ latitude, longitude });
+            lastLocationRef.current = { latitude, longitude };
+          }
           if (socket.connected) {
             socket.emit('delivererLocationUpdate', {
               userId: user?.id,
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
+              latitude,
+              longitude,
             });
           }
         } catch {
