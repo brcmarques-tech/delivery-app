@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -554,6 +554,26 @@ export default function CheckoutScreen() {
     }
   }
 
+  const renderCheckoutItem = useCallback(({ item }: { item: any }) => (
+    <View style={[styles.itemCard, { backgroundColor: colors.white }]}>
+      <View style={styles.itemInfo}>
+        <Text style={[styles.itemName, { color: colors.text }]}>{item.name}</Text>
+        <Text style={[styles.itemPrice, { color: colors.primary }]}>
+          {item.isVariableWeight
+            ? `R$ ${((item.price * (item.weightGrams || 0)) / 1000).toFixed(2)}`
+            : `R$ ${(item.price * item.quantity).toFixed(2)}`}
+        </Text>
+      </View>
+      <Text style={[styles.itemQty, { color: colors.textLight }]}>
+        {item.isVariableWeight
+          ? (item.weightGrams || 0) >= 1000
+            ? `${((item.weightGrams || 0) / 1000).toFixed((item.weightGrams || 0) % 1000 === 0 ? 0 : 1)}kg`
+            : `${item.weightGrams || 0}g`
+          : `x${item.quantity}`}
+      </Text>
+    </View>
+  ), [colors]);
+
   const errorBg = isDark ? '#431407' : '#fef2f2';
   const errorBorder = isDark ? '#7c2d12' : '#fecaca';
   const errorText = isDark ? '#fca5a5' : '#dc2626';
@@ -578,25 +598,10 @@ export default function CheckoutScreen() {
         keyExtractor={(item) => item.id}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
-        renderItem={({ item }) => (
-          <View style={[styles.itemCard, { backgroundColor: colors.white }]}>
-            <View style={styles.itemInfo}>
-              <Text style={[styles.itemName, { color: colors.text }]}>{item.name}</Text>
-              <Text style={[styles.itemPrice, { color: colors.primary }]}>
-                {item.isVariableWeight
-                  ? `R$ ${((item.price * (item.weightGrams || 0)) / 1000).toFixed(2)}`
-                  : `R$ ${(item.price * item.quantity).toFixed(2)}`}
-              </Text>
-            </View>
-            <Text style={[styles.itemQty, { color: colors.textLight }]}>
-              {item.isVariableWeight
-                ? (item.weightGrams || 0) >= 1000
-                  ? `${((item.weightGrams || 0) / 1000).toFixed((item.weightGrams || 0) % 1000 === 0 ? 0 : 1)}kg`
-                  : `${item.weightGrams || 0}g`
-                : `x${item.quantity}`}
-            </Text>
-          </View>
-        )}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        renderItem={renderCheckoutItem}
         ListFooterComponent={
           <View style={styles.footer}>
             {!ownerPaymentConnected && (

@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, M
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useMutation, useQuery } from '@apollo/client';
+import { useMutation } from '@apollo/client';
 import * as ImagePicker from 'expo-image-picker';
 import { compressImage } from '../../src/lib/compressImage';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -11,7 +11,6 @@ import { useAlert } from '../../src/contexts/AlertContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as staticColors, fonts } from '../../src/theme';
-import { GET_ME } from '../../src/lib/graphql/queries';
 import { DISCONNECT_PAYMENT, UPLOAD_IMAGE, UPDATE_APP_PROFILE } from '../../src/lib/graphql/mutations';
 import AcceptTermsScreen from '../accept-terms';
 
@@ -24,7 +23,7 @@ const roleLabels: Record<string, string> = {
 };
 
 export default function ProfileScreen() {
-  const { user, logout, updateUser } = useAuth();
+  const { user, logout, updateUser, refreshUser } = useAuth();
   const { alert } = useAlert();
   const { isDark, mode, toggleTheme, colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -32,22 +31,14 @@ export default function ProfileScreen() {
   const [retryCountdown, setRetryCountdown] = useState(0);
   const [showTerms, setShowTerms] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-
-  const { data: meData, refetch: refetchMe } = useQuery(GET_ME, { fetchPolicy: 'network-only' });
   const [disconnectPaymentMut, { loading: disconnectLoading }] = useMutation(DISCONNECT_PAYMENT);
   const [uploadImage] = useMutation(UPLOAD_IMAGE);
   const [updateProfile] = useMutation(UPDATE_APP_PROFILE);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
-  const avatarUrl = meData?.meApp?.avatarUrl || null;
-  const paymentConnected = meData?.meApp?.paymentConnected ?? user?.paymentConnected ?? false;
-
-  useEffect(() => {
-    if (meData?.meApp && user) {
-      updateUser({ ...user, paymentConnected: meData.meApp.paymentConnected });
-    }
-  }, [meData?.meApp?.paymentConnected]);
+  const avatarUrl = user?.avatarUrl || null;
+  const paymentConnected = user?.paymentConnected ?? false;
 
   function handleConnectPayment() {
     router.push('/earnings');
@@ -152,18 +143,10 @@ export default function ProfileScreen() {
       const { data } = await uploadImage({ variables: { base64, folder: 'avatars' } });
       const url = data?.uploadImage;
       if (url) {
-        await updateProfile({
-          variables: { avatarUrl: url },
-          update: (cache) => {
-            const existing: any = cache.readQuery({ query: GET_ME });
-            if (existing?.meApp) {
-              cache.writeQuery({
-                query: GET_ME,
-                data: { meApp: { ...existing.meApp, avatarUrl: url } },
-              });
-            }
-          },
-        });
+        await updateProfile({ variables: { avatarUrl: url } });
+        if (user) {
+          await updateUser({ ...user, avatarUrl: url });
+        }
       }
     } catch {
       alert('Erro', 'Nao foi possivel atualizar a foto.');

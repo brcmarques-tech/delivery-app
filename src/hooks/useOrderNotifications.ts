@@ -1,82 +1,63 @@
 import { useEffect, useRef } from 'react';
-import { useQuery, useSubscription } from '@apollo/client';
-import { GET_ME } from '../lib/graphql/queries';
+import { useSubscription } from '@apollo/client';
 import { ORDER_UPDATED } from '../lib/graphql/subscriptions';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlert } from '../contexts/AlertContext';
 
 export function useOrderNotifications() {
-  const { user, updateUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { alert } = useAlert();
   const initializedRef = useRef(0);
-
-  const { data: meData, refetch: refetchMe } = useQuery(GET_ME, {
-    skip: !user,
-  });
+  const prevUserRef = useRef(user);
 
   // Refresh user data when orders change (role/approval may update)
   useSubscription(ORDER_UPDATED, {
     skip: !user,
-    onData: () => { refetchMe(); },
+    onData: () => { refreshUser(); },
   });
 
-  // Sync user data from server (role changes, approval, rejection, etc)
+  // Detect role/approval changes and notify user
   useEffect(() => {
-    if (!meData?.meApp || !user) return;
+    if (!user) return;
 
-    const me = meData.meApp;
+    const prev = prevUserRef.current;
+    prevUserRef.current = user;
 
-    // Skip first two loads to avoid false notifications on login/register
+    // No previous state to compare against
+    if (!prev) return;
+
+    // Skip first two updates to avoid false notifications on login/register
     if (initializedRef.current < 2) {
       initializedRef.current = (initializedRef.current || 0) + 1;
-      // Still sync data silently
-      if (
-        me.role !== user.role ||
-        me.isDeliverer !== user.isDeliverer ||
-        me.pendingRole !== user.pendingRole
-      ) {
-        updateUser({
-          ...user,
-          id: me.id,
-          name: me.name,
-          email: me.email,
-          role: me.role,
-          isDeliverer: me.isDeliverer,
-          pendingRole: me.pendingRole,
-          rejectedAt: me.rejectedAt,
-          rejectionReason: me.rejectionReason,
-          acceptedTermsAt: me.acceptedTermsAt ?? user.acceptedTermsAt,
-        });
-      }
       return;
     }
 
-    // Detect role change
-    const roleChanged = me.role !== user.role;
-    const delivererChanged = me.isDeliverer !== user.isDeliverer;
-    const pendingChanged = me.pendingRole !== user.pendingRole;
-    const rejectionChanged = me.rejectedAt !== user.rejectedAt;
+    // Detect changes
+    const roleChanged = user.role !== prev.role;
+    const delivererChanged = user.isDeliverer !== prev.isDeliverer;
+    const pendingChanged = user.pendingRole !== prev.pendingRole;
+    const rejectionChanged = user.rejectedAt !== prev.rejectedAt;
 
     if (!roleChanged && !delivererChanged && !pendingChanged && !rejectionChanged) return;
 
     // Approved as deliverer
-    if (user.pendingRole === 'DELIVERER' && !me.pendingRole && me.isDeliverer) {
+    if (prev.pendingRole === 'DELIVERER' && !user.pendingRole && user.isDeliverer) {
       alert(
         'Cadastro aprovado!',
         'Seu cadastro como entregador foi aprovado! A aba "Entregas" ja esta disponivel.',
       );
     }
     // Rejected
-    else if (user.pendingRole === 'DELIVERER' && !me.pendingRole && me.rejectedAt) {
+    else if (prev.pendingRole === 'DELIVERER' && !user.pendingRole && user.rejectedAt) {
       alert(
         'Cadastro rejeitado',
-        me.rejectionReason
-          ? `Seu cadastro como entregador foi rejeitado. Motivo: ${me.rejectionReason}`
+        user.rejectionReason
+          ? `Seu cadastro como entregador foi rejeitado. Motivo: ${user.rejectionReason}`
           : 'Seu cadastro como entregador foi rejeitado.',
       );
     }
     // Role changed by admin (e.g. deliverer -> customer)
-    else if (roleChanged && user.role) {
+    else if (roleChanged && prev.role) {
       const roleLabels: Record<string, string> = {
         CUSTOMER: 'Cliente',
         DELIVERER: 'Entregador',
@@ -84,19 +65,8 @@ export function useOrderNotifications() {
       };
       alert(
         'Cargo atualizado',
-        `Seu cargo foi alterado para: ${roleLabels[me.role] || me.role}`,
+        `Seu cargo foi alterado para: ${roleLabels[user.role] || user.role}`,
       );
     }
-
-    updateUser({
-      id: me.id,
-      name: me.name,
-      email: me.email,
-      role: me.role,
-      isDeliverer: me.isDeliverer,
-      pendingRole: me.pendingRole,
-      rejectedAt: me.rejectedAt,
-      rejectionReason: me.rejectionReason,
-    });
-  }, [meData]);
+  }, [user]);
 }

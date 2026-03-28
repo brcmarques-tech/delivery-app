@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -269,6 +269,68 @@ export default function AddressesScreen() {
     return parts.join(', ');
   }
 
+  const renderStateItem = useCallback(({ item: st }: { item: string }) => (
+    <TouchableOpacity
+      style={[
+        styles.stateChip,
+        { backgroundColor: colors.background },
+        form.state === st && styles.stateChipActive,
+      ]}
+      onPress={() => {
+        setForm((prev) => ({ ...prev, state: st }));
+        setShowStatePicker(false);
+      }}
+    >
+      <Text
+        style={[
+          styles.stateChipText,
+          { color: colors.text },
+          form.state === st && styles.stateChipTextActive,
+        ]}
+      >
+        {st}
+      </Text>
+    </TouchableOpacity>
+  ), [colors, form.state]);
+
+  const renderAddressItem = useCallback(({ item }: { item: any }) => (
+    <View style={[styles.card, { backgroundColor: colors.card, borderColor: 'transparent' }, item.isDefault && { borderColor: colors.primary + '40' }]}>
+      <View style={styles.cardContent}>
+        {item.isDefault && (
+          <View style={[styles.defaultBadge, { backgroundColor: colors.primary + '15' }]}>
+            <Text style={[styles.defaultBadgeText, { color: colors.primary }]}>Principal</Text>
+          </View>
+        )}
+        <Text style={[styles.addressText, { color: colors.text }]}>{formatAddress(item)}</Text>
+        {item.zipCode ? (
+          <Text style={[styles.zipText, { color: colors.textLight }]}>CEP: {item.zipCode}</Text>
+        ) : null}
+      </View>
+      <View style={styles.cardActions}>
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: colors.background }]}
+          onPress={() => handleEdit(item)}
+        >
+          <Ionicons name="create-outline" size={18} color={colors.primary} />
+        </TouchableOpacity>
+        {!item.isDefault && (
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: colors.background }]}
+            onPress={() => handleSetDefault(item.id)}
+          >
+            <Ionicons name="star-outline" size={18} color={colors.primary} />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: colors.background }]}
+          onPress={() => handleDelete(item.id)}
+        >
+          <Ionicons name="trash-outline" size={18} color={colors.danger} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  ), [colors, handleEdit, handleSetDefault, handleDelete, formatAddress]);
+
   if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
@@ -440,29 +502,8 @@ export default function AddressesScreen() {
               numColumns={4}
               contentContainerStyle={{ gap: 6 }}
               columnWrapperStyle={{ gap: 6 }}
-              renderItem={({ item: st }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.stateChip,
-                    { backgroundColor: colors.background },
-                    form.state === st && styles.stateChipActive,
-                  ]}
-                  onPress={() => {
-                    setForm((prev) => ({ ...prev, state: st }));
-                    setShowStatePicker(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.stateChipText,
-                      { color: colors.text },
-                      form.state === st && styles.stateChipTextActive,
-                    ]}
-                  >
-                    {st}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              removeClippedSubviews={true}
+              renderItem={renderStateItem}
             />
           </View>
         </TouchableOpacity>
@@ -472,43 +513,8 @@ export default function AddressesScreen() {
         data={addresses}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: 'transparent' }, item.isDefault && { borderColor: colors.primary + '40' }]}>
-            <View style={styles.cardContent}>
-              {item.isDefault && (
-                <View style={[styles.defaultBadge, { backgroundColor: colors.primary + '15' }]}>
-                  <Text style={[styles.defaultBadgeText, { color: colors.primary }]}>Principal</Text>
-                </View>
-              )}
-              <Text style={[styles.addressText, { color: colors.text }]}>{formatAddress(item)}</Text>
-              {item.zipCode ? (
-                <Text style={[styles.zipText, { color: colors.textLight }]}>CEP: {item.zipCode}</Text>
-              ) : null}
-            </View>
-            <View style={styles.cardActions}>
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: colors.background }]}
-                onPress={() => handleEdit(item)}
-              >
-                <Ionicons name="create-outline" size={18} color={colors.primary} />
-              </TouchableOpacity>
-              {!item.isDefault && (
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: colors.background }]}
-                  onPress={() => handleSetDefault(item.id)}
-                >
-                  <Ionicons name="star-outline" size={18} color={colors.primary} />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: colors.background }]}
-                onPress={() => handleDelete(item.id)}
-              >
-                <Ionicons name="trash-outline" size={18} color={colors.danger} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+        removeClippedSubviews={true}
+        renderItem={renderAddressItem}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="location-outline" size={36} color={colors.grayLight} />

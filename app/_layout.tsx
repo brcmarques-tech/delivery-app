@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-native';
 import { Stack } from 'expo-router';
 import { ApolloProvider } from '@apollo/client';
 import { StatusBar } from 'expo-status-bar';
@@ -13,6 +14,11 @@ import { usePushNotifications } from '../src/hooks/usePushNotifications';
 import { useProductSync } from '../src/hooks/useProductSync';
 import { DeliveryConfirmationModal } from '../src/components/DeliveryConfirmationModal';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
+
+Sentry.init({
+  dsn: 'https://df6aab45504a9e8f45c4b20b6dd9fc6d@o4511122470731776.ingest.us.sentry.io/4511122649382912',
+  tracesSampleRate: 0.1,
+});
 
 // Keep native splash visible while app loads
 SplashScreen.preventAutoHideAsync().catch(() => {});

@@ -17,5 +17,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         },
       },
     },
+    plugins: [
+      ...(appJson.expo.plugins || []),
+      ['@sentry/react-native/expo', {
+        organization: 'bcm-tech',
+        project: 'shopping-app',
+      }],
+    ],
   };
 };

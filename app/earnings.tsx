@@ -7,10 +7,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useQuery, useMutation } from '@apollo/client';
 import { useTheme } from '../src/contexts/ThemeContext';
+import { useAuth } from '../src/contexts/AuthContext';
 import { useAlert } from '../src/contexts/AlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { MY_BALANCE, SIMULATE_ANTICIPATION, GET_ME } from '../src/lib/graphql/queries';
+import { MY_BALANCE, SIMULATE_ANTICIPATION } from '../src/lib/graphql/queries';
 import { REGISTER_RECIPIENT, REQUEST_ANTICIPATION, DISCONNECT_PAYMENT, TOGGLE_AUTO_ANTICIPATION } from '../src/lib/graphql/mutations';
 
 const BANKS = [
@@ -83,8 +84,8 @@ function isValidEmail(email: string) {
 export default function EarningsScreen() {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const { data: meData, loading: loadingMe, refetch: refetchMe } = useQuery(GET_ME, { fetchPolicy: 'network-only' });
-  const paymentConnected = meData?.meApp?.paymentConnected ?? false;
+  const { user, refreshUser } = useAuth();
+  const paymentConnected = user?.paymentConnected ?? false;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -96,15 +97,10 @@ export default function EarningsScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      {loadingMe ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ color: colors.textSecondary, marginTop: 12, fontSize: 12 }}>Carregando...</Text>
-        </View>
-      ) : paymentConnected ? (
-        <EarningsDashboard colors={colors} refetchMe={refetchMe} />
+      {paymentConnected ? (
+        <EarningsDashboard colors={colors} refetchMe={refreshUser} />
       ) : (
-        <RecipientForm colors={colors} onSuccess={refetchMe} />
+        <RecipientForm colors={colors} onSuccess={refreshUser} />
       )}
     </View>
   );

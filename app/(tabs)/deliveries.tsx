@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import { io, Socket } from 'socket.io-client';
-import { GET_AVAILABLE_DELIVERIES, GET_MY_DELIVERIES, GET_ME } from '../../src/lib/graphql/queries';
+import { GET_AVAILABLE_DELIVERIES, GET_MY_DELIVERIES } from '../../src/lib/graphql/queries';
 import { ACCEPT_DELIVERY, CONFIRM_PICKUP, CONFIRM_DELIVERY } from '../../src/lib/graphql/mutations';
 import { useDeliveryTracking } from '../../src/hooks/useDeliveryTracking';
 import { useAlert } from '../../src/contexts/AlertContext';
@@ -161,8 +161,7 @@ export default function DeliveriesScreen() {
   }
 
   // Check payment connection status
-  const { data: meData } = useQuery(GET_ME, { fetchPolicy: 'cache-and-network' });
-  const paymentConnected = meData?.meApp?.paymentConnected ?? user?.paymentConnected ?? false;
+  const paymentConnected = user?.paymentConnected ?? false;
 
   // Connect socket and location tracking
   const connectSocket = useCallback(async () => {
@@ -592,7 +591,7 @@ export default function DeliveriesScreen() {
     ]);
   }
 
-  function renderAvailableOrder({ item }: { item: any }) {
+  const renderAvailableOrder = useCallback(({ item }: { item: any }) => {
     return (
       <View style={[styles.card, { backgroundColor: colors.card }]}>
         <View style={styles.cardHeader}>
@@ -668,9 +667,9 @@ export default function DeliveriesScreen() {
         })()}
       </View>
     );
-  }
+  }, [colors, actionLoading, handleAccept]);
 
-  function renderMyDelivery({ item }: { item: any }) {
+  const renderMyDelivery = useCallback(({ item }: { item: any }) => {
     const order = item.order;
     const status = statusLabels[order.status] || { label: order.status, color: colors.gray };
     const isActive = !item.deliveredAt;
@@ -800,7 +799,7 @@ export default function DeliveriesScreen() {
         })()}
       </TouchableOpacity>
     );
-  }
+  }, [colors, statusLabels, actionLoading, currentLocation, handleConfirmPickup, handleConfirmDelivery, setClientLocation, getReceiptStatus]);
 
   const isAvailableTab = tab === 'available';
 

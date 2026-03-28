@@ -117,7 +117,7 @@ export default function OrdersScreen() {
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
   }
 
-  const renderAppointmentCard = ({ item }: { item: any }) => {
+  const renderAppointmentCard = useCallback(({ item }: { item: any }) => {
     const statusEntry = appointmentStatusLabels[item.status];
     const statusLabel = statusEntry?.label || item.status;
     const statusColor = getAppointmentStatusColor(item.status);
@@ -181,7 +181,42 @@ export default function OrdersScreen() {
         </View>
       </TouchableOpacity>
     );
-  };
+  }, [colors, handleCancelAppointment]);
+
+  const renderOrderItem = useCallback(({ item }: { item: any }) => {
+    const status = statusLabels[item.status] || { label: item.status, color: colors.gray };
+    return (
+      <TouchableOpacity
+        style={[styles.card, { backgroundColor: colors.card }]}
+        onPress={() => router.push(`/order/${item.id}`)}
+      >
+        <View style={styles.cardHeader}>
+          <Text style={[styles.storeName, { color: colors.text }]}>{item.store.name}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: status.color + '20' }]}>
+            <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+          </View>
+        </View>
+        <Text style={[styles.orderNumber, { color: colors.textLight }]}>#{item.orderNumber}</Text>
+        {item.rejectionReason && (item.status === 'REJECTED' || item.status === 'CANCELLED') && (
+          <Text style={{ color: colors.danger, fontSize: 12, marginTop: 4 }}>Motivo: {item.rejectionReason}</Text>
+        )}
+        <View style={styles.itemsList}>
+          {item.items.slice(0, 3).map((oi: any) => (
+            <Text key={oi.id} style={[styles.itemText, { color: colors.text }]}>
+              {oi.quantity}x {oi.product?.name || 'Produto removido'}
+            </Text>
+          ))}
+          {item.items.length > 3 && (
+            <Text style={[styles.moreItems, { color: colors.textLight }]}>+{item.items.length - 3} itens</Text>
+          )}
+        </View>
+        <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
+          <Text style={[styles.total, { color: colors.text }]}>R$ {Number(item.total).toFixed(2)}</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.gray} />
+        </View>
+      </TouchableOpacity>
+    );
+  }, [colors, statusLabels]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -233,40 +268,7 @@ export default function OrdersScreen() {
           windowSize={5}
           initialNumToRender={6}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} />}
-          renderItem={({ item }) => {
-            const status = statusLabels[item.status] || { label: item.status, color: colors.gray };
-            return (
-              <TouchableOpacity
-                style={[styles.card, { backgroundColor: colors.card }]}
-                onPress={() => router.push(`/order/${item.id}`)}
-              >
-                <View style={styles.cardHeader}>
-                  <Text style={[styles.storeName, { color: colors.text }]}>{item.store.name}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: status.color + '20' }]}>
-                    <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
-                  </View>
-                </View>
-                <Text style={[styles.orderNumber, { color: colors.textLight }]}>#{item.orderNumber}</Text>
-                {item.rejectionReason && (item.status === 'REJECTED' || item.status === 'CANCELLED') && (
-                  <Text style={{ color: colors.danger, fontSize: 12, marginTop: 4 }}>Motivo: {item.rejectionReason}</Text>
-                )}
-                <View style={styles.itemsList}>
-                  {item.items.slice(0, 3).map((oi: any) => (
-                    <Text key={oi.id} style={[styles.itemText, { color: colors.text }]}>
-                      {oi.quantity}x {oi.product?.name || 'Produto removido'}
-                    </Text>
-                  ))}
-                  {item.items.length > 3 && (
-                    <Text style={[styles.moreItems, { color: colors.textLight }]}>+{item.items.length - 3} itens</Text>
-                  )}
-                </View>
-                <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
-                  <Text style={[styles.total, { color: colors.text }]}>R$ {Number(item.total).toFixed(2)}</Text>
-                  <Ionicons name="chevron-forward" size={18} color={colors.gray} />
-                </View>
-              </TouchableOpacity>
-            );
-          }}
+          renderItem={renderOrderItem}
           ListEmptyComponent={
             !loading ? (
               <View style={styles.emptyContainer}>
