@@ -6,6 +6,7 @@ import {
   StyleSheet,
   RefreshControl,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useQuery, useSubscription } from '@apollo/client';
@@ -35,6 +36,7 @@ export default function HomeScreen() {
   const { location } = useLocation();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
 
   const { data: promosData, refetch: refetchPromos, loading: promosLoading } = useQuery(GET_ACTIVE_PROMOTIONS);
@@ -437,10 +439,10 @@ export default function HomeScreen() {
         {/* Empty state when nothing to show */}
         {promotions.length === 0 && popularProducts.length === 0 && reorderProducts.length === 0 && frequentStores.length === 0 && topStores.length === 0 && followedStores.length === 0 && !refreshing && (
           <AnimatedItem delay={100} fromY={20}>
-          <View style={styles.emptyState}>
+          <View style={[styles.emptyState, { minHeight: screenHeight - insets.top - insets.bottom - 220 }]}>
             <Ionicons name="basket-outline" size={56} color={colors.grayLight} />
-            <Text style={[styles.emptyTitle, { color: colors.textLight }]}>Nada por aqui ainda</Text>
-            <Text style={[styles.emptySubtext, { color: colors.gray }]}>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Nada por aqui ainda</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textLight }]}>
               Explore as lojas na aba de busca e faca seu primeiro pedido!
             </Text>
             <AnimatedPressable
@@ -617,9 +619,9 @@ const styles = StyleSheet.create({
   topStoreName: { fontSize: fonts.regular, fontWeight: '600' },
 
   // Empty state
-  emptyState: { alignItems: 'center', marginTop: 60, gap: 6, paddingHorizontal: 32 },
-  emptyTitle: { fontSize: fonts.large, fontWeight: '600' },
-  emptySubtext: { fontSize: fonts.regular, textAlign: 'center' },
+  emptyState: { justifyContent: 'center', alignItems: 'center', gap: 8, paddingHorizontal: 32 },
+  emptyTitle: { fontSize: fonts.large, fontWeight: '700' },
+  emptySubtext: { fontSize: fonts.regular, textAlign: 'center', lineHeight: 22 },
   exploreButton: {
     flexDirection: 'row',
     alignItems: 'center',
