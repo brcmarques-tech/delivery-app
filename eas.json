@@ -18,6 +18,7 @@
       "env": {
         "GRADLE_OPTS": "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx2g",
         "SENTRY_DSN": "https://df6aab45504a9e8f45c4b20b6dd9fc6d@o4511122470731776.ingest.us.sentry.io/4511122649382912",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "API_URL": "https://api.bcmtech.com.br/graphql"
       }
     },
@@ -27,6 +28,7 @@
       },
       "env": {
         "SENTRY_DSN": "https://df6aab45504a9e8f45c4b20b6dd9fc6d@o4511122470731776.ingest.us.sentry.io/4511122649382912",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "API_URL": "https://api.bcmtech.com.br/graphql"
       }
     }
