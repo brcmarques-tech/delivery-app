@@ -16,7 +16,7 @@ import { DeliveryConfirmationModal } from '../src/components/DeliveryConfirmatio
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 
 Sentry.init({
-  dsn: 'https://df6aab45504a9e8f45c4b20b6dd9fc6d@o4511122470731776.ingest.us.sentry.io/4511122649382912',
+  dsn: process.env.SENTRY_DSN,
   tracesSampleRate: 0.1,
 });
 
