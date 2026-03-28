@@ -6,6 +6,7 @@ import {
   StyleSheet,
   RefreshControl,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useQuery, useSubscription } from '@apollo/client';
@@ -26,12 +27,16 @@ import { useLocation } from '../../src/contexts/LocationContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { fonts } from '../../src/theme';
+import { AnimatedListItem } from '../../src/components/AnimatedListItem';
+import { AnimatedPressable } from '../../src/components/AnimatedPressable';
+import { AnimatedItem } from '../../src/components/AnimatedItem';
 
 export default function HomeScreen() {
   const { user } = useAuth();
   const { location } = useLocation();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
 
   const { data: promosData, refetch: refetchPromos, loading: promosLoading } = useQuery(GET_ACTIVE_PROMOTIONS);
@@ -96,7 +101,7 @@ export default function HomeScreen() {
     const isSmall = size === 'small';
 
     return (
-      <TouchableOpacity
+      <AnimatedPressable
         key={product.id}
         style={[isSmall ? styles.productCardSmall : styles.productCard, { backgroundColor: colors.card }]}
         onPress={() => router.push(`/store/${product.storeId}?productId=${product.id}`)}
@@ -136,7 +141,7 @@ export default function HomeScreen() {
             )}
           </View>
         </View>
-      </TouchableOpacity>
+      </AnimatedPressable>
     );
   }
 
@@ -201,14 +206,14 @@ export default function HomeScreen() {
               </View>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
-              {promotions.map((promo: any) => {
+              {promotions.map((promo: any, index: number) => {
                 const originalPrice = promo.product?.price;
                 const promoPrice = promo.promotionalPrice;
                 const discount = originalPrice && promoPrice
                   ? Math.round((1 - promoPrice / originalPrice) * 100) : 0;
                 return (
-                  <TouchableOpacity
-                    key={promo.id}
+                  <AnimatedListItem key={promo.id} index={index}>
+                  <AnimatedPressable
                     style={[styles.promoCard, { backgroundColor: colors.card }]}
                     onPress={() => router.push(`/promotion/${promo.id}`)}
                   >
@@ -248,7 +253,8 @@ export default function HomeScreen() {
                         </Text>
                       ) : null}
                     </View>
-                  </TouchableOpacity>
+                  </AnimatedPressable>
+                  </AnimatedListItem>
                 );
               })}
             </ScrollView>
@@ -265,7 +271,11 @@ export default function HomeScreen() {
               </View>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
-              {reorderProducts.map((product: any) => renderProductCard(product, 'small'))}
+              {reorderProducts.map((product: any, index: number) => (
+                <AnimatedListItem key={product.id} index={index}>
+                  {renderProductCard(product, 'small')}
+                </AnimatedListItem>
+              ))}
             </ScrollView>
           </View>
         )}
@@ -280,7 +290,11 @@ export default function HomeScreen() {
               </View>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
-              {popularProducts.map((product: any) => renderProductCard(product))}
+              {popularProducts.map((product: any, index: number) => (
+                <AnimatedListItem key={product.id} index={index}>
+                  {renderProductCard(product)}
+                </AnimatedListItem>
+              ))}
             </ScrollView>
           </View>
         )}
@@ -295,9 +309,9 @@ export default function HomeScreen() {
               </View>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
-              {frequentStores.map((store: any) => (
-                <TouchableOpacity
-                  key={store.id}
+              {frequentStores.map((store: any, index: number) => (
+                <AnimatedListItem key={store.id} index={index}>
+                <AnimatedPressable
                   style={[styles.frequentStoreCard, { backgroundColor: colors.card }]}
                   onPress={() => router.push(`/store/${store.id}`)}
                 >
@@ -327,7 +341,8 @@ export default function HomeScreen() {
                       {store.orderCount} {Number(store.orderCount) === 1 ? 'pedido' : 'pedidos'}
                     </Text>
                   </View>
-                </TouchableOpacity>
+                </AnimatedPressable>
+                </AnimatedListItem>
               ))}
             </ScrollView>
           </View>
@@ -343,9 +358,9 @@ export default function HomeScreen() {
               </View>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
-              {followedStores.map((store: any) => (
-                <TouchableOpacity
-                  key={store.id}
+              {followedStores.map((store: any, index: number) => (
+                <AnimatedListItem key={store.id} index={index}>
+                <AnimatedPressable
                   style={[styles.frequentStoreCard, { backgroundColor: colors.card }]}
                   onPress={() => router.push(`/store/${store.id}`)}
                 >
@@ -365,7 +380,8 @@ export default function HomeScreen() {
                       </Text>
                     </View>
                   </View>
-                </TouchableOpacity>
+                </AnimatedPressable>
+                </AnimatedListItem>
               ))}
             </ScrollView>
           </View>
@@ -382,8 +398,8 @@ export default function HomeScreen() {
             </View>
             <View style={{ paddingHorizontal: 12, gap: 6 }}>
               {topStores.map((store: any, index: number) => (
-                <TouchableOpacity
-                  key={store.id}
+                <AnimatedListItem key={store.id} index={index}>
+                <AnimatedPressable
                   style={[styles.topStoreCard, { backgroundColor: colors.card }]}
                   onPress={() => router.push(`/store/${store.id}`)}
                 >
@@ -413,7 +429,8 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                   <View style={[styles.openDot, { backgroundColor: store.isOpen ? colors.success : colors.danger }]} />
-                </TouchableOpacity>
+                </AnimatedPressable>
+                </AnimatedListItem>
               ))}
             </View>
           </View>
@@ -421,20 +438,22 @@ export default function HomeScreen() {
 
         {/* Empty state when nothing to show */}
         {promotions.length === 0 && popularProducts.length === 0 && reorderProducts.length === 0 && frequentStores.length === 0 && topStores.length === 0 && followedStores.length === 0 && !refreshing && (
-          <View style={styles.emptyState}>
+          <AnimatedItem delay={100} fromY={20}>
+          <View style={[styles.emptyState, { minHeight: screenHeight - insets.top - insets.bottom - 220 }]}>
             <Ionicons name="basket-outline" size={56} color={colors.grayLight} />
-            <Text style={[styles.emptyTitle, { color: colors.textLight }]}>Nada por aqui ainda</Text>
-            <Text style={[styles.emptySubtext, { color: colors.gray }]}>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Nada por aqui ainda</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textLight }]}>
               Explore as lojas na aba de busca e faca seu primeiro pedido!
             </Text>
-            <TouchableOpacity
+            <AnimatedPressable
               style={[styles.exploreButton, { backgroundColor: colors.primary }]}
               onPress={() => router.push('/(tabs)/search')}
             >
               <Ionicons name="search" size={18} color="#FFFFFF" />
               <Text style={styles.exploreButtonText}>Explorar lojas</Text>
-            </TouchableOpacity>
+            </AnimatedPressable>
           </View>
+          </AnimatedItem>
         )}
 
         <View style={{ height: insets.bottom + 16 }} />
@@ -600,16 +619,16 @@ const styles = StyleSheet.create({
   topStoreName: { fontSize: fonts.regular, fontWeight: '600' },
 
   // Empty state
-  emptyState: { alignItems: 'center', marginTop: 60, gap: 6, paddingHorizontal: 32 },
-  emptyTitle: { fontSize: fonts.large, fontWeight: '600' },
-  emptySubtext: { fontSize: fonts.regular, textAlign: 'center' },
+  emptyState: { justifyContent: 'center', alignItems: 'center', gap: 8, paddingHorizontal: 32 },
+  emptyTitle: { fontSize: fonts.large, fontWeight: '700' },
+  emptySubtext: { fontSize: fonts.regular, textAlign: 'center', lineHeight: 22 },
   exploreButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 24,
     marginTop: 8,
   },
   exploreButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: fonts.regular },

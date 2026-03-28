@@ -20,6 +20,9 @@ import { GET_STORES, SEARCH_PRODUCTS, SEARCH_SERVICES, GET_ACTIVE_PROMOTIONS } f
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../src/theme';
+import { AnimatedListItem } from '../../src/components/AnimatedListItem';
+import { AnimatedPressable } from '../../src/components/AnimatedPressable';
+import { AnimatedItem } from '../../src/components/AnimatedItem';
 
 type FilterType = 'all' | 'open' | 'free_delivery' | 'promo';
 type TabType = 'products' | 'services';
@@ -199,10 +202,10 @@ export default function SearchScreen() {
     outputRange: [3, tabHalfWidth + 3],
   });
 
-  function renderStoreCard(store: any) {
+  function renderStoreCard(store: any, index: number) {
     return (
-      <TouchableOpacity
-        key={store.id}
+      <AnimatedListItem key={store.id} index={index}>
+      <AnimatedPressable
         style={[styles.storeItem, { backgroundColor: colors.card }]}
         onPress={() => router.push(`/store/${store.id}`)}
       >
@@ -237,7 +240,8 @@ export default function SearchScreen() {
           </View>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.gray} />
-      </TouchableOpacity>
+      </AnimatedPressable>
+      </AnimatedListItem>
     );
   }
 
@@ -266,7 +270,7 @@ export default function SearchScreen() {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               {categories === PRODUCT_CATEGORIES ? 'Lojas' : 'Prestadores'}
             </Text>
-            {stores.map(renderStoreCard)}
+            {stores.map((store: any, index: number) => renderStoreCard(store, index))}
           </View>
         )}
 
@@ -424,12 +428,12 @@ export default function SearchScreen() {
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Ofertas do momento</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {promotions.slice(0, 6).map((promo: any) => {
+                {promotions.slice(0, 6).map((promo: any, index: number) => {
                   const discount = promo.product?.price && promo.promotionalPrice
                     ? Math.round((1 - promo.promotionalPrice / promo.product.price) * 100) : 0;
                   return (
-                    <TouchableOpacity
-                      key={promo.id}
+                    <AnimatedListItem key={promo.id} index={index}>
+                    <AnimatedPressable
                       style={[styles.promoCard, { backgroundColor: colors.card }]}
                       onPress={() => router.push(`/promotion/${promo.id}`)}
                     >
@@ -452,7 +456,8 @@ export default function SearchScreen() {
                           <Text style={[styles.promoPrice, { color: colors.primary }]}>R$ {Number(promo.promotionalPrice).toFixed(2)}</Text>
                         )}
                       </View>
-                    </TouchableOpacity>
+                    </AnimatedPressable>
+                    </AnimatedListItem>
                   );
                 })}
               </ScrollView>
@@ -472,9 +477,9 @@ export default function SearchScreen() {
               )}
 
               {/* Stores first */}
-              {filteredStores.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((store: any) => (
-                <TouchableOpacity
-                  key={`store-${store.id}`}
+              {filteredStores.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((store: any, index: number) => (
+                <AnimatedListItem key={`store-${store.id}`} index={index}>
+                <AnimatedPressable
                   style={[styles.acItem, { backgroundColor: colors.card }]}
                   onPress={() => { setQuery(''); router.push(`/store/${store.id}`); }}
                 >
@@ -494,17 +499,18 @@ export default function SearchScreen() {
                   <View style={[styles.acBadge, { backgroundColor: colors.primary + '20' }]}>
                     <Ionicons name="storefront" size={12} color={colors.primary} />
                   </View>
-                </TouchableOpacity>
+                </AnimatedPressable>
+                </AnimatedListItem>
               ))}
 
               {/* Products (products tab) — sorted alphabetically */}
               {activeTab === 'products' && filteredProducts
                 .sort((a: any, b: any) => a.name.localeCompare(b.name))
-                .map((product: any) => {
+                .map((product: any, index: number) => {
                   const hasPromo = product.promotionalPrice && product.promotionalPrice < product.price;
                   return (
-                    <TouchableOpacity
-                      key={`prod-${product.id}`}
+                    <AnimatedListItem key={`prod-${product.id}`} index={filteredStores.length + index}>
+                    <AnimatedPressable
                       style={[styles.acItem, { backgroundColor: colors.card }]}
                       onPress={() => { setQuery(''); router.push(`/store/${product.store?.id}`); }}
                     >
@@ -522,16 +528,17 @@ export default function SearchScreen() {
                       <Text style={{ fontSize: fonts.small, fontWeight: '700', color: hasPromo ? colors.success : colors.text }}>
                         R$ {Number(hasPromo ? product.promotionalPrice : product.price).toFixed(2)}
                       </Text>
-                    </TouchableOpacity>
+                    </AnimatedPressable>
+                    </AnimatedListItem>
                   );
                 })}
 
               {/* Services (services tab) — sorted alphabetically */}
               {activeTab === 'services' && filteredServices
                 .sort((a: any, b: any) => a.name.localeCompare(b.name))
-                .map((service: any) => (
-                  <TouchableOpacity
-                    key={`svc-${service.id}`}
+                .map((service: any, index: number) => (
+                  <AnimatedListItem key={`svc-${service.id}`} index={filteredStores.length + index}>
+                  <AnimatedPressable
                     style={[styles.acItem, { backgroundColor: colors.card }]}
                     onPress={() => { setQuery(''); router.push(`/store/${service.store?.id}`); }}
                   >
@@ -553,16 +560,19 @@ export default function SearchScreen() {
                         R$ {Number(service.price).toFixed(2)}
                       </Text>
                     ) : null}
-                  </TouchableOpacity>
+                  </AnimatedPressable>
+                  </AnimatedListItem>
                 ))}
 
               {/* Empty state */}
               {!(productsLoading || servicesLoading) && !hasResults && debouncedQuery.length >= 2 && (
+                <AnimatedItem delay={100} fromY={20}>
                 <View style={styles.emptyContainer}>
                   <Ionicons name="search-outline" size={56} color={colors.grayLight} />
                   <Text style={[styles.emptyText, { color: colors.textLight }]}>Nenhum resultado para "{debouncedQuery}"</Text>
                   <Text style={[styles.emptySubtext, { color: colors.gray }]}>Tente buscar com outras palavras</Text>
                 </View>
+                </AnimatedItem>
               )}
             </ScrollView>
           </View>

@@ -15,6 +15,9 @@ import { useCart, CartItem } from '../src/contexts/CartContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { colors as staticColors, fonts } from '../src/theme';
+import { AnimatedItem } from '../src/components/AnimatedItem';
+import { AnimatedListItem } from '../src/components/AnimatedListItem';
+import { AnimatedPressable } from '../src/components/AnimatedPressable';
 
 function formatWeight(grams: number) {
   if (grams >= 1000) {
@@ -163,16 +166,18 @@ export default function CartScreen() {
           <Text style={[styles.title, { color: colors.text }]}>Carrinho</Text>
         </View>
         <View style={styles.emptyContent}>
-          <Ionicons name="cart-outline" size={56} color={colors.grayLight} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>Nada por aqui ainda</Text>
-          <Text style={[styles.emptyText, { color: colors.textLight }]}>Explore as lojas na aba de busca e faca seu primeiro pedido!</Text>
-          <TouchableOpacity
-            style={[styles.emptyButton, { backgroundColor: colors.primary }]}
-            onPress={() => router.push('/(tabs)/search')}
-          >
-            <Ionicons name="search" size={18} color="#FFFFFF" />
-            <Text style={styles.emptyButtonText}>Explorar lojas</Text>
-          </TouchableOpacity>
+          <AnimatedItem delay={100} fromY={20}>
+            <Ionicons name="cart-outline" size={56} color={colors.grayLight} style={{ alignSelf: 'center' }} />
+            <Text style={[styles.emptyTitle, { color: colors.text, textAlign: 'center' }]}>Nada por aqui ainda</Text>
+            <Text style={[styles.emptyText, { color: colors.textLight }]}>Explore as lojas na aba de busca e faca seu primeiro pedido!</Text>
+            <TouchableOpacity
+              style={[styles.emptyButton, { backgroundColor: colors.primary, alignSelf: 'center' }]}
+              onPress={() => router.push('/(tabs)/search')}
+            >
+              <Ionicons name="search" size={18} color="#FFFFFF" />
+              <Text style={styles.emptyButtonText}>Explorar lojas</Text>
+            </TouchableOpacity>
+          </AnimatedItem>
         </View>
       </View>
     );
@@ -232,7 +237,7 @@ export default function CartScreen() {
             </TouchableOpacity>
           );
         }}
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           const isSelected = selectedIds.has(item.id);
           const itemTotal = item.isVariableWeight
             ? (item.price * (item.weightGrams || 0)) / 1000
@@ -243,52 +248,54 @@ export default function CartScreen() {
             : `${item.quantity}`;
 
           return (
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => toggleItem(item.id)}
-              style={[
-                styles.itemCard,
-                { backgroundColor: colors.white },
-                isSelected && {
-                  borderWidth: 1.5,
-                  borderColor: colors.primary + '40',
-                  backgroundColor: colors.primary + '05',
-                },
-              ]}
-            >
-              <View style={styles.checkboxArea}>
-                <Ionicons
-                  name={isSelected ? 'checkbox' : 'square-outline'}
-                  size={18}
-                  color={isSelected ? colors.primary : colors.gray}
-                />
-              </View>
-
-              <View style={styles.itemInfo}>
-                <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={2}>{item.name}</Text>
-                <Text style={[styles.itemPrice, { color: colors.primary }]}>R$ {itemTotal.toFixed(2)}</Text>
-                {item.notes ? (
-                  <Text style={[styles.itemNotes, { color: colors.textLight }]} numberOfLines={1}>{item.notes}</Text>
-                ) : null}
-              </View>
-
-              {/* Delete button */}
-              <TouchableOpacity
-                style={[styles.deleteButton, { backgroundColor: colors.danger + '15' }]}
-                onPress={() => removeItem(item.id)}
+            <AnimatedListItem index={index}>
+              <AnimatedPressable
+                activeOpacity={0.7}
+                onPress={() => toggleItem(item.id)}
+                style={[
+                  styles.itemCard,
+                  { backgroundColor: colors.white },
+                  isSelected && {
+                    borderWidth: 1.5,
+                    borderColor: colors.primary + '40',
+                    backgroundColor: colors.primary + '05',
+                  },
+                ]}
               >
-                <Ionicons name="trash-outline" size={16} color={colors.danger} />
-              </TouchableOpacity>
+                <View style={styles.checkboxArea}>
+                  <Ionicons
+                    name={isSelected ? 'checkbox' : 'square-outline'}
+                    size={18}
+                    color={isSelected ? colors.primary : colors.gray}
+                  />
+                </View>
 
-              {/* Quantity/weight badge - tap to edit */}
-              <TouchableOpacity
-                style={[styles.qtyBadge, { backgroundColor: colors.primary + '15' }]}
-                onPress={() => openEditor(item)}
-              >
-                <Text style={[styles.qtyBadgeText, { color: colors.primary }]}>{qtyLabel}</Text>
-                <Ionicons name="pencil-outline" size={12} color={colors.primary} />
-              </TouchableOpacity>
-            </TouchableOpacity>
+                <View style={styles.itemInfo}>
+                  <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={2}>{item.name}</Text>
+                  <Text style={[styles.itemPrice, { color: colors.primary }]}>R$ {itemTotal.toFixed(2)}</Text>
+                  {item.notes ? (
+                    <Text style={[styles.itemNotes, { color: colors.textLight }]} numberOfLines={1}>{item.notes}</Text>
+                  ) : null}
+                </View>
+
+                {/* Delete button */}
+                <TouchableOpacity
+                  style={[styles.deleteButton, { backgroundColor: colors.danger + '15' }]}
+                  onPress={() => removeItem(item.id)}
+                >
+                  <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                </TouchableOpacity>
+
+                {/* Quantity/weight badge - tap to edit */}
+                <TouchableOpacity
+                  style={[styles.qtyBadge, { backgroundColor: colors.primary + '15' }]}
+                  onPress={() => openEditor(item)}
+                >
+                  <Text style={[styles.qtyBadgeText, { color: colors.primary }]}>{qtyLabel}</Text>
+                  <Ionicons name="pencil-outline" size={12} color={colors.primary} />
+                </TouchableOpacity>
+              </AnimatedPressable>
+            </AnimatedListItem>
           );
         }}
       />

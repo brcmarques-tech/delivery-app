@@ -10,8 +10,8 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   Image,
-  Platform,
   KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +27,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { VALIDATE_REGISTRATION, SEND_VERIFICATION_CODE, VERIFY_CODE } from '../../src/lib/graphql/mutations';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../src/theme';
+import { AnimatedItem as AnimItem } from '../../src/components/AnimatedItem';
 
 const API_BASE = 'https://api.bcmtech.com.br';
 const RETURN_URL = Constants.appOwnership === 'expo'
@@ -397,7 +398,20 @@ export default function RegisterScreen() {
   if (step === 1) {
     return (
       <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.white }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 10 }]} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" bounces={false}>
+      <AnimItem delay={0} fromY={-25}>
+      <View style={styles.registerHeader}>
+        <View style={styles.registerDecor1} />
+        <View style={styles.registerDecor2} />
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.registerLogo}
+          resizeMode="contain"
+        />
+      </View>
+      </AnimItem>
+      <View style={[styles.registerFormCard, { backgroundColor: colors.white }]}>
+      <View style={styles.content}>
         {/* Step indicator */}
         <View style={styles.stepIndicator}>
           <View style={[styles.stepDot, { backgroundColor: colors.grayLight, borderColor: colors.grayLight }, styles.stepActive, { backgroundColor: colors.primary, borderColor: colors.primary }]} />
@@ -408,14 +422,12 @@ export default function RegisterScreen() {
         </View>
         <Text style={[styles.stepLabel, { color: colors.textLight }]}>Dados pessoais</Text>
 
-        <View style={styles.headerIcon}>
-          <Ionicons name="person-add" size={26} color={colors.primary} />
-        </View>
         <Text style={[styles.title, { color: colors.text }]}>Criar conta</Text>
         <Text style={[styles.subtitle, { color: colors.textLight }]}>Cadastre-se para comecar a pedir</Text>
 
         <View style={styles.form}>
           {isGoogleRegister ? (
+            <AnimItem delay={80} fromX={25}>
             <View style={styles.googleInfoBox}>
               <Image source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }} style={styles.googleInfoIcon} />
               <View style={{ flex: 1 }}>
@@ -426,8 +438,10 @@ export default function RegisterScreen() {
                 <Ionicons name="close-circle" size={18} color={colors.gray} />
               </TouchableOpacity>
             </View>
+            </AnimItem>
           ) : (
             <>
+              <AnimItem delay={80} fromX={25}>
               <View style={[styles.inputContainer, { backgroundColor: colors.grayLight }]}>
                 <Ionicons name="person-outline" size={18} color={colors.gray} style={styles.inputIcon} />
                 <TextInput
@@ -438,6 +452,8 @@ export default function RegisterScreen() {
                   onChangeText={setName}
                 />
               </View>
+              </AnimItem>
+              <AnimItem delay={130} fromX={25}>
               <View>
                 <View style={[styles.inputContainer, { backgroundColor: colors.grayLight }, fieldErrors.emailError ? [styles.inputError, { borderColor: colors.danger }] : null]}>
                   <Ionicons name="mail-outline" size={18} color={fieldErrors.emailError ? colors.danger : colors.gray} style={styles.inputIcon} />
@@ -453,8 +469,10 @@ export default function RegisterScreen() {
                 </View>
                 {fieldErrors.emailError && <Text style={[styles.fieldError, { color: colors.danger }]}>{fieldErrors.emailError}</Text>}
               </View>
+              </AnimItem>
             </>
           )}
+          <AnimItem delay={180} fromX={25}>
           <View>
             <View style={[styles.inputContainer, { backgroundColor: colors.grayLight }, fieldErrors.phoneError ? [styles.inputError, { borderColor: colors.danger }] : null]}>
               <Ionicons name="call-outline" size={18} color={fieldErrors.phoneError ? colors.danger : colors.gray} style={styles.inputIcon} />
@@ -470,6 +488,8 @@ export default function RegisterScreen() {
             </View>
             {fieldErrors.phoneError && <Text style={[styles.fieldError, { color: colors.danger }]}>{fieldErrors.phoneError}</Text>}
           </View>
+          </AnimItem>
+          <AnimItem delay={230} fromX={25}>
           <View>
             <View style={[styles.inputContainer, { backgroundColor: colors.grayLight }, fieldErrors.cpfError ? [styles.inputError, { borderColor: colors.danger }] : null]}>
               <Ionicons name="document-text-outline" size={18} color={fieldErrors.cpfError ? colors.danger : colors.gray} style={styles.inputIcon} />
@@ -485,7 +505,9 @@ export default function RegisterScreen() {
             </View>
             {fieldErrors.cpfError && <Text style={[styles.fieldError, { color: colors.danger }]}>{fieldErrors.cpfError}</Text>}
           </View>
+          </AnimItem>
           {!isGoogleRegister && (
+          <AnimItem delay={280} fromX={25}>
           <View style={[styles.passwordContainer, { backgroundColor: colors.grayLight }]}>
             <Ionicons name="lock-closed-outline" size={18} color={colors.gray} style={styles.inputIcon} />
             <TextInput
@@ -507,8 +529,10 @@ export default function RegisterScreen() {
               />
             </TouchableOpacity>
           </View>
+          </AnimItem>
           )}
 
+          <AnimItem delay={320} fromY={12}>
           <TouchableOpacity
             style={[styles.button, otpSending && styles.buttonDisabled]}
             onPress={handleNext}
@@ -520,9 +544,10 @@ export default function RegisterScreen() {
               <Text style={styles.buttonText}>Continuar</Text>
             )}
           </TouchableOpacity>
+          </AnimItem>
 
           {!isGoogleRegister && (
-            <>
+            <AnimItem delay={350} fromY={12}>
               <View style={styles.divider}>
                 <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
                 <Text style={[styles.dividerText, { color: colors.gray }]}>ou</Text>
@@ -546,15 +571,18 @@ export default function RegisterScreen() {
                   </>
                 )}
               </TouchableOpacity>
-            </>
+            </AnimItem>
           )}
 
           <TouchableOpacity onPress={() => router.back()}>
             <Text style={[styles.link, { color: colors.textLight }]}>Ja tem conta? <Text style={[styles.linkBold, { color: colors.primary }]}>Entrar</Text></Text>
           </TouchableOpacity>
         </View>
+      </View>
+      </View>
       </ScrollView>
       </KeyboardAvoidingView>
+
     );
   }
 
@@ -562,7 +590,7 @@ export default function RegisterScreen() {
   if (step === 2) {
     return (
       <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.white }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={[styles.otpContent, { paddingTop: insets.top + 10 }]} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.otpContent, { paddingTop: insets.top + 10 }]} keyboardShouldPersistTaps="handled">
           {/* Step indicator */}
           <View style={styles.stepIndicator}>
             <View style={[styles.stepDot, { backgroundColor: colors.success, borderColor: colors.success }]} />
@@ -577,6 +605,7 @@ export default function RegisterScreen() {
             <Ionicons name="arrow-back" size={18} color={colors.text} />
           </TouchableOpacity>
 
+          <AnimItem delay={0} fromY={-20}>
           <View style={styles.otpIconContainer}>
             <Ionicons name="logo-whatsapp" size={36} color="#25D366" />
           </View>
@@ -585,7 +614,9 @@ export default function RegisterScreen() {
             Enviamos um codigo de 6 digitos para{'\n'}
             <Text style={[styles.otpPhone, { color: colors.text }]}>{formatPhoneDisplay(phone.replace(/\D/g, ''))}</Text>
           </Text>
+          </AnimItem>
 
+          <AnimItem delay={100} fromY={20}>
           <View style={styles.otpRow}>
             {otpDigits.map((digit, i) => (
               <TextInput
@@ -601,7 +632,9 @@ export default function RegisterScreen() {
               />
             ))}
           </View>
+          </AnimItem>
 
+          <AnimItem delay={180} fromY={12}>
           <TouchableOpacity
             style={[styles.button, (otpVerifying || otpDigits.join('').length !== 6) && styles.buttonDisabled]}
             onPress={handleVerifyOtp}
@@ -613,6 +646,7 @@ export default function RegisterScreen() {
               <Text style={styles.buttonText}>Verificar</Text>
             )}
           </TouchableOpacity>
+          </AnimItem>
 
           <TouchableOpacity
             onPress={sendOtp}
@@ -625,7 +659,7 @@ export default function RegisterScreen() {
                 : 'Reenviar codigo'}
             </Text>
           </TouchableOpacity>
-        </ScrollView>
+      </ScrollView>
       </KeyboardAvoidingView>
     );
   }
@@ -647,9 +681,11 @@ export default function RegisterScreen() {
         <TouchableOpacity style={[styles.backButton, { top: insets.top + 8 }]} onPress={() => setStep(2)}>
           <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
-        <Ionicons name="document-text" size={26} color={colors.primary} />
+        <AnimItem delay={80} fromY={-15}>
+        <Ionicons name="document-text" size={26} color={colors.primary} style={{ alignSelf: 'center' }} />
         <Text style={[styles.contractTitle, { color: colors.text }]}>Termos de Uso</Text>
         <Text style={[styles.contractSubtitle, { color: colors.textLight }]}>Leia o contrato antes de finalizar o cadastro</Text>
+        </AnimItem>
       </View>
 
       <ScrollView
@@ -668,6 +704,7 @@ export default function RegisterScreen() {
         <Text style={[styles.contractText, { color: colors.textLight }]}>{CONTRACT_TEXT}</Text>
       </ScrollView>
 
+      <AnimItem delay={120} fromY={12}>
       <View style={[styles.contractFooter, { borderTopColor: colors.grayLight, backgroundColor: colors.white, paddingBottom: insets.bottom + 16 }]}>
         {!scrolledToEnd && (
           <Text style={[styles.scrollHint, { color: colors.primary }]}>
@@ -707,6 +744,7 @@ export default function RegisterScreen() {
           )}
         </TouchableOpacity>
       </View>
+      </AnimItem>
     </View>
   );
 }
@@ -743,9 +781,49 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
+  // Register branded header
+  registerHeader: {
+    backgroundColor: '#1e293b',
+    paddingTop: 40,
+    paddingBottom: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  registerDecor1: {
+    position: 'absolute',
+    top: -30,
+    right: -30,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(249,115,22,0.15)',
+  },
+  registerDecor2: {
+    position: 'absolute',
+    bottom: -20,
+    left: -20,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(59,130,246,0.08)',
+  },
+  registerLogo: {
+    width: 220,
+    height: 130,
+    zIndex: 1,
+  },
+  registerFormCard: {
+    flex: 1,
+    marginTop: -16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+
   // Step 1 styles
   container: { flex: 1 },
-  content: { padding: 12, paddingTop: 60 },
+  content: { padding: 12, paddingTop: 16 },
   title: { fontSize: fonts.title, fontWeight: 'bold', textAlign: 'center' },
   subtitle: { fontSize: fonts.regular, marginTop: 8, marginBottom: 12, textAlign: 'center' },
   form: { gap: 6 },

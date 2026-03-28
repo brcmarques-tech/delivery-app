@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   Image,
   Alert,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -20,11 +21,41 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { fonts } from '../../src/theme';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withDelay,
+} from 'react-native-reanimated';
 
 const API_BASE = 'https://api.bcmtech.com.br';
 const RETURN_URL = Constants.appOwnership === 'expo'
   ? Linking.createURL('google-auth')
   : 'shopping-app://google-auth';
+
+const SPRING = { damping: 22, stiffness: 200 };
+
+function OnceAnimated({ delay = 0, fromX = 0, fromY = 0, children }: { delay?: number; fromX?: number; fromY?: number; children: React.ReactNode }) {
+  const hasAnimated = useRef(false);
+  const opacity = useSharedValue(hasAnimated.current ? 1 : 0);
+  const translateX = useSharedValue(hasAnimated.current ? 0 : fromX);
+  const translateY = useSharedValue(hasAnimated.current ? 0 : fromY);
+
+  useEffect(() => {
+    if (hasAnimated.current) return;
+    hasAnimated.current = true;
+    opacity.value = withDelay(delay, withSpring(1, SPRING));
+    translateX.value = withDelay(delay, withSpring(0, SPRING));
+    translateY.value = withDelay(delay, withSpring(0, SPRING));
+  }, []);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateX: translateX.value }, { translateY: translateY.value }],
+  }));
+
+  return <Animated.View style={style}>{children}</Animated.View>;
+}
 
 export default function LoginScreen() {
   const { colors } = useTheme();
@@ -35,6 +66,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   async function handleGoogleLogin() {
     setGoogleLoading(true);
@@ -82,8 +114,9 @@ export default function LoginScreen() {
   }
 
   async function handleLogin(forceLogin: boolean = false) {
+    setLoginError('');
     if (!email || !password) {
-      alert('Erro', 'Preencha todos os campos');
+      setLoginError('Preencha todos os campos');
       return;
     }
     setLoading(true);
@@ -102,7 +135,7 @@ export default function LoginScreen() {
           ],
         );
       } else {
-        alert('Erro', 'Email ou senha invalidos');
+        setLoginError('Email ou senha invalidos');
       }
     } finally {
       setLoading(false);
@@ -114,92 +147,124 @@ export default function LoginScreen() {
       style={[styles.container, { backgroundColor: colors.white }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.header}>
-        <View style={styles.logoWrapper}>
-          <Text style={styles.logoBcm}>BCM TECH</Text>
-          <View style={styles.logoTextRow}>
-            <Text style={[styles.logo, { color: colors.primary }]}>Shopping</Text>
-            <Text style={[styles.logoApp, { color: colors.textLight }]}>App</Text>
+    <ScrollView
+      contentContainerStyle={{ flexGrow: 1 }}
+      keyboardShouldPersistTaps="handled"
+      bounces={false}
+    >
+      <View style={styles.brandedHeader}>
+        <View style={styles.decorCircle1} />
+        <View style={styles.decorCircle2} />
+        <View style={styles.decorCircle3} />
+        <OnceAnimated delay={0} fromY={-30}>
+          <View style={styles.brandedContent}>
+            <Image
+              source={require('../../assets/logo.png')}
+              style={styles.brandedLogo}
+              resizeMode="contain"
+            />
+            <Text style={styles.brandedTagline}>Tudo perto de voce</Text>
+          </View>
+        </OnceAnimated>
+      </View>
+
+      <OnceAnimated delay={50} fromY={30}>
+        <View style={[styles.formCard, { backgroundColor: colors.white }]}>
+          <View style={styles.form}>
+            <OnceAnimated delay={100} fromX={30}>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.grayLight, color: colors.text }]}
+                placeholder="Email"
+                placeholderTextColor={colors.gray}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </OnceAnimated>
+
+            <OnceAnimated delay={150} fromX={30}>
+              <View style={[styles.passwordContainer, { backgroundColor: colors.grayLight }]}>
+                <TextInput
+                  style={[styles.passwordInput, { color: colors.text }]}
+                  placeholder="Senha"
+                  placeholderTextColor={colors.gray}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={18}
+                    color={colors.gray}
+                  />
+                </TouchableOpacity>
+              </View>
+            </OnceAnimated>
+
+            <Text style={[styles.errorText, !loginError && { height: 0, marginTop: 0 }]}>{loginError}</Text>
+
+            <OnceAnimated delay={200} fromX={0}>
+              <TouchableOpacity onPress={() => router.push('/auth/forgot-password')}>
+                <Text style={[styles.forgotPassword, { color: colors.primary }]}>Esqueci minha senha</Text>
+              </TouchableOpacity>
+            </OnceAnimated>
+
+            <OnceAnimated delay={230} fromY={15}>
+              <TouchableOpacity
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={() => handleLogin()}
+                disabled={loading}
+              >
+                <Text style={styles.buttonText}>
+                  {loading ? 'Entrando...' : 'Entrar'}
+                </Text>
+              </TouchableOpacity>
+            </OnceAnimated>
+
+            <OnceAnimated delay={280} fromY={0}>
+              <View style={styles.divider}>
+                <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
+                <Text style={[styles.dividerText, { color: colors.gray }]}>ou</Text>
+                <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
+              </View>
+            </OnceAnimated>
+
+            <OnceAnimated delay={320} fromY={15}>
+              <TouchableOpacity
+                style={[styles.googleButton, { backgroundColor: colors.white, borderColor: colors.grayLight }, googleLoading && styles.buttonDisabled]}
+                onPress={handleGoogleLogin}
+                disabled={googleLoading}
+              >
+                {googleLoading ? (
+                  <ActivityIndicator size="small" color={colors.text} />
+                ) : (
+                  <>
+                    <Image
+                      source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
+                      style={styles.googleIcon}
+                    />
+                    <Text style={[styles.googleButtonText, { color: colors.text }]}>Continuar com Google</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </OnceAnimated>
+
+            <OnceAnimated delay={360} fromY={0}>
+              <TouchableOpacity onPress={() => router.push('/auth/register')}>
+                <Text style={[styles.link, { color: colors.textLight }]}>
+                  Nao tem conta? <Text style={[styles.linkBold, { color: colors.primary }]}>Cadastre-se</Text>
+                </Text>
+              </TouchableOpacity>
+            </OnceAnimated>
           </View>
         </View>
-        <Text style={[styles.subtitle, { color: colors.textLight }]}>Tudo perto de voce</Text>
-      </View>
-
-      <View style={styles.form}>
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.grayLight, color: colors.text }]}
-          placeholder="Email"
-          placeholderTextColor={colors.gray}
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        <View style={[styles.passwordContainer, { backgroundColor: colors.grayLight }]}>
-          <TextInput
-            style={[styles.passwordInput, { color: colors.text }]}
-            placeholder="Senha"
-            placeholderTextColor={colors.gray}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-          />
-          <TouchableOpacity
-            style={styles.eyeButton}
-            onPress={() => setShowPassword(!showPassword)}
-          >
-            <Ionicons
-              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-              size={18}
-              color={colors.gray}
-            />
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity onPress={() => router.push('/auth/forgot-password')}>
-          <Text style={[styles.forgotPassword, { color: colors.primary }]}>Esqueci minha senha</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={() => handleLogin()}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Entrando...' : 'Entrar'}
-          </Text>
-        </TouchableOpacity>
-
-        <View style={styles.divider}>
-          <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
-          <Text style={[styles.dividerText, { color: colors.gray }]}>ou</Text>
-          <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
-        </View>
-
-        <TouchableOpacity
-          style={[styles.googleButton, { backgroundColor: colors.white, borderColor: colors.grayLight }, googleLoading && styles.buttonDisabled]}
-          onPress={handleGoogleLogin}
-          disabled={googleLoading}
-        >
-          {googleLoading ? (
-            <ActivityIndicator size="small" color={colors.text} />
-          ) : (
-            <>
-              <Image
-                source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
-                style={styles.googleIcon}
-              />
-              <Text style={[styles.googleButtonText, { color: colors.text }]}>Continuar com Google</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => router.push('/auth/register')}>
-          <Text style={[styles.link, { color: colors.textLight }]}>
-            Nao tem conta? <Text style={[styles.linkBold, { color: colors.primary }]}>Cadastre-se</Text>
-          </Text>
-        </TouchableOpacity>
-      </View>
+      </OnceAnimated>
+    </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -207,46 +272,62 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  brandedHeader: {
+    backgroundColor: '#1e293b',
+    paddingTop: 60,
+    paddingBottom: 40,
+    alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 48,
-  },
-  logoWrapper: {
+    overflow: 'hidden',
     position: 'relative',
-    alignItems: 'center',
-    paddingTop: 12,
-    paddingBottom: 10,
-    paddingRight: 30,
   },
-  logoBcm: {
-    fontSize: 7,
-    fontWeight: '500',
-    color: '#e0e0e0',
-    letterSpacing: 2,
+  decorCircle1: {
     position: 'absolute',
-    top: 2,
-    left: -8,
+    top: -40,
+    right: -40,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(249,115,22,0.15)',
+  },
+  decorCircle2: {
+    position: 'absolute',
+    bottom: -30,
+    left: -30,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: 'rgba(59,130,246,0.08)',
+  },
+  decorCircle3: {
+    position: 'absolute',
+    top: '50%' as unknown as number,
+    left: -15,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(249,115,22,0.08)',
+  },
+  brandedContent: {
+    alignItems: 'center',
     zIndex: 1,
   },
-  logoTextRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+  brandedLogo: {
+    width: 280,
+    height: 170,
   },
-  logo: {
-    fontSize: 40,
-    fontWeight: '800',
-  },
-  logoApp: {
-    fontSize: 24,
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  subtitle: {
+  brandedTagline: {
     fontSize: fonts.large,
-    marginTop: 8,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 6,
+  },
+  formCard: {
+    marginTop: -20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 12,
+    paddingTop: 28,
   },
   form: {
     gap: 6,
@@ -269,6 +350,12 @@ const styles = StyleSheet.create({
   eyeButton: {
     paddingHorizontal: 10,
     paddingVertical: 12,
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: fonts.small,
+    marginTop: 2,
+    marginLeft: 4,
   },
   forgotPassword: {
     fontSize: fonts.small,

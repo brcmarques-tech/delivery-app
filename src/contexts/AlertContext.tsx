@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,12 @@ import {
   StyleSheet,
   Modal,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts } from '../theme';
 
@@ -85,6 +91,31 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const backdropOpacity = useSharedValue(0);
+  const cardScale = useSharedValue(0.85);
+  const cardOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible) {
+      backdropOpacity.value = withTiming(0.5, { duration: 200 });
+      cardScale.value = withSpring(1, { damping: 20, stiffness: 200 });
+      cardOpacity.value = withTiming(1, { duration: 200 });
+    } else {
+      backdropOpacity.value = 0;
+      cardScale.value = 0.85;
+      cardOpacity.value = 0;
+    }
+  }, [visible]);
+
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
+  }));
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: cardScale.value }],
+    opacity: cardOpacity.value,
+  }));
+
   const icon = iconMap[options.type || 'info'];
   const buttons = options.buttons || [{ text: 'OK' }];
   const hasCancel = buttons.some((b) => b.style === 'cancel');
@@ -94,17 +125,19 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
       {children}
       <Modal
         visible={visible}
-        transparent
-        animationType="fade"
+        transparent={true}
+        animationType="none"
         onRequestClose={() => setVisible(false)}
       >
         <TouchableOpacity
-          style={styles.overlay}
+          style={styles.overlayTouchable}
           activeOpacity={1}
           onPress={() => {
             if (hasCancel) setVisible(false);
           }}
         >
+          <Animated.View style={[styles.overlay, backdropStyle]} />
+          <Animated.View style={[styles.cardAnimated, cardStyle]}>
           <TouchableOpacity activeOpacity={1} style={styles.card}>
             <View style={[styles.iconWrapper, { backgroundColor: icon.bg }]}>
               <Ionicons name={icon.name as any} size={36} color={icon.color} />
@@ -143,6 +176,7 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
               })}
             </View>
           </TouchableOpacity>
+          </Animated.View>
         </TouchableOpacity>
       </Modal>
     </AlertContext.Provider>
@@ -150,12 +184,20 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  overlay: {
+  overlayTouchable: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,1)',
+  },
+  cardAnimated: {
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
   },
   card: {
     backgroundColor: colors.white,
