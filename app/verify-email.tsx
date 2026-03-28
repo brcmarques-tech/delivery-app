@@ -128,20 +128,31 @@ export default function VerifyEmailScreen() {
         </Text>
 
         {!sent ? (
-          <TouchableOpacity
-            style={[styles.sendButton, { backgroundColor: colors.primary }]}
-            onPress={handleSendCode}
-            disabled={sending}
-          >
-            {sending ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <Ionicons name="send" size={18} color="#FFFFFF" />
-                <Text style={styles.sendButtonText}>Enviar Codigo</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={[styles.sendButton, { backgroundColor: colors.primary }]}
+              onPress={handleSendCode}
+              disabled={sending}
+            >
+              {sending ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="send" size={18} color="#FFFFFF" />
+                  <Text style={styles.sendButtonText}>Enviar Codigo</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.skipButton} onPress={() => router.back()}>
+              <Text style={[styles.skipText, { color: colors.textLight }]}>Agora nao</Text>
+            </TouchableOpacity>
+            <View style={[styles.warningBanner, { backgroundColor: colors.warning + '15' }]}>
+              <Ionicons name="warning-outline" size={16} color={colors.warning} />
+              <Text style={[styles.warningText, { color: colors.textLight }]}>
+                Sem verificar, voce pode perder promocoes e cupons das suas lojas favoritas
+              </Text>
+            </View>
+          </>
         ) : (
           <>
             <View style={styles.codeRow}>
@@ -246,6 +257,18 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   errorText: { fontSize: fonts.small, flex: 1 },
+  skipButton: { marginTop: 16 },
+  skipText: { fontSize: fonts.regular, fontWeight: '500' },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 20,
+    width: '100%',
+  },
+  warningText: { fontSize: fonts.small, flex: 1, lineHeight: 18 },
   successContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
   successIcon: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
   successTitle: { fontSize: 24, fontWeight: '700', marginBottom: 8 },

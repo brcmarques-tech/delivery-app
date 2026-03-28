@@ -1,13 +1,13 @@
-# Delivery App
+# Shopping App
 
-App mobile (React Native/Expo) para clientes do delivery.
+App mobile (React Native/Expo) para clientes do shopping.
 
 ## Pré-requisitos
 
 - Node.js 18+
 - Yarn (`npm install -g yarn`)
 - Expo Go no celular ou emulador Android/iOS
-- [delivery-api](https://gitlab.com/bcm-tech/delivery-api) rodando
+- [shopping-api](https://gitlab.com/bcm-tech/delivery-api) rodando
 
 ## Instalação
 

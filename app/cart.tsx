@@ -158,15 +158,22 @@ export default function CartScreen() {
 
   if (items.length === 0) {
     return (
-      <View style={[styles.emptyContainer, { paddingTop: insets.top, backgroundColor: colors.background }]}>
-        <Ionicons name="cart-outline" size={64} color={colors.grayLight} />
-        <Text style={[styles.emptyText, { color: colors.textLight }]}>Seu carrinho esta vazio</Text>
-        <TouchableOpacity
-          style={[styles.emptyButton, { backgroundColor: colors.primary }]}
-          onPress={() => router.push('/(tabs)/home')}
-        >
-          <Text style={styles.emptyButtonText}>Ver lojas</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={{ paddingTop: insets.top + 8, padding: 12, backgroundColor: colors.white }}>
+          <Text style={[styles.title, { color: colors.text }]}>Carrinho</Text>
+        </View>
+        <View style={styles.emptyContent}>
+          <Ionicons name="cart-outline" size={56} color={colors.grayLight} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Nada por aqui ainda</Text>
+          <Text style={[styles.emptyText, { color: colors.textLight }]}>Explore as lojas na aba de busca e faca seu primeiro pedido!</Text>
+          <TouchableOpacity
+            style={[styles.emptyButton, { backgroundColor: colors.primary }]}
+            onPress={() => router.push('/(tabs)/search')}
+          >
+            <Ionicons name="search" size={18} color="#FFFFFF" />
+            <Text style={styles.emptyButtonText}>Explorar lojas</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -236,25 +243,26 @@ export default function CartScreen() {
             : `${item.quantity}`;
 
           return (
-            <View style={[
-              styles.itemCard,
-              { backgroundColor: colors.white },
-              isSelected && {
-                borderWidth: 1.5,
-                borderColor: colors.primary + '40',
-                backgroundColor: colors.primary + '05',
-              },
-            ]}>
-              <TouchableOpacity
-                style={styles.checkboxArea}
-                onPress={() => toggleItem(item.id)}
-              >
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => toggleItem(item.id)}
+              style={[
+                styles.itemCard,
+                { backgroundColor: colors.white },
+                isSelected && {
+                  borderWidth: 1.5,
+                  borderColor: colors.primary + '40',
+                  backgroundColor: colors.primary + '05',
+                },
+              ]}
+            >
+              <View style={styles.checkboxArea}>
                 <Ionicons
                   name={isSelected ? 'checkbox' : 'square-outline'}
                   size={18}
                   color={isSelected ? colors.primary : colors.gray}
                 />
-              </TouchableOpacity>
+              </View>
 
               <View style={styles.itemInfo}>
                 <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={2}>{item.name}</Text>
@@ -280,7 +288,7 @@ export default function CartScreen() {
                 <Text style={[styles.qtyBadgeText, { color: colors.primary }]}>{qtyLabel}</Text>
                 <Ionicons name="pencil-outline" size={12} color={colors.primary} />
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           );
         }}
       />
@@ -362,10 +370,11 @@ export default function CartScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: staticColors.background },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 6, backgroundColor: staticColors.background },
-  emptyText: { fontSize: fonts.regular, color: staticColors.textLight },
-  emptyButton: { backgroundColor: staticColors.primary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12 },
-  emptyButtonText: { color: '#fff', fontWeight: 'bold' },
+  emptyContent: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8, paddingHorizontal: 32 },
+  emptyTitle: { fontSize: fonts.large, fontWeight: '700' },
+  emptyText: { fontSize: fonts.regular, color: staticColors.textLight, textAlign: 'center', lineHeight: 22 },
+  emptyButton: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 24, paddingHorizontal: 24, paddingVertical: 14, marginTop: 8 },
+  emptyButtonText: { color: '#fff', fontWeight: 'bold', fontSize: fonts.regular },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

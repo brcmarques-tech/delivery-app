@@ -88,7 +88,7 @@ export function SplashLoading({ onReady }: { onReady?: () => void } = {}) {
 
       {/* Footer */}
       <Animated.Text style={[styles.footer, { opacity: fadeFooter }]}>
-        Seu delivery, sua cidade
+        Seu shopping, sua cidade
       </Animated.Text>
     </View>
   );

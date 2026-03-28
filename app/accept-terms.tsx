@@ -19,14 +19,15 @@ import { GET_CONTRACT_CONTENT } from '../src/lib/graphql/queries';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useAlert } from '../src/contexts/AlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts } from '../src/theme';
+import { fonts } from '../src/theme';
+import { useTheme } from '../src/contexts/ThemeContext';
 
 const DEFAULT_CUSTOMER_CONTRACT = `TERMOS DE USO DA PLATAFORMA — CLIENTE
-BCM TECH DELIVERY
+BCM TECH SHOPPING
 
 Última atualização: Março de 2026
 
-Estes Termos de Uso, doravante denominados "Termos", regulam o acesso e o uso da plataforma bcmTech Delivery, doravante denominada "Plataforma", operada por BCM TECH, inscrita no CNPJ sob o nº 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graça, 19, Centro, CEP 96330-000, Arroio Grande – RS, doravante denominada "Empresa".
+Estes Termos de Uso, doravante denominados "Termos", regulam o acesso e o uso da plataforma bcmTech Shopping, doravante denominada "Plataforma", operada por BCM TECH, inscrita no CNPJ sob o nº 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graça, 19, Centro, CEP 96330-000, Arroio Grande – RS, doravante denominada "Empresa".
 
 Ao criar uma conta e utilizar a Plataforma como Cliente, você declara ter lido, compreendido e concordado integralmente com estes Termos.
 
@@ -135,11 +136,11 @@ d) Interrupções decorrentes de falhas de terceiros, provedores de internet ou 
 Ao clicar em "Aceitar e Continuar", você manifesta seu consentimento livre, informado e inequívoco com todos os termos acima.`;
 
 const DEFAULT_DELIVERER_CONTRACT = `TERMOS DE USO DA PLATAFORMA — ENTREGADOR AUTÔNOMO
-BCM TECH DELIVERY
+BCM TECH SHOPPING
 
 Última atualização: Março de 2026
 
-Estes Termos de Uso, doravante denominados "Termos", regulam o acesso e o uso da plataforma bcmTech Delivery, doravante denominada "Plataforma", operada por BCM TECH, inscrita no CNPJ sob o nº 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graça, 19, Centro, CEP 96330-000, Arroio Grande – RS, doravante denominada "Empresa".
+Estes Termos de Uso, doravante denominados "Termos", regulam o acesso e o uso da plataforma bcmTech Shopping, doravante denominada "Plataforma", operada por BCM TECH, inscrita no CNPJ sob o nº 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graça, 19, Centro, CEP 96330-000, Arroio Grande – RS, doravante denominada "Empresa".
 
 Ao criar uma conta e utilizar a Plataforma como Entregador, você declara ter lido, compreendido e concordado integralmente com estes Termos.
 
@@ -266,11 +267,11 @@ e) Inatividade prolongada (superior a 180 dias).
 Ao clicar em "Aceitar e Continuar", você manifesta seu consentimento livre, informado e inequívoco com todos os termos acima.`;
 
 const DEFAULT_VENDOR_CONTRACT = `TERMOS DE USO DA PLATAFORMA — VENDEDOR
-BCM TECH DELIVERY
+BCM TECH SHOPPING
 
 Última atualização: Março de 2026
 
-Estes Termos de Uso, doravante denominados "Termos", regulam o acesso e o uso da plataforma bcmTech Delivery, doravante denominada "Plataforma", operada por BCM TECH, inscrita no CNPJ sob o nº 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graça, 19, Centro, CEP 96330-000, Arroio Grande – RS, doravante denominada "Empresa".
+Estes Termos de Uso, doravante denominados "Termos", regulam o acesso e o uso da plataforma bcmTech Shopping, doravante denominada "Plataforma", operada por BCM TECH, inscrita no CNPJ sob o nº 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graça, 19, Centro, CEP 96330-000, Arroio Grande – RS, doravante denominada "Empresa".
 
 Ao criar uma conta e utilizar a Plataforma como Vendedor, você declara ter lido, compreendido e concordado integralmente com estes Termos.
 
@@ -431,6 +432,7 @@ interface AcceptTermsScreenProps {
 }
 
 export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScreenProps) {
+  const { colors } = useTheme();
   const { user, updateUser } = useAuth();
   const { alert } = useAlert();
   const insets = useSafeAreaInsets();
@@ -461,7 +463,7 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
       if (user && data?.acceptTerms) {
         await updateUser({ ...user, acceptedTermsAt: data.acceptTerms.acceptedTermsAt });
       }
-      router.replace('/');
+      router.replace('/(tabs)/home');
     } catch {
       alert('Erro', 'Não foi possível aceitar os termos. Tente novamente.');
     }
@@ -490,7 +492,7 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
           .contract { font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
           .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #999; border-top: 1px solid #eee; padding-top: 16px; }
         </style></head><body>
-          <div class="header"><h1>bcmTech Delivery</h1></div>
+          <div class="header"><h1>bcmTech Shopping</h1></div>
           ${user?.name || user?.cpf ? `<div class="signee">
             <div class="signee-label">PARTE CONTRATANTE / ASSINANTE:</div>
             ${user?.name ? `<div class="signee-name">${user.name}</div>` : ''}
@@ -498,28 +500,28 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
             ${user?.phone ? `<div class="signee-info">Telefone: ${user.phone}</div>` : ''}
           </div>` : ''}
           <div class="contract">${contractText}</div>
-          <div class="footer">Contrato aceito digitalmente na plataforma bcmTech Delivery.</div>
+          <div class="footer">Contrato aceito digitalmente na plataforma bcmTech Shopping.</div>
         </body></html>
       `;
       const { uri } = await Print.printToFileAsync({ html });
-      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `${title} - bcmTech Delivery` });
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `${title} - bcmTech Shopping` });
     } catch {
       alert('Erro', 'Não foi possível gerar o PDF.');
     }
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.white }]}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: colors.grayLight }]}>
         {readOnly && onClose && (
           <TouchableOpacity style={[styles.closeButton, { top: insets.top + 8 }]} onPress={onClose}>
             <Ionicons name="close" size={18} color={colors.text} />
           </TouchableOpacity>
         )}
         <Ionicons name="document-text" size={26} color={colors.primary} />
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.subtitle, { color: colors.textLight }]}>
           {readOnly
             ? 'Visualização do contrato aceito.'
             : 'Leia atentamente antes de continuar usando a plataforma.'}
@@ -535,31 +537,31 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
       >
         {/* Signee info */}
         {(user?.name || user?.cpf) && (
-          <View style={styles.signeeBox}>
-            <Text style={styles.signeeLabel}>PARTE CONTRATANTE / ASSINANTE:</Text>
-            {user?.name && <Text style={styles.signeeName}>{user.name}</Text>}
-            {user?.cpf && <Text style={styles.signeeCpf}>CPF: {formatCpf(user.cpf)}</Text>}
+          <View style={[styles.signeeBox, { backgroundColor: colors.grayLight }]}>
+            <Text style={[styles.signeeLabel, { color: colors.textLight }]}>PARTE CONTRATANTE / ASSINANTE:</Text>
+            {user?.name && <Text style={[styles.signeeName, { color: colors.text }]}>{user.name}</Text>}
+            {user?.cpf && <Text style={[styles.signeeCpf, { color: colors.textLight }]}>CPF: {formatCpf(user.cpf)}</Text>}
           </View>
         )}
 
-        <Text style={styles.contractText}>{contractText}</Text>
+        <Text style={[styles.contractText, { color: colors.textLight }]}>{contractText}</Text>
       </ScrollView>
 
       {/* Footer */}
       {readOnly ? (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-          <TouchableOpacity style={styles.pdfButton} onPress={handleDownloadPdf}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16, borderTopColor: colors.grayLight, backgroundColor: colors.white }]}>
+          <TouchableOpacity style={[styles.pdfButton, { borderColor: colors.primary }]} onPress={handleDownloadPdf}>
             <Ionicons name="download-outline" size={18} color={colors.primary} />
-            <Text style={styles.pdfButtonText}>Baixar contrato em PDF</Text>
+            <Text style={[styles.pdfButtonText, { color: colors.primary }]}>Baixar contrato em PDF</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.closeFooterButton} onPress={onClose}>
-            <Text style={styles.closeFooterText}>Fechar</Text>
+          <TouchableOpacity style={[styles.closeFooterButton, { backgroundColor: colors.grayLight }]} onPress={onClose}>
+            <Text style={[styles.closeFooterText, { color: colors.textLight }]}>Fechar</Text>
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16, borderTopColor: colors.grayLight, backgroundColor: colors.white }]}>
           {!scrolledToEnd && (
-            <Text style={styles.scrollHint}>
+            <Text style={[styles.scrollHint, { color: colors.primary }]}>
               Role até o final do contrato para poder aceitar.
             </Text>
           )}
@@ -574,18 +576,18 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
               size={18}
               color={checked ? colors.primary : scrolledToEnd ? colors.gray : colors.grayLight}
             />
-            <Text style={[styles.checkboxText, !scrolledToEnd && { color: colors.gray }]}>
+            <Text style={[styles.checkboxText, { color: colors.text }, !scrolledToEnd && { color: colors.gray }]}>
               {getCheckboxText(role)}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.acceptButton, (!checked || !scrolledToEnd || loading) && styles.buttonDisabled]}
+            style={[styles.acceptButton, { backgroundColor: '#FF6B00' }, (!checked || !scrolledToEnd || loading) && styles.buttonDisabled]}
             onPress={handleAccept}
             disabled={!checked || !scrolledToEnd || loading}
           >
             {loading ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.acceptButtonText}>Aceitar e Continuar</Text>
             )}
@@ -599,7 +601,6 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
   },
   header: {
     paddingTop: 56,
@@ -607,7 +608,6 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: colors.grayLight,
   },
   closeButton: {
     position: 'absolute',
@@ -618,13 +618,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: fonts.xlarge,
     fontWeight: 'bold',
-    color: colors.text,
     marginTop: 12,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: fonts.small,
-    color: colors.textLight,
     marginTop: 4,
     textAlign: 'center',
   },
@@ -636,42 +634,34 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   signeeBox: {
-    backgroundColor: colors.grayLight,
     borderRadius: 10,
     padding: 10,
     marginBottom: 14,
   },
   signeeLabel: {
     fontSize: fonts.tiny,
-    color: colors.textLight,
     fontWeight: '600',
     marginBottom: 6,
   },
   signeeName: {
     fontSize: fonts.regular,
     fontWeight: '600',
-    color: colors.text,
   },
   signeeCpf: {
     fontSize: fonts.small,
-    color: colors.textLight,
     marginTop: 2,
   },
   contractText: {
     fontSize: fonts.small,
-    color: colors.textLight,
     lineHeight: 22,
   },
   footer: {
     padding: 12,
     paddingBottom: 32,
     borderTopWidth: 1,
-    borderTopColor: colors.grayLight,
-    backgroundColor: colors.white,
   },
   scrollHint: {
     fontSize: fonts.tiny,
-    color: colors.primary,
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 12,
@@ -685,11 +675,9 @@ const styles = StyleSheet.create({
   checkboxText: {
     flex: 1,
     fontSize: fonts.small,
-    color: colors.text,
     lineHeight: 20,
   },
   acceptButton: {
-    backgroundColor: colors.primary,
     borderRadius: 10,
     padding: 12,
     alignItems: 'center',
@@ -698,7 +686,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   acceptButtonText: {
-    color: colors.white,
+    color: '#fff',
     fontSize: fonts.large,
     fontWeight: 'bold',
   },
@@ -710,16 +698,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.primary,
     borderRadius: 10,
   },
   pdfButtonText: {
-    color: colors.primary,
     fontSize: fonts.small,
     fontWeight: '600',
   },
   closeFooterButton: {
-    backgroundColor: colors.grayLight,
     borderRadius: 10,
     padding: 12,
     alignItems: 'center',
@@ -727,6 +712,5 @@ const styles = StyleSheet.create({
   closeFooterText: {
     fontSize: fonts.large,
     fontWeight: '600',
-    color: colors.textLight,
   },
 });

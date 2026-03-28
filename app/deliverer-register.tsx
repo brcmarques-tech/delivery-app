@@ -22,7 +22,8 @@ import { REGISTER_AS_DELIVERER, UPLOAD_IMAGE, VALIDATE_FACE_PHOTO, VALIDATE_DOCU
 import { useAuth } from '../src/contexts/AuthContext';
 import { useAlert } from '../src/contexts/AlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts } from '../src/theme';
+import { fonts } from '../src/theme';
+import { useTheme } from '../src/contexts/ThemeContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const OVAL_WIDTH = SCREEN_WIDTH * 0.65;
@@ -37,7 +38,7 @@ const vehicleTypes = [
 
 const CONTRACT_TEXT = `TERMO DE COMPROMISSO DO ENTREGADOR
 
-Ao se cadastrar como entregador na plataforma bcmTech Delivery, você declara estar ciente e de acordo com os seguintes termos:
+Ao se cadastrar como entregador na plataforma bcmTech Shopping, você declara estar ciente e de acordo com os seguintes termos:
 
 1. OBRIGAÇÃO DE ENTREGA: O entregador que aceitar um pedido se compromete a realizar a entrega no endereço indicado, dentro do prazo estimado pela plataforma.
 
@@ -79,6 +80,7 @@ function FaceCameraScreen({
   onCapture: (uri: string, base64: string) => void;
   onClose: () => void;
 }) {
+  const { colors } = useTheme();
   const cameraRef = useRef<CameraView>(null);
   const [taking, setTaking] = useState(false);
 
@@ -111,7 +113,7 @@ function FaceCameraScreen({
           <View style={camStyles.overlayTop} />
           <View style={camStyles.overlayMiddle}>
             <View style={camStyles.overlaySide} />
-            <View style={[camStyles.ovalCutout, { borderColor: colors.white }]} />
+            <View style={[camStyles.ovalCutout, { borderColor: '#fff' }]} />
             <View style={camStyles.overlaySide} />
           </View>
           <View style={camStyles.overlayBottom} />
@@ -120,8 +122,8 @@ function FaceCameraScreen({
         {/* Status text */}
         <View style={camStyles.statusContainer}>
           <View style={[camStyles.statusBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-            <Ionicons name="scan-outline" size={18} color={colors.white} />
-            <Text style={[camStyles.statusText, { color: colors.white }]}>
+            <Ionicons name="scan-outline" size={18} color="#fff" />
+            <Text style={[camStyles.statusText, { color: '#fff' }]}>
               Posicione seu rosto no oval
             </Text>
           </View>
@@ -129,18 +131,18 @@ function FaceCameraScreen({
 
         {/* Close button */}
         <TouchableOpacity style={camStyles.closeButton} onPress={onClose}>
-          <Ionicons name="close" size={18} color={colors.white} />
+          <Ionicons name="close" size={18} color="#fff" />
         </TouchableOpacity>
 
         {/* Capture button */}
         <View style={camStyles.captureContainer}>
           <TouchableOpacity
-            style={camStyles.captureButton}
+            style={[camStyles.captureButton, { backgroundColor: '#FF6B00', borderColor: '#fff' }]}
             onPress={takePicture}
             disabled={taking}
           >
             {taking ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color="#fff" />
             ) : (
               <View style={camStyles.captureInner} />
             )}
@@ -227,23 +229,22 @@ const camStyles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 4,
-    borderColor: colors.white,
   },
   captureDisabled: { opacity: 0.4 },
   captureInner: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.white,
+    backgroundColor: '#fff',
   },
 });
 
 // ─── Main Screen ───
 export default function DelivererRegisterScreen() {
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { updateUser } = useAuth();
   const { alert } = useAlert();
@@ -542,45 +543,45 @@ export default function DelivererRegisterScreen() {
 
   if (submitted) {
     return (
-      <View style={styles.successContainer}>
-        <View style={styles.successIconContainer}>
+      <View style={[styles.successContainer, { backgroundColor: colors.white }]}>
+        <View style={[styles.successIconContainer, { backgroundColor: colors.success + '15' }]}>
           <Ionicons name="checkmark-circle" size={80} color={colors.success} />
         </View>
-        <Text style={styles.successTitle}>Cadastro enviado!</Text>
-        <Text style={styles.successSubtitle}>
+        <Text style={[styles.successTitle, { color: colors.text }]}>Cadastro enviado!</Text>
+        <Text style={[styles.successSubtitle, { color: colors.textLight }]}>
           Seu cadastro como entregador foi enviado e está aguardando aprovação do administrador.
           Você será notificado quando for aprovado.
         </Text>
         <TouchableOpacity
-          style={styles.successButton}
+          style={[styles.successButton, { backgroundColor: '#FF6B00' }]}
           onPress={() => router.replace('/')}
         >
-          <Text style={styles.successButtonText}>Voltar para o início</Text>
+          <Text style={[styles.successButtonText, { color: colors.white }]}>Voltar para o início</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.white }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]} keyboardShouldPersistTaps="handled">
       <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/')}>
         <Ionicons name="arrow-back" size={18} color={colors.text} />
       </TouchableOpacity>
 
-      <View style={styles.iconContainer}>
+      <View style={[styles.iconContainer, { backgroundColor: colors.primary + '15' }]}>
         <Ionicons name="bicycle" size={36} color={colors.primary} />
       </View>
 
-      <Text style={styles.title}>Quero ser entregador</Text>
-      <Text style={styles.subtitle}>
+      <Text style={[styles.title, { color: colors.text }]}>Quero ser entregador</Text>
+      <Text style={[styles.subtitle, { color: colors.textLight }]}>
         Preencha seus dados para comecar a fazer entregas e ganhar dinheiro
       </Text>
 
       <View style={styles.form}>
-        <Text style={styles.label}>Data de nascimento</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Data de nascimento</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.grayLight, color: colors.text }]}
           placeholder="DD/MM/AAAA"
           placeholderTextColor={colors.gray}
           value={birthDate}
@@ -589,14 +590,14 @@ export default function DelivererRegisterScreen() {
           maxLength={10}
         />
 
-        <Text style={styles.label}>Tipo de veiculo</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Tipo de veiculo</Text>
         <View style={styles.vehicleContainer}>
           {vehicleTypes.map((v) => (
             <TouchableOpacity
               key={v.key}
               style={[
                 styles.vehicleButton,
-                vehicleType === v.key && styles.vehicleButtonActive,
+                { borderColor: vehicleType === v.key ? colors.primary : colors.grayLight, backgroundColor: vehicleType === v.key ? colors.primary + '10' : 'transparent' },
               ]}
               onPress={() => setVehicleType(v.key)}
             >
@@ -608,7 +609,7 @@ export default function DelivererRegisterScreen() {
               <Text
                 style={[
                   styles.vehicleText,
-                  vehicleType === v.key && styles.vehicleTextActive,
+                  { color: vehicleType === v.key ? colors.primary : colors.textLight },
                 ]}
               >
                 {v.label}
@@ -619,9 +620,9 @@ export default function DelivererRegisterScreen() {
 
         {(vehicleType === 'MOTO' || vehicleType === 'CARRO') && (
           <>
-            <Text style={styles.label}>Numero da CNH</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Numero da CNH</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.grayLight, color: colors.text }]}
               placeholder="00000000000"
               placeholderTextColor={colors.gray}
               value={cnhNumber}
@@ -630,9 +631,9 @@ export default function DelivererRegisterScreen() {
               maxLength={11}
             />
 
-            <Text style={styles.label}>Placa do veiculo</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Placa do veiculo</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.grayLight, color: colors.text }]}
               placeholder="ABC-1234"
               placeholderTextColor={colors.gray}
               value={vehiclePlate}
@@ -644,142 +645,142 @@ export default function DelivererRegisterScreen() {
         )}
 
         {/* Foto do rosto (selfie) com câmera interativa */}
-        <Text style={styles.label}>Foto do rosto (selfie)</Text>
-        <Text style={styles.photoHint}>
+        <Text style={[styles.label, { color: colors.text }]}>Foto do rosto (selfie)</Text>
+        <Text style={[styles.photoHint, { color: colors.textLight }]}>
           Tire uma selfie com deteccao facial. Posicione seu rosto no oval.
         </Text>
 
         {facePhoto ? (
           <View style={styles.photoPreviewContainer}>
-            <Image source={{ uri: facePhoto }} style={styles.photoPreview} />
-            <TouchableOpacity style={styles.removePhotoButton} onPress={clearFacePhoto}>
+            <Image source={{ uri: facePhoto }} style={[styles.photoPreview, { backgroundColor: colors.grayLight }]} />
+            <TouchableOpacity style={[styles.removePhotoButton, { backgroundColor: colors.white }]} onPress={clearFacePhoto}>
               <Ionicons name="close-circle" size={18} color={colors.danger} />
             </TouchableOpacity>
             {facePhotoStatus === 'validating' && (
               <View style={styles.validationOverlay}>
                 <ActivityIndicator color={colors.white} />
-                <Text style={styles.validationText}>Verificando...</Text>
+                <Text style={[styles.validationText, { color: colors.white }]}>Verificando...</Text>
               </View>
             )}
             {facePhotoStatus === 'valid' && (
-              <View style={styles.statusBadge}>
+              <View style={[styles.statusBadge, { backgroundColor: colors.white }]}>
                 <Ionicons name="checkmark-circle" size={18} color={colors.success} />
               </View>
             )}
             {facePhotoStatus === 'invalid' && (
-              <View style={styles.statusBadgeError}>
+              <View style={[styles.statusBadgeError, { backgroundColor: colors.white }]}>
                 <Ionicons name="close-circle" size={18} color={colors.danger} />
               </View>
             )}
           </View>
         ) : (
           <View style={styles.photoButtons}>
-            <TouchableOpacity style={styles.photoButton} onPress={openFaceCamera}>
+            <TouchableOpacity style={[styles.photoButton, { borderColor: colors.primary + '30' }]} onPress={openFaceCamera}>
               <Ionicons name="scan-outline" size={18} color={colors.primary} />
-              <Text style={styles.photoButtonText}>Selfie</Text>
+              <Text style={[styles.photoButtonText, { color: colors.primary }]}>Selfie</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.photoButton} onPress={pickFaceFromGallery}>
+            <TouchableOpacity style={[styles.photoButton, { borderColor: colors.primary + '30' }]} onPress={pickFaceFromGallery}>
               <Ionicons name="images-outline" size={18} color={colors.primary} />
-              <Text style={styles.photoButtonText}>Galeria</Text>
+              <Text style={[styles.photoButtonText, { color: colors.primary }]}>Galeria</Text>
             </TouchableOpacity>
           </View>
         )}
-        {facePhotoError ? <Text style={styles.photoError}>{facePhotoError}</Text> : null}
+        {facePhotoError ? <Text style={[styles.photoError, { color: colors.danger }]}>{facePhotoError}</Text> : null}
 
         {/* Foto do documento - FRENTE */}
-        <Text style={[styles.label, { marginTop: 12 }]}>Documento - Frente (RG ou CNH)</Text>
-        <Text style={styles.photoHint}>
+        <Text style={[styles.label, { marginTop: 12, color: colors.text }]}>Documento - Frente (RG ou CNH)</Text>
+        <Text style={[styles.photoHint, { color: colors.textLight }]}>
           Tire uma foto da frente do documento, com os dados visiveis.
         </Text>
 
         {docPhoto ? (
           <View style={styles.photoPreviewContainer}>
-            <Image source={{ uri: docPhoto }} style={styles.photoPreview} />
-            <TouchableOpacity style={styles.removePhotoButton} onPress={clearDocPhoto}>
+            <Image source={{ uri: docPhoto }} style={[styles.photoPreview, { backgroundColor: colors.grayLight }]} />
+            <TouchableOpacity style={[styles.removePhotoButton, { backgroundColor: colors.white }]} onPress={clearDocPhoto}>
               <Ionicons name="close-circle" size={18} color={colors.danger} />
             </TouchableOpacity>
             {docPhotoStatus === 'validating' && (
               <View style={styles.validationOverlay}>
                 <ActivityIndicator color={colors.white} />
-                <Text style={styles.validationText}>Verificando documento...</Text>
+                <Text style={[styles.validationText, { color: colors.white }]}>Verificando documento...</Text>
               </View>
             )}
             {docPhotoStatus === 'valid' && (
-              <View style={styles.statusBadge}>
+              <View style={[styles.statusBadge, { backgroundColor: colors.white }]}>
                 <Ionicons name="checkmark-circle" size={18} color={colors.success} />
               </View>
             )}
             {docPhotoStatus === 'invalid' && (
-              <View style={styles.statusBadgeError}>
+              <View style={[styles.statusBadgeError, { backgroundColor: colors.white }]}>
                 <Ionicons name="close-circle" size={18} color={colors.danger} />
               </View>
             )}
           </View>
         ) : (
           <View style={styles.photoButtons}>
-            <TouchableOpacity style={styles.photoButton} onPress={() => pickDocPhoto(true, 'front')}>
+            <TouchableOpacity style={[styles.photoButton, { borderColor: colors.primary + '30' }]} onPress={() => pickDocPhoto(true, 'front')}>
               <Ionicons name="camera-outline" size={18} color={colors.primary} />
-              <Text style={styles.photoButtonText}>Tirar foto</Text>
+              <Text style={[styles.photoButtonText, { color: colors.primary }]}>Tirar foto</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.photoButton} onPress={() => pickDocPhoto(false, 'front')}>
+            <TouchableOpacity style={[styles.photoButton, { borderColor: colors.primary + '30' }]} onPress={() => pickDocPhoto(false, 'front')}>
               <Ionicons name="images-outline" size={18} color={colors.primary} />
-              <Text style={styles.photoButtonText}>Galeria</Text>
+              <Text style={[styles.photoButtonText, { color: colors.primary }]}>Galeria</Text>
             </TouchableOpacity>
           </View>
         )}
-        {docPhotoError ? <Text style={styles.photoError}>{docPhotoError}</Text> : null}
+        {docPhotoError ? <Text style={[styles.photoError, { color: colors.danger }]}>{docPhotoError}</Text> : null}
 
         {/* Foto do documento - VERSO */}
-        <Text style={[styles.label, { marginTop: 12 }]}>Documento - Verso</Text>
-        <Text style={styles.photoHint}>
+        <Text style={[styles.label, { marginTop: 12, color: colors.text }]}>Documento - Verso</Text>
+        <Text style={[styles.photoHint, { color: colors.textLight }]}>
           Tire uma foto do verso do documento.
         </Text>
 
         {docPhotoBack ? (
           <View style={styles.photoPreviewContainer}>
-            <Image source={{ uri: docPhotoBack }} style={styles.photoPreview} />
-            <TouchableOpacity style={styles.removePhotoButton} onPress={clearDocPhotoBack}>
+            <Image source={{ uri: docPhotoBack }} style={[styles.photoPreview, { backgroundColor: colors.grayLight }]} />
+            <TouchableOpacity style={[styles.removePhotoButton, { backgroundColor: colors.white }]} onPress={clearDocPhotoBack}>
               <Ionicons name="close-circle" size={18} color={colors.danger} />
             </TouchableOpacity>
             {docPhotoBackStatus === 'validating' && (
               <View style={styles.validationOverlay}>
                 <ActivityIndicator color={colors.white} />
-                <Text style={styles.validationText}>Verificando documento...</Text>
+                <Text style={[styles.validationText, { color: colors.white }]}>Verificando documento...</Text>
               </View>
             )}
             {docPhotoBackStatus === 'valid' && (
-              <View style={styles.statusBadge}>
+              <View style={[styles.statusBadge, { backgroundColor: colors.white }]}>
                 <Ionicons name="checkmark-circle" size={18} color={colors.success} />
               </View>
             )}
             {docPhotoBackStatus === 'invalid' && (
-              <View style={styles.statusBadgeError}>
+              <View style={[styles.statusBadgeError, { backgroundColor: colors.white }]}>
                 <Ionicons name="close-circle" size={18} color={colors.danger} />
               </View>
             )}
           </View>
         ) : (
           <View style={styles.photoButtons}>
-            <TouchableOpacity style={styles.photoButton} onPress={() => pickDocPhoto(true, 'back')}>
+            <TouchableOpacity style={[styles.photoButton, { borderColor: colors.primary + '30' }]} onPress={() => pickDocPhoto(true, 'back')}>
               <Ionicons name="camera-outline" size={18} color={colors.primary} />
-              <Text style={styles.photoButtonText}>Tirar foto</Text>
+              <Text style={[styles.photoButtonText, { color: colors.primary }]}>Tirar foto</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.photoButton} onPress={() => pickDocPhoto(false, 'back')}>
+            <TouchableOpacity style={[styles.photoButton, { borderColor: colors.primary + '30' }]} onPress={() => pickDocPhoto(false, 'back')}>
               <Ionicons name="images-outline" size={18} color={colors.primary} />
-              <Text style={styles.photoButtonText}>Galeria</Text>
+              <Text style={[styles.photoButtonText, { color: colors.primary }]}>Galeria</Text>
             </TouchableOpacity>
           </View>
         )}
-        {docPhotoBackError ? <Text style={styles.photoError}>{docPhotoBackError}</Text> : null}
+        {docPhotoBackError ? <Text style={[styles.photoError, { color: colors.danger }]}>{docPhotoBackError}</Text> : null}
 
         {/* Contrato */}
-        <View style={styles.contractSection}>
+        <View style={[styles.contractSection, { borderColor: colors.grayLight }]}>
           <TouchableOpacity
-            style={styles.contractHeader}
+            style={[styles.contractHeader, { backgroundColor: colors.grayLight }]}
             onPress={() => setShowContract(!showContract)}
           >
             <Ionicons name="document-text-outline" size={18} color={colors.text} />
-            <Text style={styles.contractHeaderText}>Termo de compromisso do entregador</Text>
+            <Text style={[styles.contractHeaderText, { color: colors.text }]}>Termo de compromisso do entregador</Text>
             <Ionicons
               name={showContract ? 'chevron-up' : 'chevron-down'}
               size={18}
@@ -788,13 +789,13 @@ export default function DelivererRegisterScreen() {
           </TouchableOpacity>
 
           {showContract && (
-            <ScrollView style={styles.contractBody} nestedScrollEnabled>
-              <Text style={styles.contractText}>{CONTRACT_TEXT}</Text>
+            <ScrollView style={[styles.contractBody, { backgroundColor: colors.white }]} nestedScrollEnabled>
+              <Text style={[styles.contractText, { color: colors.textLight }]}>{CONTRACT_TEXT}</Text>
             </ScrollView>
           )}
 
           <TouchableOpacity
-            style={styles.checkboxRow}
+            style={[styles.checkboxRow, { borderTopColor: colors.grayLight }]}
             onPress={() => setAcceptedContract(!acceptedContract)}
           >
             <Ionicons
@@ -802,18 +803,18 @@ export default function DelivererRegisterScreen() {
               size={18}
               color={acceptedContract ? colors.primary : colors.gray}
             />
-            <Text style={styles.checkboxText}>
+            <Text style={[styles.checkboxText, { color: colors.text }]}>
               Li e aceito o termo de compromisso do entregador
             </Text>
           </TouchableOpacity>
         </View>
 
         <TouchableOpacity
-          style={[styles.submitButton, (loading || uploading || !acceptedContract || !photosValid) && styles.buttonDisabled]}
+          style={[styles.submitButton, { backgroundColor: colors.primary }, (loading || uploading || !acceptedContract || !photosValid) && styles.buttonDisabled]}
           onPress={handleSubmit}
           disabled={loading || uploading || !acceptedContract || !photosValid}
         >
-          <Text style={styles.submitButtonText}>
+          <Text style={[styles.submitButtonText, { color: colors.white }]}>
             {uploading ? 'Enviando fotos...' : loading ? 'Enviando cadastro...' : 'Enviar cadastro'}
           </Text>
         </TouchableOpacity>
@@ -826,7 +827,6 @@ export default function DelivererRegisterScreen() {
 const styles = StyleSheet.create({
   successContainer: {
     flex: 1,
-    backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 32,
@@ -835,7 +835,6 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: colors.success + '15',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
@@ -843,36 +842,31 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: colors.text,
     textAlign: 'center',
     marginBottom: 12,
   },
   successSubtitle: {
     fontSize: fonts.regular,
-    color: colors.textLight,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 32,
   },
   successButton: {
-    backgroundColor: colors.primary,
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 32,
   },
   successButtonText: {
-    color: colors.white,
     fontSize: fonts.large,
     fontWeight: 'bold',
   },
-  container: { flex: 1, backgroundColor: colors.white },
+  container: { flex: 1 },
   content: { padding: 12, paddingTop: 56, paddingBottom: 40 },
   backButton: { marginBottom: 12 },
   iconContainer: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
@@ -881,12 +875,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: fonts.title,
     fontWeight: 'bold',
-    color: colors.text,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: fonts.regular,
-    color: colors.textLight,
     textAlign: 'center',
     marginTop: 8,
     marginBottom: 32,
@@ -896,16 +888,13 @@ const styles = StyleSheet.create({
   label: {
     fontSize: fonts.small,
     fontWeight: '600',
-    color: colors.text,
     marginTop: 8,
     marginBottom: 4,
   },
   input: {
-    backgroundColor: colors.grayLight,
     borderRadius: 10,
     padding: 12,
     fontSize: fonts.regular,
-    color: colors.text,
   },
   vehicleContainer: {
     flexDirection: 'row',
@@ -918,23 +907,17 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: colors.grayLight,
     alignItems: 'center',
     gap: 6,
   },
-  vehicleButtonActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '10',
-  },
+  vehicleButtonActive: {},
   vehicleText: {
     fontSize: fonts.small,
-    color: colors.textLight,
     fontWeight: '600',
   },
-  vehicleTextActive: { color: colors.primary },
+  vehicleTextActive: {},
   photoHint: {
     fontSize: fonts.tiny,
-    color: colors.textLight,
     marginBottom: 8,
     lineHeight: 18,
   },
@@ -951,12 +934,10 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: colors.primary + '30',
     borderStyle: 'dashed',
   },
   photoButtonText: {
     fontSize: fonts.small,
-    color: colors.primary,
     fontWeight: '600',
   },
   photoPreviewContainer: {
@@ -967,13 +948,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     borderRadius: 10,
-    backgroundColor: colors.grayLight,
   },
   removePhotoButton: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: colors.white,
     borderRadius: 10,
   },
   validationOverlay: {
@@ -989,7 +968,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   validationText: {
-    color: colors.white,
     fontSize: fonts.small,
     fontWeight: '600',
   },
@@ -997,7 +975,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 8,
     right: 8,
-    backgroundColor: colors.white,
     borderRadius: 10,
     padding: 2,
   },
@@ -1005,20 +982,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 8,
     right: 8,
-    backgroundColor: colors.white,
     borderRadius: 10,
     padding: 2,
   },
   photoError: {
     fontSize: fonts.tiny,
-    color: colors.danger,
     marginTop: 4,
     fontWeight: '600',
   },
   contractSection: {
     marginTop: 12,
     borderWidth: 1,
-    borderColor: colors.grayLight,
     borderRadius: 10,
     overflow: 'hidden',
   },
@@ -1027,22 +1001,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     padding: 10,
-    backgroundColor: colors.grayLight,
   },
   contractHeaderText: {
     flex: 1,
     fontSize: fonts.small,
     fontWeight: '600',
-    color: colors.text,
   },
   contractBody: {
     maxHeight: 200,
     padding: 10,
-    backgroundColor: colors.white,
   },
   contractText: {
     fontSize: fonts.tiny,
-    color: colors.textLight,
     lineHeight: 20,
   },
   checkboxRow: {
@@ -1051,15 +1021,12 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: 10,
     borderTopWidth: 1,
-    borderTopColor: colors.grayLight,
   },
   checkboxText: {
     flex: 1,
     fontSize: fonts.small,
-    color: colors.text,
   },
   submitButton: {
-    backgroundColor: colors.primary,
     borderRadius: 10,
     padding: 12,
     alignItems: 'center',
@@ -1067,7 +1034,6 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   submitButtonText: {
-    color: colors.white,
     fontSize: fonts.large,
     fontWeight: 'bold',
   },

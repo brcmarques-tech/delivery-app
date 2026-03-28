@@ -113,6 +113,7 @@ export default function DeliveriesScreen() {
   const appStateRef = useRef(AppState.currentState);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const lastLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const connectingRef = useRef(false);
 
   const statusLabels: Record<string, { label: string; color: string }> = {
     READY: { label: 'Aguardando coleta', color: colors.warning },
@@ -165,6 +166,9 @@ export default function DeliveriesScreen() {
 
   // Connect socket and location tracking
   const connectSocket = useCallback(async () => {
+    if (connectingRef.current) return false; // Prevent re-entrance from AppState loop
+    connectingRef.current = true;
+    try {
     // Disconnect existing socket if any
     if (socketRef.current) {
       socketRef.current.disconnect();
@@ -175,7 +179,13 @@ export default function DeliveriesScreen() {
       locationSubRef.current = null;
     }
 
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    // Check existing permission first (no dialog) to avoid permission-dialog loop
+    // when AppState listener re-calls connectSocket
+    let { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      const req = await Location.requestForegroundPermissionsAsync();
+      status = req.status;
+    }
     if (status !== 'granted') {
       return false;
     }
@@ -249,6 +259,9 @@ export default function DeliveriesScreen() {
     );
 
     return true;
+    } finally {
+      connectingRef.current = false;
+    }
   }, [user]);
 
   // Go online/offline (only via button)
@@ -327,6 +340,10 @@ export default function DeliveriesScreen() {
     });
   }, [user, paymentConnected]);
 
+  // Stable ref for connectSocket — prevents AppState effect from re-subscribing on every render
+  const connectSocketRef = useRef(connectSocket);
+  connectSocketRef.current = connectSocket;
+
   // Auto-reconnect: when app comes back from background
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
@@ -336,7 +353,7 @@ export default function DeliveriesScreen() {
         isOnlineRef.current
       ) {
         // App came back to foreground and deliverer was online - reconnect
-        connectSocket().then((connected) => {
+        connectSocketRef.current().then((connected) => {
           if (connected) {
             setIsOnline(true);
           }
@@ -345,7 +362,7 @@ export default function DeliveriesScreen() {
       appStateRef.current = nextAppState;
     });
     return () => subscription.remove();
-  }, [connectSocket]);
+  }, []); // No dependency — uses stable ref
 
   // Cleanup on unmount - disconnect socket but do NOT send delivererOffline
   // (deliverer stays "online" until they explicitly press the button)

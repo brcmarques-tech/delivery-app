@@ -27,8 +27,9 @@ if (Platform.OS !== 'web') {
 import { GET_MY_ADDRESSES } from '../src/lib/graphql/queries';
 import { CREATE_ADDRESS, UPDATE_ADDRESS, SET_DEFAULT_ADDRESS, DELETE_ADDRESS } from '../src/lib/graphql/mutations';
 import { useAlert } from '../src/contexts/AlertContext';
+import { useTheme } from '../src/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts } from '../src/theme';
+import { fonts } from '../src/theme';
 
 const ESTADOS_BR = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
@@ -37,6 +38,7 @@ const ESTADOS_BR = [
 
 export default function AddressesScreen() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const { data, loading, refetch } = useQuery(GET_MY_ADDRESSES);
   const [createAddress] = useMutation(CREATE_ADDRESS);
   const [updateAddress] = useMutation(UPDATE_ADDRESS);
@@ -269,7 +271,7 @@ export default function AddressesScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -277,14 +279,14 @@ export default function AddressesScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: colors.card }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Meus enderecos</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Meus enderecos</Text>
         <TouchableOpacity onPress={() => showForm ? handleCloseForm() : setShowForm(true)}>
           <Ionicons name={showForm ? 'close' : 'add'} size={18} color={colors.primary} />
         </TouchableOpacity>
@@ -292,14 +294,14 @@ export default function AddressesScreen() {
 
       {showForm && (
         <ScrollView style={styles.formScroll} keyboardShouldPersistTaps="handled">
-        <View style={styles.form}>
-          <Text style={styles.formTitle}>{editingId ? 'Editar endereco' : 'Novo endereco'}</Text>
+        <View style={[styles.form, { backgroundColor: colors.card }]}>
+          <Text style={[styles.formTitle, { color: colors.text }]}>{editingId ? 'Editar endereco' : 'Novo endereco'}</Text>
           <TouchableOpacity style={styles.gpsButton} onPress={handleGetLocation} disabled={locating}>
             {locating ? (
-              <ActivityIndicator size="small" color={colors.white} />
+              <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Ionicons name="navigate" size={18} color={colors.white} />
+                <Ionicons name="navigate" size={18} color="#fff" />
                 <Text style={styles.gpsButtonText}>Usar minha localizacao</Text>
               </>
             )}
@@ -308,7 +310,7 @@ export default function AddressesScreen() {
           {/* CEP primeiro para auto-preencher */}
           <View style={styles.formRow}>
             <TextInput
-              style={[styles.input, { flex: 1 }]}
+              style={[styles.input, { flex: 1, backgroundColor: colors.background, color: colors.text }]}
               placeholder="CEP"
               placeholderTextColor={colors.gray}
               value={form.zipCode}
@@ -322,14 +324,14 @@ export default function AddressesScreen() {
           </View>
           <View style={styles.formRow}>
             <TextInput
-              style={[styles.input, { flex: 2 }]}
+              style={[styles.input, { flex: 2, backgroundColor: colors.background, color: colors.text }]}
               placeholder="Rua *"
               placeholderTextColor={colors.gray}
               value={form.street}
               onChangeText={(v) => setForm({ ...form, street: v })}
             />
             <TextInput
-              style={[styles.input, { flex: 1 }]}
+              style={[styles.input, { flex: 1, backgroundColor: colors.background, color: colors.text }]}
               placeholder="Numero *"
               placeholderTextColor={colors.gray}
               value={form.number}
@@ -337,14 +339,14 @@ export default function AddressesScreen() {
             />
           </View>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.background, color: colors.text }]}
             placeholder="Complemento"
             placeholderTextColor={colors.gray}
             value={form.complement}
             onChangeText={(v) => setForm({ ...form, complement: v })}
           />
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.background, color: colors.text }]}
             placeholder="Bairro *"
             placeholderTextColor={colors.gray}
             value={form.neighborhood}
@@ -352,17 +354,17 @@ export default function AddressesScreen() {
           />
           <View style={styles.formRow}>
             <TextInput
-              style={[styles.input, { flex: 2 }]}
+              style={[styles.input, { flex: 2, backgroundColor: colors.background, color: colors.text }]}
               placeholder="Cidade *"
               placeholderTextColor={colors.gray}
               value={form.city}
               onChangeText={(v) => setForm({ ...form, city: v })}
             />
             <TouchableOpacity
-              style={[styles.input, styles.stateSelector, { flex: 1 }]}
+              style={[styles.input, styles.stateSelector, { flex: 1, backgroundColor: colors.background }]}
               onPress={() => setShowStatePicker(true)}
             >
-              <Text style={form.state ? styles.stateText : styles.statePlaceholder}>
+              <Text style={{ fontSize: fonts.small, color: form.state ? colors.text : colors.gray }}>
                 {form.state || 'UF *'}
               </Text>
               <Ionicons name="chevron-down" size={16} color={colors.gray} />
@@ -381,9 +383,9 @@ export default function AddressesScreen() {
             </TouchableOpacity>
           ) : (
             <View style={styles.mapSection}>
-              <Text style={styles.mapHint}>Arraste o pin para ajustar a posição exata</Text>
+              <Text style={[styles.mapHint, { color: colors.primary }]}>Arraste o pin para ajustar a posição exata</Text>
               {form.latitude && form.longitude ? (
-                <View style={styles.mapContainer}>
+                <View style={[styles.mapContainer, { backgroundColor: colors.grayLight }]}>
                   <MapView
                     ref={mapRef}
                     style={styles.map}
@@ -407,8 +409,8 @@ export default function AddressesScreen() {
                 </View>
               ) : null}
               <View style={styles.mapButtons}>
-                <TouchableOpacity style={styles.mapBackButton} onPress={() => setShowMap(false)}>
-                  <Text style={styles.mapBackText}>Corrigir</Text>
+                <TouchableOpacity style={[styles.mapBackButton, { borderColor: colors.border }]} onPress={() => setShowMap(false)}>
+                  <Text style={[styles.mapBackText, { color: colors.textLight }]}>Corrigir</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.saveButton, { flex: 1 }, saving && { opacity: 0.6 }]}
@@ -430,32 +432,34 @@ export default function AddressesScreen() {
           activeOpacity={1}
           onPress={() => setShowStatePicker(false)}
         >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Selecione o estado</Text>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Selecione o estado</Text>
             <FlatList
               data={ESTADOS_BR}
               keyExtractor={(item) => item}
               numColumns={4}
               contentContainerStyle={{ gap: 6 }}
               columnWrapperStyle={{ gap: 6 }}
-              renderItem={({ item }) => (
+              renderItem={({ item: st }) => (
                 <TouchableOpacity
                   style={[
                     styles.stateChip,
-                    form.state === item && styles.stateChipActive,
+                    { backgroundColor: colors.background },
+                    form.state === st && styles.stateChipActive,
                   ]}
                   onPress={() => {
-                    setForm((prev) => ({ ...prev, state: item }));
+                    setForm((prev) => ({ ...prev, state: st }));
                     setShowStatePicker(false);
                   }}
                 >
                   <Text
                     style={[
                       styles.stateChipText,
-                      form.state === item && styles.stateChipTextActive,
+                      { color: colors.text },
+                      form.state === st && styles.stateChipTextActive,
                     ]}
                   >
-                    {item}
+                    {st}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -469,35 +473,35 @@ export default function AddressesScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
-          <View style={[styles.card, item.isDefault && styles.cardDefault]}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: 'transparent' }, item.isDefault && { borderColor: colors.primary + '40' }]}>
             <View style={styles.cardContent}>
               {item.isDefault && (
-                <View style={styles.defaultBadge}>
-                  <Text style={styles.defaultBadgeText}>Principal</Text>
+                <View style={[styles.defaultBadge, { backgroundColor: colors.primary + '15' }]}>
+                  <Text style={[styles.defaultBadgeText, { color: colors.primary }]}>Principal</Text>
                 </View>
               )}
-              <Text style={styles.addressText}>{formatAddress(item)}</Text>
+              <Text style={[styles.addressText, { color: colors.text }]}>{formatAddress(item)}</Text>
               {item.zipCode ? (
-                <Text style={styles.zipText}>CEP: {item.zipCode}</Text>
+                <Text style={[styles.zipText, { color: colors.textLight }]}>CEP: {item.zipCode}</Text>
               ) : null}
             </View>
             <View style={styles.cardActions}>
               <TouchableOpacity
-                style={styles.actionButton}
+                style={[styles.actionButton, { backgroundColor: colors.background }]}
                 onPress={() => handleEdit(item)}
               >
                 <Ionicons name="create-outline" size={18} color={colors.primary} />
               </TouchableOpacity>
               {!item.isDefault && (
                 <TouchableOpacity
-                  style={styles.actionButton}
+                  style={[styles.actionButton, { backgroundColor: colors.background }]}
                   onPress={() => handleSetDefault(item.id)}
                 >
                   <Ionicons name="star-outline" size={18} color={colors.primary} />
                 </TouchableOpacity>
               )}
               <TouchableOpacity
-                style={styles.actionButton}
+                style={[styles.actionButton, { backgroundColor: colors.background }]}
                 onPress={() => handleDelete(item.id)}
               >
                 <Ionicons name="trash-outline" size={18} color={colors.danger} />
@@ -508,8 +512,8 @@ export default function AddressesScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="location-outline" size={36} color={colors.grayLight} />
-            <Text style={styles.emptyText}>Nenhum endereco salvo</Text>
-            <Text style={styles.emptySubtext}>
+            <Text style={[styles.emptyText, { color: colors.textLight }]}>Nenhum endereco salvo</Text>
+            <Text style={[styles.emptySubtext, { color: colors.gray }]}>
               Adicione um endereco ou faca um pedido{'\n'}e ele sera salvo automaticamente
             </Text>
           </View>
@@ -520,7 +524,7 @@ export default function AddressesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row',
@@ -528,76 +532,65 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 12,
     paddingTop: 56,
-    backgroundColor: colors.white,
   },
-  title: { fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text },
+  title: { fontSize: fonts.xlarge, fontWeight: 'bold' },
   form: {
-    backgroundColor: colors.white,
     margin: 12,
     borderRadius: 10,
     padding: 12,
     gap: 6,
   },
   formScroll: { maxHeight: '70%' },
-  formTitle: { fontSize: fonts.medium, fontWeight: 'bold', color: colors.text, marginBottom: 4 },
+  formTitle: { fontSize: fonts.medium, fontWeight: 'bold', marginBottom: 4 },
   formRow: { flexDirection: 'row', gap: 6 },
   input: {
-    backgroundColor: colors.background,
     borderRadius: 10,
     padding: 12,
     fontSize: fonts.small,
-    color: colors.text,
   },
   gpsButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: colors.primary,
+    backgroundColor: '#FF6B00',
     borderRadius: 10,
     padding: 12,
   },
-  gpsButtonText: { color: colors.white, fontWeight: '600', fontSize: fonts.small },
+  gpsButtonText: { color: '#fff', fontWeight: '600', fontSize: fonts.small },
   saveButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#FF6B00',
     borderRadius: 10,
     padding: 10,
     alignItems: 'center',
     marginTop: 4,
   },
-  saveButtonText: { color: colors.white, fontWeight: 'bold', fontSize: fonts.regular },
+  saveButtonText: { color: '#fff', fontWeight: 'bold', fontSize: fonts.regular },
   list: { padding: 12, paddingBottom: 100 },
   card: {
-    backgroundColor: colors.white,
     borderRadius: 10,
     padding: 12,
     marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  cardDefault: {
-    borderColor: colors.primary + '40',
   },
   cardContent: { flex: 1 },
   defaultBadge: {
-    backgroundColor: colors.primary + '15',
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
     marginBottom: 6,
   },
-  defaultBadgeText: { color: colors.primary, fontSize: fonts.tiny, fontWeight: '600' },
-  addressText: { fontSize: fonts.small, color: colors.text, lineHeight: 20 },
-  zipText: { fontSize: fonts.tiny, color: colors.textLight, marginTop: 4 },
+  defaultBadgeText: { fontSize: fonts.tiny, fontWeight: '600' },
+  addressText: { fontSize: fonts.small, lineHeight: 20 },
+  zipText: { fontSize: fonts.tiny, marginTop: 4 },
   cardActions: { flexDirection: 'row', gap: 6, marginLeft: 8 },
   actionButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -606,21 +599,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  stateText: {
-    fontSize: fonts.small,
-    color: colors.text,
-  },
-  statePlaceholder: {
-    fontSize: fonts.small,
-    color: colors.gray,
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: colors.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 12,
@@ -629,7 +613,6 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: fonts.large,
     fontWeight: 'bold',
-    color: colors.text,
     textAlign: 'center',
     marginBottom: 12,
   },
@@ -637,19 +620,17 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 10,
-    backgroundColor: colors.background,
     alignItems: 'center',
   },
   stateChipActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#FF6B00',
   },
   stateChipText: {
     fontSize: fonts.regular,
     fontWeight: '600',
-    color: colors.text,
   },
   stateChipTextActive: {
-    color: colors.white,
+    color: '#fff',
   },
   mapSection: {
     gap: 6,
@@ -657,14 +638,12 @@ const styles = StyleSheet.create({
   mapHint: {
     fontSize: fonts.regular,
     fontWeight: '600',
-    color: colors.primary,
     textAlign: 'center',
   },
   mapContainer: {
     height: 200,
     borderRadius: 10,
     overflow: 'hidden',
-    backgroundColor: colors.grayLight,
   },
   map: {
     flex: 1,
@@ -680,14 +659,12 @@ const styles = StyleSheet.create({
     padding: 10,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.grayLight,
   },
   mapBackText: {
     fontWeight: '600',
     fontSize: fonts.small,
-    color: colors.textLight,
   },
   empty: { alignItems: 'center', marginTop: 60, gap: 6 },
-  emptyText: { fontSize: fonts.regular, color: colors.textLight, fontWeight: '600' },
-  emptySubtext: { fontSize: fonts.small, color: colors.gray, textAlign: 'center' },
+  emptyText: { fontSize: fonts.regular, fontWeight: '600' },
+  emptySubtext: { fontSize: fonts.small, textAlign: 'center' },
 });

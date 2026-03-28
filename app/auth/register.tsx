@@ -23,19 +23,20 @@ import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { VALIDATE_REGISTRATION, SEND_VERIFICATION_CODE, VERIFY_CODE } from '../../src/lib/graphql/mutations';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts } from '../../src/theme';
+import { fonts } from '../../src/theme';
 
 const API_BASE = 'https://api.bcmtech.com.br';
 const RETURN_URL = Constants.appOwnership === 'expo'
   ? Linking.createURL('google-auth')
-  : 'delivery-app://google-auth';
+  : 'shopping-app://google-auth';
 
-const CONTRACT_TEXT = `TERMOS DE USO — BCM TECH DELIVERY (CLIENTE)
+const CONTRACT_TEXT = `TERMOS DE USO — BCM TECH SHOPPING (CLIENTE)
 Ultima atualizacao: Marco de 2026
 
-Estes Termos de Uso regulam o acesso e o uso da plataforma bcmTech Delivery pelo Cliente (consumidor final).
+Estes Termos de Uso regulam o acesso e o uso da plataforma bcmTech Shopping pelo Cliente (consumidor final).
 
 A plataforma e operada por BCM TECH, inscrita no CNPJ sob o n. 59.858.037/0001-06, com sede na Avenida Nossa Senhora da Graca, 19, Centro, CEP 96330-000, Arroio Grande - RS.
 
@@ -118,7 +119,7 @@ function buildContractHtml(userName: string, userCpf: string, userPhone: string)
       .contract { font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
       .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #999; border-top: 1px solid #eee; padding-top: 16px; }
     </style></head><body>
-      <div class="header"><h1>bcmTech Delivery</h1></div>
+      <div class="header"><h1>bcmTech Shopping</h1></div>
       <div class="signee">
         <div class="signee-label">PARTE CONTRATANTE / ASSINANTE:</div>
         <div class="signee-name">${userName}</div>
@@ -126,12 +127,13 @@ function buildContractHtml(userName: string, userCpf: string, userPhone: string)
         <div class="signee-info">Telefone: ${userPhone}</div>
       </div>
       <div class="contract">${CONTRACT_TEXT}</div>
-      <div class="footer">Contrato aceito digitalmente em ${dateStr} na plataforma bcmTech Delivery.</div>
+      <div class="footer">Contrato aceito digitalmente em ${dateStr} na plataforma bcmTech Shopping.</div>
     </body></html>
   `;
 }
 
 export default function RegisterScreen() {
+  const { colors } = useTheme();
   const { register, registerWithGoogle } = useAuth();
   const { alert } = useAlert();
   const insets = useSafeAreaInsets();
@@ -367,7 +369,7 @@ export default function RegisterScreen() {
     try {
       const html = buildContractHtml(name, cpf.replace(/\D/g, ''), phone);
       const { uri } = await Print.printToFileAsync({ html });
-      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Termos de Uso - bcmTech Delivery' });
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Termos de Uso - bcmTech Shopping' });
     } catch {
       alert('Erro', 'Nao foi possivel gerar o PDF.');
     }
@@ -394,31 +396,31 @@ export default function RegisterScreen() {
   // Step 1: Registration form
   if (step === 1) {
     return (
-      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.white }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingTop: insets.top + 10 }]} keyboardShouldPersistTaps="handled">
         {/* Step indicator */}
         <View style={styles.stepIndicator}>
-          <View style={[styles.stepDot, styles.stepActive]} />
-          <View style={styles.stepLine} />
-          <View style={styles.stepDot} />
-          <View style={styles.stepLine} />
-          <View style={styles.stepDot} />
+          <View style={[styles.stepDot, { backgroundColor: colors.grayLight, borderColor: colors.grayLight }, styles.stepActive, { backgroundColor: colors.primary, borderColor: colors.primary }]} />
+          <View style={[styles.stepLine, { backgroundColor: colors.grayLight }]} />
+          <View style={[styles.stepDot, { backgroundColor: colors.grayLight, borderColor: colors.grayLight }]} />
+          <View style={[styles.stepLine, { backgroundColor: colors.grayLight }]} />
+          <View style={[styles.stepDot, { backgroundColor: colors.grayLight, borderColor: colors.grayLight }]} />
         </View>
-        <Text style={styles.stepLabel}>Dados pessoais</Text>
+        <Text style={[styles.stepLabel, { color: colors.textLight }]}>Dados pessoais</Text>
 
         <View style={styles.headerIcon}>
           <Ionicons name="person-add" size={26} color={colors.primary} />
         </View>
-        <Text style={styles.title}>Criar conta</Text>
-        <Text style={styles.subtitle}>Cadastre-se para comecar a pedir</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Criar conta</Text>
+        <Text style={[styles.subtitle, { color: colors.textLight }]}>Cadastre-se para comecar a pedir</Text>
 
         <View style={styles.form}>
           {isGoogleRegister ? (
             <View style={styles.googleInfoBox}>
               <Image source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }} style={styles.googleInfoIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.googleInfoName}>{name}</Text>
-                <Text style={styles.googleInfoEmail}>{email}</Text>
+                <Text style={[styles.googleInfoName, { color: colors.text }]}>{name}</Text>
+                <Text style={[styles.googleInfoEmail, { color: colors.textLight }]}>{email}</Text>
               </View>
               <TouchableOpacity onPress={() => { setIsGoogleRegister(false); setGoogleIdToken(''); setName(''); setEmail(''); }}>
                 <Ionicons name="close-circle" size={18} color={colors.gray} />
@@ -426,10 +428,10 @@ export default function RegisterScreen() {
             </View>
           ) : (
             <>
-              <View style={styles.inputContainer}>
+              <View style={[styles.inputContainer, { backgroundColor: colors.grayLight }]}>
                 <Ionicons name="person-outline" size={18} color={colors.gray} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.inputWithIcon}
+                  style={[styles.inputWithIcon, { color: colors.text }]}
                   placeholder="Nome completo"
                   placeholderTextColor={colors.gray}
                   value={name}
@@ -437,10 +439,10 @@ export default function RegisterScreen() {
                 />
               </View>
               <View>
-                <View style={[styles.inputContainer, fieldErrors.emailError ? styles.inputError : null]}>
+                <View style={[styles.inputContainer, { backgroundColor: colors.grayLight }, fieldErrors.emailError ? [styles.inputError, { borderColor: colors.danger }] : null]}>
                   <Ionicons name="mail-outline" size={18} color={fieldErrors.emailError ? colors.danger : colors.gray} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.inputWithIcon}
+                    style={[styles.inputWithIcon, { color: colors.text }]}
                     placeholder="Email"
                     placeholderTextColor={colors.gray}
                     value={email}
@@ -449,15 +451,15 @@ export default function RegisterScreen() {
                     autoCapitalize="none"
                   />
                 </View>
-                {fieldErrors.emailError && <Text style={styles.fieldError}>{fieldErrors.emailError}</Text>}
+                {fieldErrors.emailError && <Text style={[styles.fieldError, { color: colors.danger }]}>{fieldErrors.emailError}</Text>}
               </View>
             </>
           )}
           <View>
-            <View style={[styles.inputContainer, fieldErrors.phoneError ? styles.inputError : null]}>
+            <View style={[styles.inputContainer, { backgroundColor: colors.grayLight }, fieldErrors.phoneError ? [styles.inputError, { borderColor: colors.danger }] : null]}>
               <Ionicons name="call-outline" size={18} color={fieldErrors.phoneError ? colors.danger : colors.gray} style={styles.inputIcon} />
               <TextInput
-                style={styles.inputWithIcon}
+                style={[styles.inputWithIcon, { color: colors.text }]}
                 placeholder="(DD) 99999-9999"
                 placeholderTextColor={colors.gray}
                 value={phone}
@@ -466,13 +468,13 @@ export default function RegisterScreen() {
                 maxLength={15}
               />
             </View>
-            {fieldErrors.phoneError && <Text style={styles.fieldError}>{fieldErrors.phoneError}</Text>}
+            {fieldErrors.phoneError && <Text style={[styles.fieldError, { color: colors.danger }]}>{fieldErrors.phoneError}</Text>}
           </View>
           <View>
-            <View style={[styles.inputContainer, fieldErrors.cpfError ? styles.inputError : null]}>
+            <View style={[styles.inputContainer, { backgroundColor: colors.grayLight }, fieldErrors.cpfError ? [styles.inputError, { borderColor: colors.danger }] : null]}>
               <Ionicons name="document-text-outline" size={18} color={fieldErrors.cpfError ? colors.danger : colors.gray} style={styles.inputIcon} />
               <TextInput
-                style={styles.inputWithIcon}
+                style={[styles.inputWithIcon, { color: colors.text }]}
                 placeholder="CPF"
                 placeholderTextColor={colors.gray}
                 value={cpf}
@@ -481,13 +483,13 @@ export default function RegisterScreen() {
                 maxLength={14}
               />
             </View>
-            {fieldErrors.cpfError && <Text style={styles.fieldError}>{fieldErrors.cpfError}</Text>}
+            {fieldErrors.cpfError && <Text style={[styles.fieldError, { color: colors.danger }]}>{fieldErrors.cpfError}</Text>}
           </View>
           {!isGoogleRegister && (
-          <View style={styles.passwordContainer}>
+          <View style={[styles.passwordContainer, { backgroundColor: colors.grayLight }]}>
             <Ionicons name="lock-closed-outline" size={18} color={colors.gray} style={styles.inputIcon} />
             <TextInput
-              style={styles.passwordInput}
+              style={[styles.passwordInput, { color: colors.text }]}
               placeholder="Senha (min. 6 caracteres)"
               placeholderTextColor={colors.gray}
               value={password}
@@ -513,7 +515,7 @@ export default function RegisterScreen() {
             disabled={otpSending}
           >
             {otpSending ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.buttonText}>Continuar</Text>
             )}
@@ -522,13 +524,13 @@ export default function RegisterScreen() {
           {!isGoogleRegister && (
             <>
               <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>ou</Text>
-                <View style={styles.dividerLine} />
+                <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
+                <Text style={[styles.dividerText, { color: colors.gray }]}>ou</Text>
+                <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
               </View>
 
               <TouchableOpacity
-                style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+                style={[styles.googleButton, { backgroundColor: colors.white, borderColor: colors.grayLight }, googleLoading && styles.buttonDisabled]}
                 onPress={handleGoogleRegister}
                 disabled={googleLoading}
               >
@@ -540,7 +542,7 @@ export default function RegisterScreen() {
                       source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
                       style={styles.googleIconBtn}
                     />
-                    <Text style={styles.googleButtonText}>Cadastrar com Google</Text>
+                    <Text style={[styles.googleButtonText, { color: colors.text }]}>Cadastrar com Google</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -548,7 +550,7 @@ export default function RegisterScreen() {
           )}
 
           <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.link}>Ja tem conta? <Text style={styles.linkBold}>Entrar</Text></Text>
+            <Text style={[styles.link, { color: colors.textLight }]}>Ja tem conta? <Text style={[styles.linkBold, { color: colors.primary }]}>Entrar</Text></Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -559,17 +561,17 @@ export default function RegisterScreen() {
   // Step 2: WhatsApp verification
   if (step === 2) {
     return (
-      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.white }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={[styles.otpContent, { paddingTop: insets.top + 10 }]} keyboardShouldPersistTaps="handled">
           {/* Step indicator */}
           <View style={styles.stepIndicator}>
-            <View style={[styles.stepDot, styles.stepDone]} />
-            <View style={[styles.stepLine, styles.stepLineDone]} />
-            <View style={[styles.stepDot, styles.stepActive]} />
-            <View style={styles.stepLine} />
-            <View style={styles.stepDot} />
+            <View style={[styles.stepDot, { backgroundColor: colors.success, borderColor: colors.success }]} />
+            <View style={[styles.stepLine, { backgroundColor: colors.success }]} />
+            <View style={[styles.stepDot, { backgroundColor: colors.primary, borderColor: colors.primary }]} />
+            <View style={[styles.stepLine, { backgroundColor: colors.grayLight }]} />
+            <View style={[styles.stepDot, { backgroundColor: colors.grayLight, borderColor: colors.grayLight }]} />
           </View>
-          <Text style={styles.stepLabel}>Verificacao</Text>
+          <Text style={[styles.stepLabel, { color: colors.textLight }]}>Verificacao</Text>
 
           <TouchableOpacity style={styles.backButtonOtp} onPress={() => setStep(1)}>
             <Ionicons name="arrow-back" size={18} color={colors.text} />
@@ -578,10 +580,10 @@ export default function RegisterScreen() {
           <View style={styles.otpIconContainer}>
             <Ionicons name="logo-whatsapp" size={36} color="#25D366" />
           </View>
-          <Text style={styles.otpTitle}>Verifique seu WhatsApp</Text>
-          <Text style={styles.otpSubtitle}>
+          <Text style={[styles.otpTitle, { color: colors.text }]}>Verifique seu WhatsApp</Text>
+          <Text style={[styles.otpSubtitle, { color: colors.textLight }]}>
             Enviamos um codigo de 6 digitos para{'\n'}
-            <Text style={styles.otpPhone}>{formatPhoneDisplay(phone.replace(/\D/g, ''))}</Text>
+            <Text style={[styles.otpPhone, { color: colors.text }]}>{formatPhoneDisplay(phone.replace(/\D/g, ''))}</Text>
           </Text>
 
           <View style={styles.otpRow}>
@@ -589,7 +591,7 @@ export default function RegisterScreen() {
               <TextInput
                 key={i}
                 ref={(ref) => { inputRefs.current[i] = ref; }}
-                style={[styles.otpInput, digit ? styles.otpInputFilled : null]}
+                style={[styles.otpInput, { borderColor: colors.grayLight, color: colors.text, backgroundColor: colors.white }, digit ? { borderColor: colors.primary, backgroundColor: '#FFF5F0' } : null]}
                 value={digit}
                 onChangeText={(v) => handleOtpChange(i, v)}
                 onKeyPress={({ nativeEvent }) => handleOtpKeyPress(i, nativeEvent.key)}
@@ -606,7 +608,7 @@ export default function RegisterScreen() {
             disabled={otpVerifying || otpDigits.join('').length !== 6}
           >
             {otpVerifying ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.buttonText}>Verificar</Text>
             )}
@@ -617,7 +619,7 @@ export default function RegisterScreen() {
             disabled={resendTimer > 0 || otpSending}
             style={styles.resendContainer}
           >
-            <Text style={[styles.resendText, resendTimer > 0 && { color: colors.gray }]}>
+            <Text style={[styles.resendText, { color: colors.primary }, resendTimer > 0 && { color: colors.gray }]}>
               {resendTimer > 0
                 ? `Reenviar codigo em ${resendTimer}s`
                 : 'Reenviar codigo'}
@@ -630,24 +632,24 @@ export default function RegisterScreen() {
 
   // Step 3: Contract view
   return (
-    <View style={styles.contractContainer}>
+    <View style={[styles.contractContainer, { backgroundColor: colors.white }]}>
       {/* Step indicator */}
-      <View style={[styles.contractHeader, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.contractHeader, { borderBottomColor: colors.grayLight, paddingTop: insets.top + 8 }]}>
         <View style={[styles.stepIndicator, { marginTop: 0 }]}>
-          <View style={[styles.stepDot, styles.stepDone]} />
-          <View style={[styles.stepLine, styles.stepLineDone]} />
-          <View style={[styles.stepDot, styles.stepDone]} />
-          <View style={[styles.stepLine, styles.stepLineDone]} />
-          <View style={[styles.stepDot, styles.stepActive]} />
+          <View style={[styles.stepDot, { backgroundColor: colors.success, borderColor: colors.success }]} />
+          <View style={[styles.stepLine, { backgroundColor: colors.success }]} />
+          <View style={[styles.stepDot, { backgroundColor: colors.success, borderColor: colors.success }]} />
+          <View style={[styles.stepLine, { backgroundColor: colors.success }]} />
+          <View style={[styles.stepDot, { backgroundColor: colors.primary, borderColor: colors.primary }]} />
         </View>
-        <Text style={styles.stepLabel}>Contrato</Text>
+        <Text style={[styles.stepLabel, { color: colors.textLight }]}>Contrato</Text>
 
         <TouchableOpacity style={[styles.backButton, { top: insets.top + 8 }]} onPress={() => setStep(2)}>
           <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
         <Ionicons name="document-text" size={26} color={colors.primary} />
-        <Text style={styles.contractTitle}>Termos de Uso</Text>
-        <Text style={styles.contractSubtitle}>Leia o contrato antes de finalizar o cadastro</Text>
+        <Text style={[styles.contractTitle, { color: colors.text }]}>Termos de Uso</Text>
+        <Text style={[styles.contractSubtitle, { color: colors.textLight }]}>Leia o contrato antes de finalizar o cadastro</Text>
       </View>
 
       <ScrollView
@@ -656,26 +658,26 @@ export default function RegisterScreen() {
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
-        <View style={styles.signeeBox}>
-          <Text style={styles.signeeLabel}>PARTE CONTRATANTE / ASSINANTE:</Text>
-          <Text style={styles.signeeName}>{name}</Text>
-          <Text style={styles.signeeInfo}>CPF: {formatCpfDisplay(cpf.replace(/\D/g, ''))}</Text>
-          <Text style={styles.signeeInfo}>Telefone: {formatPhoneDisplay(phone.replace(/\D/g, ''))}</Text>
+        <View style={[styles.signeeBox, { backgroundColor: colors.grayLight }]}>
+          <Text style={[styles.signeeLabel, { color: colors.textLight }]}>PARTE CONTRATANTE / ASSINANTE:</Text>
+          <Text style={[styles.signeeName, { color: colors.text }]}>{name}</Text>
+          <Text style={[styles.signeeInfo, { color: colors.textLight }]}>CPF: {formatCpfDisplay(cpf.replace(/\D/g, ''))}</Text>
+          <Text style={[styles.signeeInfo, { color: colors.textLight }]}>Telefone: {formatPhoneDisplay(phone.replace(/\D/g, ''))}</Text>
         </View>
 
-        <Text style={styles.contractText}>{CONTRACT_TEXT}</Text>
+        <Text style={[styles.contractText, { color: colors.textLight }]}>{CONTRACT_TEXT}</Text>
       </ScrollView>
 
-      <View style={[styles.contractFooter, { paddingBottom: insets.bottom + 16 }]}>
+      <View style={[styles.contractFooter, { borderTopColor: colors.grayLight, backgroundColor: colors.white, paddingBottom: insets.bottom + 16 }]}>
         {!scrolledToEnd && (
-          <Text style={styles.scrollHint}>
+          <Text style={[styles.scrollHint, { color: colors.primary }]}>
             Role ate o final do contrato para poder aceitar.
           </Text>
         )}
 
-        <TouchableOpacity style={styles.pdfButton} onPress={handleDownloadPdf}>
+        <TouchableOpacity style={[styles.pdfButton, { borderColor: colors.primary }]} onPress={handleDownloadPdf}>
           <Ionicons name="download-outline" size={18} color={colors.primary} />
-          <Text style={styles.pdfButtonText}>Baixar contrato em PDF</Text>
+          <Text style={[styles.pdfButtonText, { color: colors.primary }]}>Baixar contrato em PDF</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -688,7 +690,7 @@ export default function RegisterScreen() {
             size={18}
             color={checked ? colors.primary : scrolledToEnd ? colors.gray : colors.grayLight}
           />
-          <Text style={[styles.checkboxText, !scrolledToEnd && { color: colors.gray }]}>
+          <Text style={[styles.checkboxText, { color: colors.text }, !scrolledToEnd && { color: colors.gray }]}>
             Li e aceito os Termos de Uso da Plataforma e a Politica de Privacidade.
           </Text>
         </TouchableOpacity>
@@ -699,7 +701,7 @@ export default function RegisterScreen() {
           disabled={!checked || !scrolledToEnd || loading}
         >
           {loading ? (
-            <ActivityIndicator color={colors.white} />
+            <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.acceptButtonText}>Aceitar e Criar Conta</Text>
           )}
@@ -722,29 +724,15 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: colors.grayLight,
     borderWidth: 2,
-    borderColor: colors.grayLight,
   },
-  stepActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  stepDone: {
-    backgroundColor: colors.success,
-    borderColor: colors.success,
-  },
+  stepActive: {},
   stepLine: {
     width: 40,
     height: 2,
-    backgroundColor: colors.grayLight,
-  },
-  stepLineDone: {
-    backgroundColor: colors.success,
   },
   stepLabel: {
     fontSize: fonts.small,
-    color: colors.textLight,
     textAlign: 'center',
     marginBottom: 12,
   },
@@ -756,24 +744,21 @@ const styles = StyleSheet.create({
   },
 
   // Step 1 styles
-  container: { flex: 1, backgroundColor: colors.white },
+  container: { flex: 1 },
   content: { padding: 12, paddingTop: 60 },
-  title: { fontSize: fonts.title, fontWeight: 'bold', color: colors.text, textAlign: 'center' },
-  subtitle: { fontSize: fonts.regular, color: colors.textLight, marginTop: 8, marginBottom: 12, textAlign: 'center' },
+  title: { fontSize: fonts.title, fontWeight: 'bold', textAlign: 'center' },
+  subtitle: { fontSize: fonts.regular, marginTop: 8, marginBottom: 12, textAlign: 'center' },
   form: { gap: 6 },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.grayLight,
     borderRadius: 10,
   },
   inputError: {
     borderWidth: 2,
-    borderColor: colors.danger,
     backgroundColor: '#FEF2F2',
   },
   fieldError: {
-    color: colors.danger,
     fontSize: fonts.tiny,
     marginTop: 4,
     marginLeft: 4,
@@ -786,19 +771,15 @@ const styles = StyleSheet.create({
     padding: 12,
     paddingLeft: 12,
     fontSize: fonts.regular,
-    color: colors.text,
   },
   input: {
-    backgroundColor: colors.grayLight,
     borderRadius: 10,
     padding: 12,
     fontSize: fonts.regular,
-    color: colors.text,
   },
   passwordContainer: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    backgroundColor: colors.grayLight,
     borderRadius: 10,
   },
   passwordInput: {
@@ -806,23 +787,22 @@ const styles = StyleSheet.create({
     padding: 12,
     paddingLeft: 12,
     fontSize: fonts.regular,
-    color: colors.text,
   },
   eyeButton: {
     paddingHorizontal: 10,
     paddingVertical: 12,
   },
   button: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#FF6B00',
     borderRadius: 10,
     padding: 12,
     alignItems: 'center',
     marginTop: 8,
   },
   buttonDisabled: { opacity: 0.4 },
-  buttonText: { color: colors.white, fontSize: fonts.large, fontWeight: 'bold' },
-  link: { textAlign: 'center', color: colors.textLight, fontSize: fonts.regular, marginTop: 12 },
-  linkBold: { color: colors.primary, fontWeight: 'bold' },
+  buttonText: { color: '#fff', fontSize: fonts.large, fontWeight: 'bold' },
+  link: { textAlign: 'center', fontSize: fonts.regular, marginTop: 12 },
+  linkBold: { fontWeight: 'bold' },
 
   // Google styles
   divider: {
@@ -833,21 +813,17 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: colors.grayLight,
   },
   dividerText: {
-    color: colors.gray,
     fontSize: fonts.small,
   },
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.white,
     borderRadius: 10,
     padding: 10,
     borderWidth: 1,
-    borderColor: colors.grayLight,
     gap: 6,
   },
   googleIconBtn: {
@@ -855,7 +831,6 @@ const styles = StyleSheet.create({
     height: 20,
   },
   googleButtonText: {
-    color: colors.text,
     fontSize: fonts.regular,
     fontWeight: '600',
   },
@@ -876,11 +851,9 @@ const styles = StyleSheet.create({
   googleInfoName: {
     fontSize: fonts.regular,
     fontWeight: '600',
-    color: colors.text,
   },
   googleInfoEmail: {
     fontSize: fonts.small,
-    color: colors.textLight,
   },
 
   // Step 2: OTP styles
@@ -906,20 +879,17 @@ const styles = StyleSheet.create({
   otpTitle: {
     fontSize: fonts.xlarge,
     fontWeight: 'bold',
-    color: colors.text,
     textAlign: 'center',
     marginBottom: 8,
   },
   otpSubtitle: {
     fontSize: fonts.regular,
-    color: colors.textLight,
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 22,
   },
   otpPhone: {
     fontWeight: 'bold',
-    color: colors.text,
   },
   otpRow: {
     flexDirection: 'row',
@@ -931,35 +901,26 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: colors.grayLight,
     textAlign: 'center',
     fontSize: 24,
     fontWeight: 'bold',
-    color: colors.text,
-    backgroundColor: colors.white,
-  },
-  otpInputFilled: {
-    borderColor: colors.primary,
-    backgroundColor: '#FFF5F0',
   },
   resendContainer: {
     marginTop: 14,
   },
   resendText: {
     fontSize: fonts.regular,
-    color: colors.primary,
     fontWeight: '600',
   },
 
   // Step 3 styles
-  contractContainer: { flex: 1, backgroundColor: colors.white },
+  contractContainer: { flex: 1 },
   contractHeader: {
     paddingTop: 56,
     paddingHorizontal: 12,
     paddingBottom: 12,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: colors.grayLight,
   },
   backButton: {
     position: 'absolute',
@@ -970,55 +931,45 @@ const styles = StyleSheet.create({
   contractTitle: {
     fontSize: fonts.xlarge,
     fontWeight: 'bold',
-    color: colors.text,
     marginTop: 12,
     textAlign: 'center',
   },
   contractSubtitle: {
     fontSize: fonts.small,
-    color: colors.textLight,
     marginTop: 4,
     textAlign: 'center',
   },
   contractScroll: { flex: 1 },
   contractScrollContent: { padding: 10, paddingBottom: 32 },
   signeeBox: {
-    backgroundColor: colors.grayLight,
     borderRadius: 10,
     padding: 10,
     marginBottom: 14,
   },
   signeeLabel: {
     fontSize: fonts.tiny,
-    color: colors.textLight,
     fontWeight: '600',
     marginBottom: 6,
   },
   signeeName: {
     fontSize: fonts.regular,
     fontWeight: '600',
-    color: colors.text,
   },
   signeeInfo: {
     fontSize: fonts.small,
-    color: colors.textLight,
     marginTop: 2,
   },
   contractText: {
     fontSize: fonts.small,
-    color: colors.textLight,
     lineHeight: 22,
   },
   contractFooter: {
     padding: 12,
     paddingBottom: 32,
     borderTopWidth: 1,
-    borderTopColor: colors.grayLight,
-    backgroundColor: colors.white,
   },
   scrollHint: {
     fontSize: fonts.tiny,
-    color: colors.primary,
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 12,
@@ -1031,11 +982,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.primary,
     borderRadius: 10,
   },
   pdfButtonText: {
-    color: colors.primary,
     fontSize: fonts.small,
     fontWeight: '600',
   },
@@ -1048,17 +997,16 @@ const styles = StyleSheet.create({
   checkboxText: {
     flex: 1,
     fontSize: fonts.small,
-    color: colors.text,
     lineHeight: 20,
   },
   acceptButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#FF6B00',
     borderRadius: 10,
     padding: 12,
     alignItems: 'center',
   },
   acceptButtonText: {
-    color: colors.white,
+    color: '#fff',
     fontSize: fonts.large,
     fontWeight: 'bold',
   },

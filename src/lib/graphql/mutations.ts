@@ -452,3 +452,78 @@ export const REGISTER_APP_WITH_GOOGLE = gql`
     }
   }
 `;
+
+// ─── Appointments ─────────────────────────────────────
+
+export const CREATE_APPOINTMENT = gql`
+  mutation CreateAppointment($input: CreateAppointmentInput!) {
+    createAppointment(input: $input) {
+      id
+      appointmentNumber
+      scheduledDate
+      scheduledTime
+      status
+      price
+      paymentMethod
+      paymentStatus
+      checkoutUrl
+      pixQrCode
+      pixQrCodeBase64
+      store { id name }
+      service { id name }
+    }
+  }
+`;
+
+export const CANCEL_APPOINTMENT = gql`
+  mutation CancelAppointment($id: String!) {
+    cancelAppointment(id: $id) {
+      id
+      status
+    }
+  }
+`;
+
+export const REQUEST_QUOTE = gql`
+  mutation RequestQuote($input: RequestQuoteInput!) {
+    requestQuote(input: $input) {
+      id
+      appointmentNumber
+      status
+      quoteDescription
+      store { id name }
+      service { id name }
+    }
+  }
+`;
+
+export const ACCEPT_QUOTE = gql`
+  mutation AcceptQuote($id: String!, $scheduledDate: String!, $scheduledTime: String!) {
+    acceptQuote(id: $id, scheduledDate: $scheduledDate, scheduledTime: $scheduledTime) {
+      id
+      status
+      scheduledDate
+      scheduledTime
+    }
+  }
+`;
+
+export const REJECT_QUOTE = gql`
+  mutation RejectQuote($id: String!) {
+    rejectQuote(id: $id) {
+      id
+      status
+    }
+  }
+`;
+
+export const RATE_SERVICE = gql`
+  mutation RateService($input: CreateServiceRatingInput!) {
+    rateService(input: $input) {
+      id
+      rating
+      comment
+      createdAt
+    }
+  }
+`;
