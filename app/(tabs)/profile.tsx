@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator, Modal, ScrollView } from 'react-native';
+import { AnimatedPressable } from '../../src/components/AnimatedPressable';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -189,7 +190,7 @@ export default function ProfileScreen() {
 
       {/* Banner de entregador */}
       {!isDeliverer && !user?.pendingRole && !user?.rejectedAt && (
-        <TouchableOpacity
+        <AnimatedPressable
           style={[styles.delivererBanner, { backgroundColor: colors.card, borderColor: colors.primary + '30' }]}
           onPress={() => router.push('/deliverer-register')}
         >
@@ -203,7 +204,7 @@ export default function ProfileScreen() {
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.primary} />
-        </TouchableOpacity>
+        </AnimatedPressable>
       )}
 
       {user?.pendingRole === 'DELIVERER' && (
@@ -251,7 +252,7 @@ export default function ProfileScreen() {
       )}
 
       {isDeliverer && !paymentConnected && (
-        <TouchableOpacity style={[styles.mpBanner, { backgroundColor: colors.card }]} onPress={handleConnectPayment}>
+        <AnimatedPressable style={[styles.mpBanner, { backgroundColor: colors.card }]} onPress={handleConnectPayment}>
           <View style={styles.mpBannerIcon}>
             <Ionicons name="wallet-outline" size={18} color="#65A300" />
           </View>
@@ -262,11 +263,11 @@ export default function ProfileScreen() {
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#65A300" />
-        </TouchableOpacity>
+        </AnimatedPressable>
       )}
 
       {isDeliverer && paymentConnected && (
-        <TouchableOpacity style={[styles.mpBanner, { backgroundColor: colors.card }]} onPress={() => router.push('/earnings')}>
+        <AnimatedPressable style={[styles.mpBanner, { backgroundColor: colors.card }]} onPress={() => router.push('/earnings')}>
           <View style={styles.mpBannerIcon}>
             <Ionicons name="wallet-outline" size={18} color={colors.success} />
           </View>
@@ -277,22 +278,22 @@ export default function ProfileScreen() {
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.success} />
-        </TouchableOpacity>
+        </AnimatedPressable>
       )}
 
       <View style={[styles.menu, { backgroundColor: colors.card }]}>
         {menuItems.map((item, idx) => (
-          <TouchableOpacity key={idx} style={[styles.menuItem, { borderBottomColor: colors.grayLight }]} onPress={item.onPress}>
+          <AnimatedPressable key={idx} style={[styles.menuItem, { borderBottomColor: colors.grayLight }]} onPress={item.onPress}>
             <Ionicons name={item.icon} size={18} color={colors.text} />
             <Text style={[styles.menuLabel, { color: colors.text }]}>{item.label}</Text>
             <Ionicons name="chevron-forward" size={18} color={colors.gray} />
-          </TouchableOpacity>
+          </AnimatedPressable>
         ))}
       </View>
 
       {/* Dark mode toggle */}
       <View style={[styles.menu, { backgroundColor: colors.card, marginTop: 12 }]}>
-        <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0, borderBottomColor: colors.grayLight }]} onPress={toggleTheme}>
+        <AnimatedPressable style={[styles.menuItem, { borderBottomWidth: 0, borderBottomColor: colors.grayLight }]} onPress={toggleTheme}>
           <Ionicons
             name={mode === 'system' ? 'phone-portrait-outline' : mode === 'dark' ? 'moon' : 'sunny-outline'}
             size={18}
@@ -314,13 +315,13 @@ export default function ProfileScreen() {
               {mode === 'system' ? 'AUTO' : mode === 'dark' ? 'ESCURO' : 'CLARO'}
             </Text>
           </View>
-        </TouchableOpacity>
+        </AnimatedPressable>
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+      <AnimatedPressable style={styles.logoutButton} onPress={handleLogout}>
         <Ionicons name="log-out-outline" size={18} color={colors.danger} />
         <Text style={styles.logoutText}>Sair da conta</Text>
-      </TouchableOpacity>
+      </AnimatedPressable>
     </ScrollView>
 
       <Modal visible={showAvatarPicker} transparent animationType="fade" onRequestClose={() => setShowAvatarPicker(false)}>
@@ -367,7 +368,7 @@ export default function ProfileScreen() {
             </View>
 
             <ScrollView style={{ maxHeight: 400 }}>
-              <TouchableOpacity
+              <AnimatedPressable
                 style={[styles.helpItem, { borderBottomColor: colors.grayLight }]}
                 onPress={() => { setShowHelp(false); Linking.openURL('mailto:suporte@bcmtech.com.br'); }}
               >
@@ -379,9 +380,9 @@ export default function ProfileScreen() {
                   <Text style={[styles.helpItemSub, { color: colors.textLight }]}>suporte@bcmtech.com.br</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.gray} />
-              </TouchableOpacity>
+              </AnimatedPressable>
 
-              <TouchableOpacity
+              <AnimatedPressable
                 style={[styles.helpItem, { borderBottomColor: colors.grayLight }]}
                 onPress={() => { setShowHelp(false); Linking.openURL('mailto:contato@bcmtech.com.br'); }}
               >
@@ -393,9 +394,9 @@ export default function ProfileScreen() {
                   <Text style={[styles.helpItemSub, { color: colors.textLight }]}>contato@bcmtech.com.br</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.gray} />
-              </TouchableOpacity>
+              </AnimatedPressable>
 
-              <TouchableOpacity
+              <AnimatedPressable
                 style={[styles.helpItem, { borderBottomColor: colors.grayLight }]}
                 onPress={() => { setShowHelp(false); Linking.openURL('https://wa.me/5553984424244?text=Ol%C3%A1%2C%20preciso%20de%20ajuda%20com%20o%20app.'); }}
               >
@@ -407,7 +408,7 @@ export default function ProfileScreen() {
                   <Text style={[styles.helpItemSub, { color: colors.textLight }]}>(53) 98442-4244</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.gray} />
-              </TouchableOpacity>
+              </AnimatedPressable>
 
               <View style={styles.helpFaqSection}>
                 <Text style={[styles.helpFaqTitle, { color: colors.text }]}>Perguntas Frequentes</Text>

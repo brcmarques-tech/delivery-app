@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
-import { useApolloClient, useMutation, useSubscription } from '@apollo/client';
+import { useApolloClient, useSubscription } from '@apollo/client';
 import { Alert, AppState } from 'react-native';
 import { router } from 'expo-router';
 import { LOGIN, REGISTER, GOOGLE_AUTH_APP, REGISTER_APP_WITH_GOOGLE, LOGOUT } from '../lib/graphql/mutations';
@@ -47,11 +47,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const apolloClient = useApolloClient();
-  const [loginMutation] = useMutation(LOGIN);
-  const [registerMutation] = useMutation(REGISTER);
-  const [googleAuthMutation] = useMutation(GOOGLE_AUTH_APP);
-  const [registerGoogleMutation] = useMutation(REGISTER_APP_WITH_GOOGLE);
-  const [logoutMutation] = useMutation(LOGOUT);
 
   const appState = useRef(AppState.currentState);
   const kickedRef = useRef(false);
@@ -154,7 +149,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(email: string, password: string, forceLogin: boolean = false) {
     if (forceLogin) markJustLoggedIn();
-    const { data } = await loginMutation({
+    const { data } = await apolloClient.mutate({
+      mutation: LOGIN,
       variables: { input: { email, password }, forceLogin },
     });
     const { accessToken, user: userData } = data.loginApp;
@@ -166,7 +162,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function loginWithGoogle(idToken: string) {
     markJustLoggedIn();
-    const { data } = await googleAuthMutation({
+    const { data } = await apolloClient.mutate({
+      mutation: GOOGLE_AUTH_APP,
       variables: { idToken },
     });
     const { accessToken, user: userData } = data.googleAuthApp;
@@ -177,7 +174,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function registerWithGoogle(idToken: string, phone: string, cpf: string) {
-    const { data } = await registerGoogleMutation({
+    const { data } = await apolloClient.mutate({
+      mutation: REGISTER_APP_WITH_GOOGLE,
       variables: { idToken, phone, cpf },
     });
     const { accessToken, user: userData } = data.registerAppWithGoogle;
@@ -188,7 +186,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function register(name: string, email: string, password: string, phone: string, role?: string, cpf?: string) {
-    const { data } = await registerMutation({
+    const { data } = await apolloClient.mutate({
+      mutation: REGISTER,
       variables: { input: { name, email, password, phone, cpf } },
     });
     const { accessToken, user: userData } = data.registerApp;
@@ -213,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     try {
-      await logoutMutation();
+      await apolloClient.mutate({ mutation: LOGOUT });
     } catch {
       // ignore — server may be unreachable, still clear locally
     }

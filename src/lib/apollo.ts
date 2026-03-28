@@ -56,7 +56,11 @@ try {
 }
 
 let sessionExpiredHandled = false;
-const errorLink = onError(({ graphQLErrors }) => {
+const AUTH_OPERATIONS = ['LoginApp', 'RegisterApp', 'GoogleAuthApp', 'RegisterAppWithGoogle'];
+const errorLink = onError(({ graphQLErrors, operation }) => {
+  // Ignore UNAUTHENTICATED from login/register mutations — those are expected credential errors
+  if (AUTH_OPERATIONS.includes(operation.operationName)) return;
+
   const sessionExpired = graphQLErrors?.some(
     (e) => e.message?.includes('SESSION_EXPIRED') || e.extensions?.code === 'UNAUTHENTICATED'
   );
