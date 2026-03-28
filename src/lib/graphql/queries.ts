@@ -21,6 +21,7 @@ export const GET_STORES = gql`
       minimumOrder
       verificationLevel
       verificationScore
+      storeType
     }
   }
 `;
@@ -75,6 +76,7 @@ export const GET_STORE = gql`
       minimumOrder
       verificationLevel
       verificationScore
+      storeType
       products {
         id
         name
@@ -88,11 +90,28 @@ export const GET_STORE = gql`
         category {
           id
           name
+          requiresAgeVerification
+        }
+      }
+      services {
+        id
+        name
+        description
+        price
+        estimatedDuration
+        imageUrl
+        isAvailable
+        isActive
+        requiresQuote
+        category {
+          id
+          name
         }
       }
       categories {
         id
         name
+        requiresAgeVerification
       }
     }
   }
@@ -473,6 +492,31 @@ export const SEARCH_PRODUCTS = gql`
   }
 `;
 
+export const SEARCH_SERVICES = gql`
+  query SearchServices($query: String!, $limit: Int) {
+    searchServices(query: $query, limit: $limit) {
+      id
+      name
+      description
+      price
+      estimatedDuration
+      imageUrl
+      isAvailable
+      requiresQuote
+      store {
+        id
+        name
+        logoUrl
+        isOpen
+      }
+      category {
+        id
+        name
+      }
+    }
+  }
+`;
+
 export const GET_AVAILABLE_DELIVERIES = gql`
   query AvailableDeliveries {
     availableDeliveries {
@@ -574,5 +618,143 @@ export const SIMULATE_ANTICIPATION = gql`
       fee
       feePercentage
     }
+  }
+`;
+
+// ─── Appointments ─────────────────────────────────────
+
+export const AVAILABLE_SLOTS = gql`
+  query AvailableSlots($storeId: String!, $serviceId: String!, $date: String!) {
+    availableSlots(storeId: $storeId, serviceId: $serviceId, date: $date)
+  }
+`;
+
+export const MY_APPOINTMENTS = gql`
+  query MyAppointments {
+    myAppointments {
+      id
+      appointmentNumber
+      scheduledDate
+      scheduledTime
+      endTime
+      status
+      price
+      notes
+      address
+      quoteDescription
+      quoteResponse
+      paymentMethod
+      createdAt
+      customer {
+        id
+        name
+      }
+      store {
+        id
+        name
+        logoUrl
+      }
+      service {
+        id
+        name
+        description
+        estimatedDuration
+        imageUrl
+      }
+    }
+  }
+`;
+
+export const GET_APPOINTMENT = gql`
+  query Appointment($id: String!) {
+    appointment(id: $id) {
+      id
+      appointmentNumber
+      scheduledDate
+      scheduledTime
+      endTime
+      status
+      price
+      notes
+      address
+      latitude
+      longitude
+      quoteDescription
+      quoteResponse
+      paymentMethod
+      paymentStatus
+      checkoutUrl
+      pixQrCode
+      pixQrCodeBase64
+      createdAt
+      customer {
+        id
+        name
+        phone
+      }
+      store {
+        id
+        name
+        logoUrl
+      }
+      service {
+        id
+        name
+        description
+        estimatedDuration
+        imageUrl
+        requiresQuote
+      }
+    }
+  }
+`;
+
+export const STORE_SCHEDULE = gql`
+  query StoreSchedule($storeId: String!) {
+    storeSchedule(storeId: $storeId) {
+      id
+      dayOfWeek
+      startTime
+      endTime
+      isActive
+    }
+  }
+`;
+
+export const RATING_FOR_APPOINTMENT = gql`
+  query RatingForAppointment($appointmentId: String!) {
+    ratingForAppointment(appointmentId: $appointmentId) {
+      id
+      rating
+      comment
+      photoUrls
+      createdAt
+    }
+  }
+`;
+
+export const SERVICE_RATINGS = gql`
+  query ServiceRatings($storeId: String!) {
+    serviceRatings(storeId: $storeId) {
+      id
+      rating
+      comment
+      photoUrls
+      createdAt
+      customer {
+        id
+        name
+      }
+      service {
+        id
+        name
+      }
+    }
+  }
+`;
+
+export const AVERAGE_STORE_RATING = gql`
+  query AverageStoreRating($storeId: String!) {
+    averageStoreRating(storeId: $storeId)
   }
 `;

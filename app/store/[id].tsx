@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -27,7 +27,7 @@ export default function StoreScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { user } = useAuth();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, productId } = useLocalSearchParams<{ id: string; productId?: string }>();
   const { data, loading, refetch } = useQuery(GET_STORE, { variables: { id } });
 
   // Follow system
@@ -73,6 +73,17 @@ export default function StoreScreen() {
   const [weightGrams, setWeightGrams] = useState(500);
 
   const store = data?.store;
+  const products = store?.products || [];
+  const services = (store?.services || []).filter((s: any) => s.isActive);
+  const isServiceStore = store?.storeType === 'SERVICES';
+
+  // Auto-open product modal when navigating from home screen
+  useEffect(() => {
+    if (productId && products.length > 0 && !selectedProduct) {
+      const product = products.find((p: any) => p.id === productId);
+      if (product) openProductModal(product);
+    }
+  }, [productId, products.length]);
 
   if (loading || !store) {
     return (
@@ -83,20 +94,48 @@ export default function StoreScreen() {
   }
 
   const categories = store.categories || [];
-  const products = store.products || [];
 
-  const sections = categories.map((cat: any) => ({
-    title: cat.name,
-    data: products.filter((p: any) => p.category?.id === cat.id),
-  }));
+  // Build sections based on store type
+  const sections: { title: string; data: any[] }[] = [];
 
-  const uncategorized = products.filter((p: any) => !p.category);
-  if (uncategorized.length > 0) {
-    sections.push({ title: 'Outros', data: uncategorized });
-  }
+  if (isServiceStore) {
+    // Service store: group services by category
+    const serviceCategories = [...new Map(
+      services.filter((s: any) => s.category).map((s: any) => [s.category.id, s.category])
+    ).values()];
 
-  if (sections.length === 0 && products.length > 0) {
-    sections.push({ title: 'Produtos', data: products });
+    serviceCategories.forEach((cat: any) => {
+      sections.push({
+        title: cat.name,
+        data: services.filter((s: any) => s.category?.id === cat.id),
+      });
+    });
+
+    const uncategorizedServices = services.filter((s: any) => !s.category);
+    if (uncategorizedServices.length > 0) {
+      sections.push({ title: 'Outros', data: uncategorizedServices });
+    }
+
+    if (sections.length === 0 && services.length > 0) {
+      sections.push({ title: 'Servicos', data: services });
+    }
+  } else {
+    // Product store: group products by category
+    categories.forEach((cat: any) => {
+      const catProducts = products.filter((p: any) => p.category?.id === cat.id);
+      if (catProducts.length > 0) {
+        sections.push({ title: cat.name, data: catProducts });
+      }
+    });
+
+    const uncategorized = products.filter((p: any) => !p.category);
+    if (uncategorized.length > 0) {
+      sections.push({ title: 'Outros', data: uncategorized });
+    }
+
+    if (sections.length === 0 && products.length > 0) {
+      sections.push({ title: 'Produtos', data: products });
+    }
   }
 
   function openProductModal(product: any) {
@@ -189,6 +228,67 @@ export default function StoreScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
         )}
         renderItem={({ item }) => {
+          if (isServiceStore) {
+            // Service card
+            const servicePrice = item.price ? Number(item.price) : null;
+            return (
+              <View style={[styles.productCard, { backgroundColor: colors.card }]}>
+                <View style={styles.productInfo}>
+                  <Text style={[styles.productName, { color: colors.text }]}>{item.name}</Text>
+                  {item.description ? (
+                    <Text style={[styles.productDesc, { color: colors.textLight }]} numberOfLines={2}>{item.description}</Text>
+                  ) : null}
+                  <View style={styles.priceRow}>
+                    {item.requiresQuote ? (
+                      <Text style={[styles.price, { color: colors.warning }]}>Solicitar orcamento</Text>
+                    ) : servicePrice ? (
+                      <Text style={[styles.price, { color: colors.primary }]}>R$ {servicePrice.toFixed(2)}</Text>
+                    ) : null}
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                    <Ionicons name="time-outline" size={14} color={colors.gray} />
+                    <Text style={{ fontSize: 12, color: colors.gray }}>{item.estimatedDuration} min</Text>
+                  </View>
+                  {store.isOpen && item.isAvailable && (
+                    <TouchableOpacity
+                      style={[styles.bookBtn, { backgroundColor: item.requiresQuote ? colors.warning : colors.primary }]}
+                      onPress={() => {
+                        if (item.requiresQuote) {
+                          router.push(`/appointment/quote?storeId=${store.id}&serviceId=${item.id}&serviceName=${encodeURIComponent(item.name)}`);
+                        } else {
+                          router.push(`/appointment/book?storeId=${store.id}&serviceId=${item.id}&serviceName=${encodeURIComponent(item.name)}&servicePrice=${item.price || 0}&serviceDuration=${item.estimatedDuration}`);
+                        }
+                      }}
+                    >
+                      <Ionicons name={item.requiresQuote ? 'chatbubble-outline' : 'calendar-outline'} size={14} color="#fff" />
+                      <Text style={styles.bookBtnText}>{item.requiresQuote ? 'Orcamento' : 'Agendar'}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={styles.productRight}>
+                  {item.imageUrl ? (
+                    <TouchableOpacity activeOpacity={0.8} onPress={() => setZoomedImage(item.imageUrl)}>
+                      <Image source={item.imageUrl} style={styles.productImage} cachePolicy="memory-disk" recyclingKey={item.id} />
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={[styles.productImage, styles.productImagePlaceholder, { backgroundColor: colors.grayLight }]}>
+                      <Ionicons name="cut-outline" size={18} color={colors.gray} />
+                    </View>
+                  )}
+                </View>
+                {!item.isAvailable && (
+                  <View style={[styles.unavailable, { backgroundColor: colors.card + 'BF' }]}>
+                    <View style={[styles.unavailableBadge, { backgroundColor: colors.danger }]}>
+                      <Ionicons name="close-circle" size={16} color="#FFFFFF" />
+                      <Text style={styles.unavailableText}>Indisponivel no momento</Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            );
+          }
+
+          // Product card (original)
           const itemPrice = Number(item.promotionalPrice || item.price);
           return (
           <TouchableOpacity
@@ -430,6 +530,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 6,
+  },
+  bookBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  bookBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   unavailable: {
     ...StyleSheet.absoluteFillObject,

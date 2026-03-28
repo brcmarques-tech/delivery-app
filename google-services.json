@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:701403852576:android:18834c0713366ff62bf145",
+        "mobilesdk_app_id": "1:701403852576:android:4011cd72ad5336352bf145",
         "android_client_info": {
-          "package_name": "com.bcmtech.deliveryapp"
+          "package_name": "com.bcmtech.shoppingapp"
         }
       },
       "oauth_client": [],

@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { Tabs, usePathname, router } from 'expo-router';
-import { View, Text, StyleSheet, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, BackHandler, PanResponder, TouchableOpacity, useWindowDimensions, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useSubscription } from '@apollo/client';
@@ -9,8 +9,101 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useCart } from '../../src/contexts/CartContext';
 import { GET_MY_ORDERS, GET_AVAILABLE_DELIVERIES } from '../../src/lib/graphql/queries';
 import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 const ACTIVE_ORDER_STATUSES = ['AWAITING_PAYMENT', 'PAYMENT_REVIEW', 'PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'PICKED_UP', 'DELIVERING', 'VENDOR_CONFIRMED_PICKUP', 'DELIVERER_CONFIRMED_DELIVERY'];
+
+function SwipeableTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const swipeAreaHeight = screenHeight * 0.10;
+  const indicatorAnim = useRef(new Animated.Value(0)).current;
+
+  const visibleRoutes = state.routes.filter((route) => {
+    const options = descriptors[route.key]?.options;
+    const itemStyle = options?.tabBarItemStyle as any;
+    if (itemStyle?.display === 'none') return false;
+    if ((options as any)?.href === null) return false;
+    return true;
+  });
+
+  const currentVisibleIndex = visibleRoutes.findIndex((r) => r.key === state.routes[state.index].key);
+  const tabWidth = screenWidth / visibleRoutes.length;
+
+  useEffect(() => {
+    Animated.spring(indicatorAnim, {
+      toValue: currentVisibleIndex * tabWidth + (tabWidth - 32) / 2,
+      useNativeDriver: false,
+      friction: 8,
+      tension: 80,
+    }).start();
+  }, [currentVisibleIndex, tabWidth]);
+
+  const stateRef = useRef({ state, visibleRoutes, navigation });
+  stateRef.current = { state, visibleRoutes, navigation };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 20 && Math.abs(g.dy) < 30,
+      onPanResponderRelease: (_, g) => {
+        if (Math.abs(g.dx) < 50) return;
+        const { state: s, visibleRoutes: vr, navigation: nav } = stateRef.current;
+        const ci = vr.findIndex((r) => r.key === s.routes[s.index].key);
+        if (ci === -1) return;
+        const ni = g.dx < 0 ? Math.min(ci + 1, vr.length - 1) : Math.max(ci - 1, 0);
+        if (ni !== ci) nav.navigate(vr[ni].name);
+      },
+    })
+  ).current;
+
+  return (
+    <View>
+      <View
+        {...panResponder.panHandlers}
+        style={{ height: swipeAreaHeight, position: 'absolute', bottom: 60 + insets.bottom, left: 0, right: 0, zIndex: 10 }}
+      />
+      <View style={{
+        backgroundColor: colors.white,
+        borderTopWidth: 1,
+        borderTopColor: colors.grayLight,
+        paddingBottom: insets.bottom,
+      }}>
+        {/* Animated indicator bar */}
+        <Animated.View style={{
+          position: 'absolute',
+          top: 0,
+          left: indicatorAnim,
+          width: 32,
+          height: 3,
+          borderRadius: 2,
+          backgroundColor: colors.primary,
+        }} />
+        <View style={{ flexDirection: 'row', height: 56, paddingTop: 6 }}>
+          {visibleRoutes.map((route) => {
+            const { options } = descriptors[route.key];
+            const isFocused = state.index === state.routes.indexOf(route);
+            const color = isFocused ? colors.primary : colors.gray;
+            return (
+              <TouchableOpacity
+                key={route.key}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate(route.name)}
+                style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 }}
+              >
+                {options.tabBarIcon?.({ focused: isFocused, color, size: 22 })}
+                <Text style={{ fontSize: 10, color, fontWeight: isFocused ? '600' : '400' }}>
+                  {options.title || route.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    </View>
+  );
+}
 
 export default function TabsLayout() {
   const pathname = usePathname();
@@ -50,17 +143,10 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      tabBar={(props) => <SwipeableTabBar {...props} />}
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.gray,
-        tabBarStyle: {
-          backgroundColor: colors.white,
-          borderTopWidth: 1,
-          borderTopColor: colors.grayLight,
-          height: 60 + insets.bottom,
-          paddingBottom: insets.bottom,
-          paddingTop: 8,
-        },
         headerShown: false,
       }}
     >

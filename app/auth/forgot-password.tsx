@@ -12,9 +12,11 @@ import { router } from 'expo-router';
 import { useMutation } from '@apollo/client';
 import { REQUEST_PASSWORD_RESET } from '../../src/lib/graphql/mutations';
 import { useAlert } from '../../src/contexts/AlertContext';
-import { colors, fonts } from '../../src/theme';
+import { useTheme } from '../../src/contexts/ThemeContext';
+import { fonts } from '../../src/theme';
 
 export default function ForgotPasswordScreen() {
+  const { colors } = useTheme();
   const { alert } = useAlert();
   const [email, setEmail] = useState('');
   const [requestReset, { loading }] = useMutation(REQUEST_PASSWORD_RESET);
@@ -39,19 +41,19 @@ export default function ForgotPasswordScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.white }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Recuperar senha</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: colors.text }]}>Recuperar senha</Text>
+        <Text style={[styles.subtitle, { color: colors.textLight }]}>
           Informe seu email e enviaremos um link para redefinir sua senha.
         </Text>
       </View>
 
       <View style={styles.form}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.grayLight, color: colors.text }]}
           placeholder="Email"
           placeholderTextColor={colors.gray}
           value={email}
@@ -71,7 +73,7 @@ export default function ForgotPasswordScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.link}>Voltar ao login</Text>
+          <Text style={[styles.link, { color: colors.primary }]}>Voltar ao login</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -81,7 +83,6 @@ export default function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
     justifyContent: 'center',
     padding: 12,
   },
@@ -92,12 +93,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: fonts.xlarge,
     fontWeight: 'bold',
-    color: colors.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: fonts.regular,
-    color: colors.textLight,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -105,14 +104,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   input: {
-    backgroundColor: colors.grayLight,
     borderRadius: 10,
     padding: 12,
     fontSize: fonts.regular,
-    color: colors.text,
   },
   button: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#FF6B00',
     borderRadius: 10,
     padding: 12,
     alignItems: 'center',
@@ -122,13 +119,12 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: colors.white,
+    color: '#fff',
     fontSize: fonts.large,
     fontWeight: 'bold',
   },
   link: {
     textAlign: 'center',
-    color: colors.primary,
     fontSize: fonts.regular,
     marginTop: 12,
     fontWeight: '600',

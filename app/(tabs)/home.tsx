@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ export default function HomeScreen() {
   const { location } = useLocation();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
 
   const { data: promosData, refetch: refetchPromos, loading: promosLoading } = useQuery(GET_ACTIVE_PROMOTIONS);
   const { data: popularData, refetch: refetchPopular } = useQuery(GET_POPULAR_PRODUCTS, {
@@ -98,7 +99,7 @@ export default function HomeScreen() {
       <TouchableOpacity
         key={product.id}
         style={[isSmall ? styles.productCardSmall : styles.productCard, { backgroundColor: colors.card }]}
-        onPress={() => router.push(`/store/${product.storeId}`)}
+        onPress={() => router.push(`/store/${product.storeId}?productId=${product.id}`)}
       >
         {product.imageUrl ? (
           <Image source={product.imageUrl} style={isSmall ? styles.productImageSmall : styles.productImage} cachePolicy="memory-disk" recyclingKey={product.id} />
@@ -143,22 +144,33 @@ export default function HomeScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.card, paddingTop: insets.top + 8 }]}>
-        {user && user.emailVerified === false && (
-          <TouchableOpacity
-            style={styles.emailBanner}
-            onPress={() => router.push('/verify-email' as any)}
-          >
-            <Ionicons name="mail-outline" size={18} color="#fff" />
-            <Text style={styles.emailBannerText}>Verifique seu email para receber notificacoes</Text>
-            <Ionicons name="chevron-forward" size={16} color="#fff" />
-          </TouchableOpacity>
+        {user && user.emailVerified === false && !emailBannerDismissed && (
+          <View style={styles.emailBanner}>
+            <TouchableOpacity
+              style={styles.emailBannerContent}
+              onPress={() => router.push('/verify-email' as any)}
+            >
+              <Ionicons name="mail-outline" size={18} color="#fff" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.emailBannerText}>Verifique seu email para receber notificacoes</Text>
+                <Text style={styles.emailBannerSub}>Sem verificar, voce pode perder promocoes e cupons das suas lojas</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.emailBannerClose}
+              onPress={() => setEmailBannerDismissed(true)}
+            >
+              <Ionicons name="close" size={16} color="#fff" />
+            </TouchableOpacity>
+          </View>
         )}
         <View style={styles.headerContent}>
           <View style={{ flex: 1 }}>
             <View style={styles.logoWrapper}>
               <Text style={styles.logoBcm}>BCM TECH</Text>
               <View style={styles.logoCenter}>
-                <Text style={styles.logoDelivery}>Delivery</Text>
+                <Text style={styles.logoDelivery}>Shopping</Text>
                 <Text style={[styles.logoApp, { color: colors.textLight }]}>App</Text>
               </View>
             </View>
@@ -454,16 +466,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emailBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#F59E0B',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 6,
     borderRadius: 10,
     marginBottom: 12,
+    position: 'relative',
   },
-  emailBannerText: { flex: 1, color: '#fff', fontSize: 10, fontWeight: '600' },
+  emailBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    paddingRight: 32,
+    gap: 8,
+  },
+  emailBannerText: { color: '#fff', fontSize: 11, fontWeight: '600' },
+  emailBannerSub: { color: 'rgba(255,255,255,0.85)', fontSize: 9, marginTop: 2 },
+  emailBannerClose: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
   content: { paddingBottom: 12 },
 

@@ -76,7 +76,12 @@ export function useDeliveryTracking(activeDelivery: ActiveDelivery | null) {
   const startTracking = useCallback(async () => {
     if (trackingRef.current || !activeDelivery) return;
 
-    const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+    // Check existing permission first (no dialog) to avoid permission-dialog loop
+    let { status: fgStatus } = await Location.getForegroundPermissionsAsync();
+    if (fgStatus !== 'granted') {
+      const req = await Location.requestForegroundPermissionsAsync();
+      fgStatus = req.status;
+    }
     if (fgStatus !== 'granted') return;
 
     activeDeliveryId = activeDelivery.deliveryId;
@@ -105,7 +110,11 @@ export function useDeliveryTracking(activeDelivery: ActiveDelivery | null) {
     // Try background location (only works on native, not Expo Go)
     if (Platform.OS !== 'web') {
       try {
-        const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+        let { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
+        if (bgStatus !== 'granted') {
+          const bgReq = await Location.requestBackgroundPermissionsAsync();
+          bgStatus = bgReq.status;
+        }
         if (bgStatus === 'granted') {
           const isTaskRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
           if (!isTaskRegistered) {
@@ -115,7 +124,7 @@ export function useDeliveryTracking(activeDelivery: ActiveDelivery | null) {
               timeInterval: 30000,
               showsBackgroundLocationIndicator: true,
               foregroundService: {
-                notificationTitle: 'bcmTech Delivery',
+                notificationTitle: 'bcmTech Shopping',
                 notificationBody: 'Rastreando sua localização para a entrega',
                 notificationColor: '#FF6B00',
               },

@@ -25,7 +25,7 @@ import { useTheme } from '../src/contexts/ThemeContext';
 import { CREATE_ORDER, SAVE_CARD } from '../src/lib/graphql/mutations';
 import { CALCULATE_DELIVERY_FEE, GET_MY_ADDRESSES, GET_STORE, ESTIMATE_DELIVERY_TIME, LIST_MY_CARDS, GET_MINIMUM_ORDER_PLATFORM } from '../src/lib/graphql/queries';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts } from '../src/theme';
+import { fonts } from '../src/theme';
 
 const PAGARME_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAGARME_PUBLIC_KEY || '';
 
@@ -102,7 +102,7 @@ const ALL_PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string; de
 
 export default function CheckoutScreen() {
   const insets = useSafeAreaInsets();
-  const { colors: themeColors, isDark } = useTheme();
+  const { colors, isDark } = useTheme();
   const params = useLocalSearchParams<{ storeId: string; storeName: string; selectedItems: string }>();
   const { removeItem, refetch: refetchCart } = useCart();
   const { alert } = useAlert();
@@ -139,6 +139,9 @@ export default function CheckoutScreen() {
   // M3: Coupon code state
   const [couponCode, setCouponCode] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
+  // ─── Age Verification State ──────────────────────────────────────────
+  const [showAgeModal, setShowAgeModal] = useState(false);
+  const [ageVerified, setAgeVerified] = useState(false);
   // ─── Card Modal State ─────────────────────────────────────────────────
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardNumber, setCardNumber] = useState('');
@@ -302,7 +305,7 @@ export default function CheckoutScreen() {
   async function geocodeNominatim(query: string): Promise<{ latitude: number; longitude: number } | null> {
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=br`;
-      const res = await fetch(url, { headers: { 'User-Agent': 'bcmTech-Delivery/1.0' } });
+      const res = await fetch(url, { headers: { 'User-Agent': 'bcmTech-Shopping/1.0' } });
       const data = await res.json();
       if (data.length > 0) {
         const lat = parseFloat(data[0].lat);
@@ -436,6 +439,20 @@ export default function CheckoutScreen() {
         return;
       }
 
+      // Age verification check
+      if (!ageVerified) {
+        const storeProducts = storeData?.store?.products || [];
+        const hasAgeRestricted = checkoutItems.some((item) => {
+          const product = storeProducts.find((p: any) => p.id === item.productId);
+          return product?.category?.requiresAgeVerification;
+        });
+        if (hasAgeRestricted) {
+          submittingRef.current = false;
+          setShowAgeModal(true);
+          return;
+        }
+      }
+
       if (!isPickup && !address.trim()) {
         alert('Erro', 'Informe o endereco de entrega');
         return;
@@ -505,6 +522,7 @@ export default function CheckoutScreen() {
                 }),
             notes,
             paymentMethod,
+            ...(ageVerified ? { ageVerified: true } : {}),
             ...(paymentMethod === 'CREDIT_CARD' && selectedCardId ? { cardId: selectedCardId } : {}),
           },
         },
@@ -542,18 +560,18 @@ export default function CheckoutScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: themeColors.background }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: themeColors.white }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: colors.white }]}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={18} color={themeColors.text} />
+          <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: themeColors.text }]}>Finalizar pedido</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Finalizar pedido</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <Text style={[styles.storeBadge, { color: themeColors.primary, backgroundColor: themeColors.primary + '15' }]}>{storeName}</Text>
+      <Text style={[styles.storeBadge, { color: colors.primary, backgroundColor: colors.primary + '15' }]}>{storeName}</Text>
 
       <FlatList
         data={checkoutItems}
@@ -561,16 +579,16 @@ export default function CheckoutScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
         renderItem={({ item }) => (
-          <View style={[styles.itemCard, { backgroundColor: themeColors.white }]}>
+          <View style={[styles.itemCard, { backgroundColor: colors.white }]}>
             <View style={styles.itemInfo}>
-              <Text style={[styles.itemName, { color: themeColors.text }]}>{item.name}</Text>
-              <Text style={[styles.itemPrice, { color: themeColors.primary }]}>
+              <Text style={[styles.itemName, { color: colors.text }]}>{item.name}</Text>
+              <Text style={[styles.itemPrice, { color: colors.primary }]}>
                 {item.isVariableWeight
                   ? `R$ ${((item.price * (item.weightGrams || 0)) / 1000).toFixed(2)}`
                   : `R$ ${(item.price * item.quantity).toFixed(2)}`}
               </Text>
             </View>
-            <Text style={[styles.itemQty, { color: themeColors.textLight }]}>
+            <Text style={[styles.itemQty, { color: colors.textLight }]}>
               {item.isVariableWeight
                 ? (item.weightGrams || 0) >= 1000
                   ? `${((item.weightGrams || 0) / 1000).toFixed((item.weightGrams || 0) % 1000 === 0 ? 0 : 1)}kg`
@@ -582,9 +600,9 @@ export default function CheckoutScreen() {
         ListFooterComponent={
           <View style={styles.footer}>
             {!ownerPaymentConnected && (
-              <View style={[styles.warningBanner, { backgroundColor: themeColors.warning + '18', borderColor: themeColors.warning + '40' }]}>
-                <Ionicons name="alert-circle-outline" size={18} color={themeColors.warning} />
-                <Text style={[styles.warningBannerText, { color: themeColors.warning }]}>
+              <View style={[styles.warningBanner, { backgroundColor: colors.warning + '18', borderColor: colors.warning + '40' }]}>
+                <Ionicons name="alert-circle-outline" size={18} color={colors.warning} />
+                <Text style={[styles.warningBannerText, { color: colors.warning }]}>
                   {pickupOnly
                     ? 'Esta loja aceita apenas retirada no local no momento'
                     : 'Esta loja aceita apenas pagamento na entrega'}
@@ -593,36 +611,36 @@ export default function CheckoutScreen() {
             )}
 
             {/* Delivery Type */}
-            <View style={[styles.section, { backgroundColor: themeColors.white }]}>
-              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Como deseja receber?</Text>
+            <View style={[styles.section, { backgroundColor: colors.white }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Como deseja receber?</Text>
               <View style={styles.deliveryTypeRow}>
                 {!pickupOnly && (
                   <TouchableOpacity
-                    style={[styles.deliveryTypeOption, { borderColor: themeColors.grayLight }, deliveryType === 'DELIVERY' && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '10' }]}
+                    style={[styles.deliveryTypeOption, { borderColor: colors.grayLight }, deliveryType === 'DELIVERY' && { borderColor: colors.primary, backgroundColor: colors.primary + '10' }]}
                     onPress={() => setDeliveryType('DELIVERY')}
                   >
-                    <Ionicons name="bicycle-outline" size={18} color={deliveryType === 'DELIVERY' ? themeColors.primary : themeColors.gray} />
-                    <Text style={[styles.deliveryTypeLabel, { color: themeColors.gray }, deliveryType === 'DELIVERY' && { color: themeColors.primary }]}>Entrega</Text>
+                    <Ionicons name="bicycle-outline" size={18} color={deliveryType === 'DELIVERY' ? colors.primary : colors.gray} />
+                    <Text style={[styles.deliveryTypeLabel, { color: colors.gray }, deliveryType === 'DELIVERY' && { color: colors.primary }]}>Entrega</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
-                  style={[styles.deliveryTypeOption, { borderColor: themeColors.grayLight }, deliveryType === 'PICKUP' && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '10' }]}
+                  style={[styles.deliveryTypeOption, { borderColor: colors.grayLight }, deliveryType === 'PICKUP' && { borderColor: colors.primary, backgroundColor: colors.primary + '10' }]}
                   onPress={() => setDeliveryType('PICKUP')}
                 >
-                  <Ionicons name="storefront-outline" size={18} color={deliveryType === 'PICKUP' ? themeColors.primary : themeColors.gray} />
-                  <Text style={[styles.deliveryTypeLabel, { color: themeColors.gray }, deliveryType === 'PICKUP' && { color: themeColors.primary }]}>Retirar no local</Text>
+                  <Ionicons name="storefront-outline" size={18} color={deliveryType === 'PICKUP' ? colors.primary : colors.gray} />
+                  <Text style={[styles.deliveryTypeLabel, { color: colors.gray }, deliveryType === 'PICKUP' && { color: colors.primary }]}>Retirar no local</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Address */}
             {!isPickup && (
-              <View style={[styles.section, { backgroundColor: themeColors.white }]}>
+              <View style={[styles.section, { backgroundColor: colors.white }]}>
                 <View style={styles.addressHeaderRow}>
-                  <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Local de entrega</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Local de entrega</Text>
                   {savedAddresses.length > 0 && (
                     <TouchableOpacity onPress={() => setShowAddressPicker(!showAddressPicker)}>
-                      <Text style={[styles.savedAddressesLink, { color: themeColors.primary }]}>{showAddressPicker ? 'Fechar' : 'Meus enderecos'}</Text>
+                      <Text style={[styles.savedAddressesLink, { color: colors.primary }]}>{showAddressPicker ? 'Fechar' : 'Meus enderecos'}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -633,7 +651,7 @@ export default function CheckoutScreen() {
                       return (
                         <TouchableOpacity
                           key={addr.id}
-                          style={[styles.addressPickerItem, { backgroundColor: themeColors.background }]}
+                          style={[styles.addressPickerItem, { backgroundColor: colors.background }]}
                           onPress={() => {
                             const parts = [addr.street, addr.number];
                             if (addr.complement) parts.push(addr.complement);
@@ -648,11 +666,11 @@ export default function CheckoutScreen() {
                             setShowAddressPicker(false);
                           }}
                         >
-                          <Ionicons name="location" size={16} color={addr.isDefault ? themeColors.primary : themeColors.gray} />
-                          <Text style={[styles.addressPickerText, { color: themeColors.text }]} numberOfLines={2}>{label}</Text>
+                          <Ionicons name="location" size={16} color={addr.isDefault ? colors.primary : colors.gray} />
+                          <Text style={[styles.addressPickerText, { color: colors.text }]} numberOfLines={2}>{label}</Text>
                           {addr.isDefault && (
-                            <View style={[styles.addressPickerBadge, { backgroundColor: themeColors.primary + '15' }]}>
-                              <Text style={[styles.addressPickerBadgeText, { color: themeColors.primary }]}>Principal</Text>
+                            <View style={[styles.addressPickerBadge, { backgroundColor: colors.primary + '15' }]}>
+                              <Text style={[styles.addressPickerBadgeText, { color: colors.primary }]}>Principal</Text>
                             </View>
                           )}
                         </TouchableOpacity>
@@ -661,17 +679,17 @@ export default function CheckoutScreen() {
                   </View>
                 )}
                 <View style={styles.locationRow}>
-                  <TouchableOpacity style={[styles.locationButton, { backgroundColor: themeColors.primary + '15' }]} onPress={handleGetLocation} disabled={locatingGps}>
+                  <TouchableOpacity style={[styles.locationButton, { backgroundColor: colors.primary + '15' }]} onPress={handleGetLocation} disabled={locatingGps}>
                     {locatingGps ? (
-                      <ActivityIndicator size="small" color={themeColors.primary} />
+                      <ActivityIndicator size="small" color={colors.primary} />
                     ) : (
-                      <Ionicons name="navigate" size={18} color={themeColors.primary} />
+                      <Ionicons name="navigate" size={18} color={colors.primary} />
                     )}
                   </TouchableOpacity>
                   <TextInput
-                    style={[styles.addressInput, { backgroundColor: themeColors.background, color: themeColors.text }]}
+                    style={[styles.addressInput, { backgroundColor: colors.background, color: colors.text }]}
                     placeholder="Digite o endereco ou use o GPS"
-                    placeholderTextColor={themeColors.gray}
+                    placeholderTextColor={colors.gray}
                     value={address}
                     onChangeText={setAddress}
                     multiline
@@ -681,28 +699,28 @@ export default function CheckoutScreen() {
             )}
 
             <TextInput
-              style={[styles.notesInput, { backgroundColor: themeColors.white, color: themeColors.text }]}
+              style={[styles.notesInput, { backgroundColor: colors.white, color: colors.text }]}
               placeholder="Observacoes (opcional)"
-              placeholderTextColor={themeColors.gray}
+              placeholderTextColor={colors.gray}
               value={notes}
               onChangeText={setNotes}
               multiline
             />
 
             {/* M3: Coupon input */}
-            <View style={[styles.section, { backgroundColor: themeColors.white }]}>
-              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Cupom de desconto</Text>
+            <View style={[styles.section, { backgroundColor: colors.white }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Cupom de desconto</Text>
               <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                 <TextInput
-                  style={[styles.addressInput, { backgroundColor: themeColors.background, color: themeColors.text, flex: 1 }]}
+                  style={[styles.addressInput, { backgroundColor: colors.background, color: colors.text, flex: 1 }]}
                   placeholder="Codigo do cupom"
-                  placeholderTextColor={themeColors.gray}
+                  placeholderTextColor={colors.gray}
                   value={couponCode}
                   onChangeText={(t) => { setCouponCode(t.toUpperCase()); setCouponApplied(false); }}
                   autoCapitalize="characters"
                 />
                 <TouchableOpacity
-                  style={[styles.locationButton, { backgroundColor: themeColors.primary + '15', width: 'auto' as any, paddingHorizontal: 12 }]}
+                  style={[styles.locationButton, { backgroundColor: colors.primary + '15', width: 'auto' as any, paddingHorizontal: 12 }]}
                   onPress={() => {
                     // TODO: Call validateCoupon query when available in the API
                     if (!couponCode.trim()) {
@@ -712,63 +730,63 @@ export default function CheckoutScreen() {
                     alert('Em breve', 'Cupons de desconto estarao disponiveis em breve!');
                   }}
                 >
-                  <Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 12 }}>Aplicar</Text>
+                  <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 12 }}>Aplicar</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Payment */}
-            <View style={[styles.section, { backgroundColor: themeColors.white }]}>
-              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Forma de pagamento</Text>
+            <View style={[styles.section, { backgroundColor: colors.white }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Forma de pagamento</Text>
               {paymentOptions.map((option) => (
                 <TouchableOpacity
                   key={option.key}
-                  style={[styles.paymentOption, { borderColor: themeColors.grayLight }, paymentMethod === option.key && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '08' }]}
+                  style={[styles.paymentOption, { borderColor: colors.grayLight }, paymentMethod === option.key && { borderColor: colors.primary, backgroundColor: colors.primary + '08' }]}
                   onPress={() => setPaymentMethod(option.key)}
                 >
-                  <Ionicons name={option.icon as any} size={18} color={paymentMethod === option.key ? themeColors.primary : themeColors.gray} />
+                  <Ionicons name={option.icon as any} size={18} color={paymentMethod === option.key ? colors.primary : colors.gray} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.paymentLabel, { color: themeColors.text }, paymentMethod === option.key && { color: themeColors.primary }]}>{option.label}</Text>
-                    <Text style={[styles.paymentDesc, { color: themeColors.textLight }]}>{option.description}</Text>
+                    <Text style={[styles.paymentLabel, { color: colors.text }, paymentMethod === option.key && { color: colors.primary }]}>{option.label}</Text>
+                    <Text style={[styles.paymentDesc, { color: colors.textLight }]}>{option.description}</Text>
                   </View>
-                  {paymentMethod === option.key && <Ionicons name="checkmark-circle" size={18} color={themeColors.primary} />}
+                  {paymentMethod === option.key && <Ionicons name="checkmark-circle" size={18} color={colors.primary} />}
                 </TouchableOpacity>
               ))}
 
               {paymentMethod === 'CREDIT_CARD' && (
                 <View style={styles.cardsSection}>
-                  <Text style={[styles.cardsTitle, { color: themeColors.textLight }]}>Cartoes salvos</Text>
+                  <Text style={[styles.cardsTitle, { color: colors.textLight }]}>Cartoes salvos</Text>
                   {(cardsData?.myCards || []).map((card: any) => (
                     <TouchableOpacity
                       key={card.id}
-                      style={[styles.cardItem, { borderColor: themeColors.grayLight }, selectedCardId === card.id && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '08' }]}
+                      style={[styles.cardItem, { borderColor: colors.grayLight }, selectedCardId === card.id && { borderColor: colors.primary, backgroundColor: colors.primary + '08' }]}
                       onPress={() => setSelectedCardId(card.id)}
                     >
-                      <Ionicons name="card" size={18} color={selectedCardId === card.id ? themeColors.primary : themeColors.gray} />
+                      <Ionicons name="card" size={18} color={selectedCardId === card.id ? colors.primary : colors.gray} />
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.cardText, { color: themeColors.text }]}>{card.brand} •••• {card.lastFourDigits}</Text>
-                        {card.holderName && <Text style={[styles.cardHolder, { color: themeColors.textLight }]}>{card.holderName}</Text>}
+                        <Text style={[styles.cardText, { color: colors.text }]}>{card.brand} •••• {card.lastFourDigits}</Text>
+                        {card.holderName && <Text style={[styles.cardHolder, { color: colors.textLight }]}>{card.holderName}</Text>}
                       </View>
-                      {selectedCardId === card.id && <Ionicons name="checkmark-circle" size={18} color={themeColors.primary} />}
+                      {selectedCardId === card.id && <Ionicons name="checkmark-circle" size={18} color={colors.primary} />}
                     </TouchableOpacity>
                   ))}
                   <TouchableOpacity
-                    style={[styles.cardItem, { borderColor: themeColors.grayLight }]}
+                    style={[styles.cardItem, { borderColor: colors.grayLight }]}
                     onPress={() => { resetCardForm(); setShowCardModal(true); }}
                   >
-                    <Ionicons name="add-circle-outline" size={18} color={themeColors.primary} />
-                    <Text style={[styles.cardText, { color: themeColors.primary }]}>Adicionar novo cartao</Text>
+                    <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+                    <Text style={[styles.cardText, { color: colors.primary }]}>Adicionar novo cartao</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.manageCardsLink} onPress={() => router.push('/cards')}>
-                    <Text style={[styles.manageCardsText, { color: themeColors.primary }]}>Gerenciar cartoes</Text>
-                    <Ionicons name="chevron-forward" size={16} color={themeColors.primary} />
+                    <Text style={[styles.manageCardsText, { color: colors.primary }]}>Gerenciar cartoes</Text>
+                    <Ionicons name="chevron-forward" size={16} color={colors.primary} />
                   </TouchableOpacity>
                 </View>
               )}
             </View>
 
             {/* Summary */}
-            <View style={[styles.section, { backgroundColor: themeColors.white }]}>
+            <View style={[styles.section, { backgroundColor: colors.white }]}>
               {belowMinimum && (
                 <View style={[styles.minimumOrderWarning, { backgroundColor: errorBg, borderColor: errorBorder }]}>
                   <Ionicons name="alert-circle" size={18} color={errorText} />
@@ -778,18 +796,18 @@ export default function CheckoutScreen() {
                 </View>
               )}
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: themeColors.textLight }]}>Subtotal</Text>
-                <Text style={[styles.summaryValue, { color: themeColors.text }, belowMinimum && { color: errorText }]}>R$ {subtotal.toFixed(2)}</Text>
+                <Text style={[styles.summaryLabel, { color: colors.textLight }]}>Subtotal</Text>
+                <Text style={[styles.summaryValue, { color: colors.text }, belowMinimum && { color: errorText }]}>R$ {subtotal.toFixed(2)}</Text>
               </View>
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: themeColors.textLight }]}>{isPickup ? 'Retirada' : 'Taxa de entrega'}</Text>
+                <Text style={[styles.summaryLabel, { color: colors.textLight }]}>{isPickup ? 'Retirada' : 'Taxa de entrega'}</Text>
                 {isPickup ? (
-                  <Text style={[styles.summaryValue, { color: themeColors.success }]}>Gratis</Text>
+                  <Text style={[styles.summaryValue, { color: colors.success }]}>Gratis</Text>
                 ) : feeLoading ? (
-                  <ActivityIndicator size="small" color={themeColors.primary} />
+                  <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
                   // M1: Show 'Gratis' for zero fee when calculation is done, 'Calculando...' only when not yet calculated
-                  <Text style={[styles.summaryValue, { color: themeColors.text }]}>
+                  <Text style={[styles.summaryValue, { color: colors.text }]}>
                     {feeCalculated ? (deliveryFee > 0 ? `R$ ${deliveryFee.toFixed(2)}` : 'Gratis') : 'Calculando...'}
                   </Text>
                 )}
@@ -797,23 +815,23 @@ export default function CheckoutScreen() {
               {/* M2: Free delivery threshold banner */}
               {!isPickup && storeData?.store?.freeDeliveryAbove && subtotal < Number(storeData.store.freeDeliveryAbove) && (
                 <View style={[styles.summaryRow, { marginTop: 4 }]}>
-                  <Text style={{ fontSize: 10, color: themeColors.success, fontWeight: '600' }}>
+                  <Text style={{ fontSize: 10, color: colors.success, fontWeight: '600' }}>
                     Faltam R$ {(Number(storeData.store.freeDeliveryAbove) - subtotal).toFixed(2)} para frete gratis!
                   </Text>
                 </View>
               )}
               {!isPickup && timeData?.estimatedDeliveryTime && (
                 <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { color: themeColors.textLight }]}>Tempo estimado</Text>
+                  <Text style={[styles.summaryLabel, { color: colors.textLight }]}>Tempo estimado</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Ionicons name="time-outline" size={16} color={themeColors.primary} />
-                    <Text style={[styles.summaryValue, { color: themeColors.primary, fontWeight: '600' }]}>~{Math.ceil(timeData.estimatedDeliveryTime)} min</Text>
+                    <Ionicons name="time-outline" size={16} color={colors.primary} />
+                    <Text style={[styles.summaryValue, { color: colors.primary, fontWeight: '600' }]}>~{Math.ceil(timeData.estimatedDeliveryTime)} min</Text>
                   </View>
                 </View>
               )}
-              <View style={[styles.summaryRow, styles.totalRow, { borderTopColor: themeColors.grayLight }]}>
-                <Text style={[styles.totalLabel, { color: themeColors.text }]}>Total</Text>
-                <Text style={[styles.totalValue, { color: themeColors.primary }]}>R$ {finalTotal.toFixed(2)}</Text>
+              <View style={[styles.summaryRow, styles.totalRow, { borderTopColor: colors.grayLight }]}>
+                <Text style={[styles.totalLabel, { color: colors.text }]}>Total</Text>
+                <Text style={[styles.totalValue, { color: colors.primary }]}>R$ {finalTotal.toFixed(2)}</Text>
               </View>
             </View>
           </View>
@@ -821,7 +839,7 @@ export default function CheckoutScreen() {
       />
 
       <TouchableOpacity
-        style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: themeColors.primary }, (loading || belowMinimum || (!isPickup && !coords)) && styles.checkoutDisabled]}
+        style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: colors.primary }, (loading || belowMinimum || (!isPickup && !coords)) && styles.checkoutDisabled]}
         onPress={handleCheckout}
         disabled={loading || belowMinimum || (!isPickup && !coords)}
       >
@@ -838,27 +856,65 @@ export default function CheckoutScreen() {
         </View>
       )}
 
-      {/* Card Registration Modal */}
-      <Modal visible={showCardModal} animationType="slide" transparent>
+      {/* Age Verification Modal */}
+      <Modal visible={showAgeModal} animationType="fade" transparent statusBarTranslucent>
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalContainer}>
-            <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
-              <View style={[styles.modalHeader, { borderBottomColor: themeColors.border }]}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowAgeModal(false)} />
+          <View style={[styles.modalContainer, { maxHeight: '50%' }]}>
+            <View style={[styles.modalContent, { backgroundColor: colors.background, padding: 24, alignItems: 'center', gap: 16 }]}>
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.warning + '20', justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="warning-outline" size={28} color={colors.warning} />
+              </View>
+              <Text style={{ fontSize: fonts.large, fontWeight: 'bold', color: colors.text, textAlign: 'center' }}>
+                Restricao de Idade
+              </Text>
+              <Text style={{ fontSize: fonts.regular, color: colors.textLight, textAlign: 'center', lineHeight: 20 }}>
+                Este pedido contem produtos com restricao de idade (+18). Ao continuar, voce declara ter 18 anos ou mais.
+              </Text>
+              <TouchableOpacity
+                style={{ backgroundColor: colors.primary, borderRadius: 10, padding: 14, alignItems: 'center', width: '100%' }}
+                onPress={() => {
+                  setAgeVerified(true);
+                  setShowAgeModal(false);
+                  // Re-trigger checkout after confirming
+                  setTimeout(() => handleCheckout(), 100);
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: fonts.regular, fontWeight: 'bold' }}>Confirmo que tenho +18</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor: colors.gray + '20', borderRadius: 10, padding: 14, alignItems: 'center', width: '100%' }}
+                onPress={() => setShowAgeModal(false)}
+              >
+                <Text style={{ color: colors.textLight, fontSize: fonts.regular, fontWeight: '600' }}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Card Registration Modal */}
+      <Modal visible={showCardModal} animationType="slide" transparent statusBarTranslucent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => { resetCardForm(); setShowCardModal(false); }} />
+          <View style={styles.modalContainer}>
+            <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="card" size={18} color={themeColors.primary} />
-                  <Text style={[styles.modalTitle, { color: themeColors.text }]}>Novo Cartao</Text>
+                  <Ionicons name="card" size={18} color={colors.primary} />
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Novo Cartao</Text>
                 </View>
                 <TouchableOpacity onPress={() => { resetCardForm(); setShowCardModal(false); }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                  <Ionicons name="close" size={18} color={themeColors.text} />
+                  <Ionicons name="close" size={18} color={colors.text} />
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 40, gap: 6 }} keyboardShouldPersistTaps="handled">
+              <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 40, gap: 6 }} keyboardShouldPersistTaps="handled">
                 <View>
                   <TextInput
-                    style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.cardNumber ? '#ef4444' : themeColors.border }]}
+                    style={[styles.modalInput, { backgroundColor: colors.white, color: colors.text, borderColor: cardErrors.cardNumber ? '#ef4444' : colors.border }]}
                     placeholder="Numero do cartao"
-                    placeholderTextColor={themeColors.gray}
+                    placeholderTextColor={colors.gray}
                     keyboardType="numeric"
                     value={cardNumber}
                     onChangeText={(t) => { setCardNumber(formatCardNumber(t)); clearCardError('cardNumber'); }}
@@ -874,9 +930,9 @@ export default function CheckoutScreen() {
 
                 <View>
                   <TextInput
-                    style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.holderName ? '#ef4444' : themeColors.border }]}
+                    style={[styles.modalInput, { backgroundColor: colors.white, color: colors.text, borderColor: cardErrors.holderName ? '#ef4444' : colors.border }]}
                     placeholder="Nome do titular (como no cartao)"
-                    placeholderTextColor={themeColors.gray}
+                    placeholderTextColor={colors.gray}
                     autoCapitalize="characters"
                     value={holderName}
                     onChangeText={(t) => { setHolderName(t); clearCardError('holderName'); }}
@@ -887,9 +943,9 @@ export default function CheckoutScreen() {
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   <View style={{ flex: 1 }}>
                     <TextInput
-                      style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.expiry ? '#ef4444' : themeColors.border }]}
+                      style={[styles.modalInput, { backgroundColor: colors.white, color: colors.text, borderColor: cardErrors.expiry ? '#ef4444' : colors.border }]}
                       placeholder="MM/AA"
-                      placeholderTextColor={themeColors.gray}
+                      placeholderTextColor={colors.gray}
                       keyboardType="numeric"
                       value={cardExpiry}
                       onChangeText={(t) => { setCardExpiry(formatExpiry(t)); clearCardError('expiry'); }}
@@ -899,9 +955,9 @@ export default function CheckoutScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <TextInput
-                      style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.cvv ? '#ef4444' : themeColors.border }]}
+                      style={[styles.modalInput, { backgroundColor: colors.white, color: colors.text, borderColor: cardErrors.cvv ? '#ef4444' : colors.border }]}
                       placeholder="CVV"
-                      placeholderTextColor={themeColors.gray}
+                      placeholderTextColor={colors.gray}
                       keyboardType="numeric"
                       secureTextEntry
                       value={cvv}
@@ -913,16 +969,16 @@ export default function CheckoutScreen() {
                 </View>
 
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                  <Ionicons name="home" size={18} color={themeColors.primary} />
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: themeColors.text }}>Endereco de cobranca</Text>
+                  <Ionicons name="home" size={18} color={colors.primary} />
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.text }}>Endereco de cobranca</Text>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   <View style={{ flex: 1 }}>
                     <TextInput
-                      style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.zipCode ? '#ef4444' : themeColors.border }]}
+                      style={[styles.modalInput, { backgroundColor: colors.white, color: colors.text, borderColor: cardErrors.zipCode ? '#ef4444' : colors.border }]}
                       placeholder="CEP"
-                      placeholderTextColor={themeColors.gray}
+                      placeholderTextColor={colors.gray}
                       keyboardType="numeric"
                       value={zipCode}
                       onChangeText={(t) => {
@@ -934,13 +990,13 @@ export default function CheckoutScreen() {
                       maxLength={9}
                     />
                     {cardErrors.zipCode && <Text style={styles.modalFieldError}>{cardErrors.zipCode}</Text>}
-                    {loadingCep && <ActivityIndicator size="small" color={themeColors.primary} style={{ position: 'absolute', right: 12, top: 12 }} />}
+                    {loadingCep && <ActivityIndicator size="small" color={colors.primary} style={{ position: 'absolute', right: 12, top: 12 }} />}
                   </View>
                   <View style={{ flex: 1 }}>
                     <TextInput
-                      style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.state ? '#ef4444' : themeColors.border }]}
+                      style={[styles.modalInput, { backgroundColor: colors.white, color: colors.text, borderColor: cardErrors.state ? '#ef4444' : colors.border }]}
                       placeholder="UF"
-                      placeholderTextColor={themeColors.gray}
+                      placeholderTextColor={colors.gray}
                       autoCapitalize="characters"
                       value={cardState}
                       onChangeText={(t) => { setCardState(t.substring(0, 2)); clearCardError('state'); }}
@@ -951,9 +1007,9 @@ export default function CheckoutScreen() {
                 </View>
 
                 <TextInput
-                  style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.street ? '#ef4444' : themeColors.border }]}
+                  style={[styles.modalInput, { backgroundColor: colors.white, color: colors.text, borderColor: cardErrors.street ? '#ef4444' : colors.border }]}
                   placeholder="Rua"
-                  placeholderTextColor={themeColors.gray}
+                  placeholderTextColor={colors.gray}
                   value={street}
                   onChangeText={(t) => { setStreet(t); clearCardError('street'); }}
                 />
@@ -962,9 +1018,9 @@ export default function CheckoutScreen() {
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   <View style={{ flex: 1 }}>
                     <TextInput
-                      style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.streetNumber ? '#ef4444' : themeColors.border }]}
+                      style={[styles.modalInput, { backgroundColor: colors.white, color: colors.text, borderColor: cardErrors.streetNumber ? '#ef4444' : colors.border }]}
                       placeholder="Numero"
-                      placeholderTextColor={themeColors.gray}
+                      placeholderTextColor={colors.gray}
                       value={streetNumber}
                       onChangeText={(t) => { setStreetNumber(t); clearCardError('streetNumber'); }}
                     />
@@ -972,9 +1028,9 @@ export default function CheckoutScreen() {
                   </View>
                   <View style={{ flex: 2 }}>
                     <TextInput
-                      style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.neighborhood ? '#ef4444' : themeColors.border }]}
+                      style={[styles.modalInput, { backgroundColor: colors.white, color: colors.text, borderColor: cardErrors.neighborhood ? '#ef4444' : colors.border }]}
                       placeholder="Bairro"
-                      placeholderTextColor={themeColors.gray}
+                      placeholderTextColor={colors.gray}
                       value={neighborhood}
                       onChangeText={(t) => { setNeighborhood(t); clearCardError('neighborhood'); }}
                     />
@@ -983,9 +1039,9 @@ export default function CheckoutScreen() {
                 </View>
 
                 <TextInput
-                  style={[styles.modalInput, { backgroundColor: themeColors.white, color: themeColors.text, borderColor: cardErrors.city ? '#ef4444' : themeColors.border }]}
+                  style={[styles.modalInput, { backgroundColor: colors.white, color: colors.text, borderColor: cardErrors.city ? '#ef4444' : colors.border }]}
                   placeholder="Cidade"
-                  placeholderTextColor={themeColors.gray}
+                  placeholderTextColor={colors.gray}
                   value={city}
                   onChangeText={(t) => { setCity(t); clearCardError('city'); }}
                 />
@@ -1007,34 +1063,31 @@ export default function CheckoutScreen() {
                 </TouchableOpacity>
 
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
-                  <Ionicons name="shield-checkmark" size={12} color={themeColors.gray} />
-                  <Text style={{ fontSize: 10, color: themeColors.gray }}>Seus dados sao criptografados e protegidos</Text>
+                  <Ionicons name="shield-checkmark" size={12} color={colors.gray} />
+                  <Text style={{ fontSize: 10, color: colors.gray }}>Seus dados sao criptografados e protegidos</Text>
                 </View>
               </ScrollView>
             </View>
-          </KeyboardAvoidingView>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 12,
     paddingTop: 56,
-    backgroundColor: colors.white,
   },
-  title: { fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text },
+  title: { fontSize: fonts.xlarge, fontWeight: 'bold' },
   storeBadge: {
     fontSize: fonts.small,
-    color: colors.primary,
     fontWeight: '600',
-    backgroundColor: colors.primary + '15',
     alignSelf: 'flex-start',
     marginLeft: 12,
     marginTop: 12,
@@ -1044,7 +1097,6 @@ const styles = StyleSheet.create({
   },
   list: { padding: 12, paddingBottom: 100 },
   itemCard: {
-    backgroundColor: colors.white,
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
@@ -1053,23 +1105,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   itemInfo: { flex: 1 },
-  itemName: { fontSize: fonts.regular, fontWeight: '600', color: colors.text },
-  itemPrice: { fontSize: fonts.small, color: colors.primary, fontWeight: '600', marginTop: 4 },
-  itemQty: { fontSize: fonts.small, fontWeight: 'bold', color: colors.textLight },
+  itemName: { fontSize: fonts.regular, fontWeight: '600' },
+  itemPrice: { fontSize: fonts.small, fontWeight: '600', marginTop: 4 },
+  itemQty: { fontSize: fonts.small, fontWeight: 'bold' },
   footer: { marginTop: 12, gap: 6 },
   warningBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.warning + '18',
     borderWidth: 1,
-    borderColor: colors.warning + '40',
     borderRadius: 10,
     padding: 10,
   },
-  warningBannerText: { flex: 1, fontSize: fonts.small, color: colors.warning, fontWeight: '600' },
-  section: { backgroundColor: colors.white, borderRadius: 10, padding: 12, gap: 6 },
-  sectionTitle: { fontSize: fonts.regular, fontWeight: 'bold', color: colors.text, marginBottom: 4 },
+  warningBannerText: { flex: 1, fontSize: fonts.small, fontWeight: '600' },
+  section: { borderRadius: 10, padding: 12, gap: 6 },
+  sectionTitle: { fontSize: fonts.regular, fontWeight: 'bold', marginBottom: 4 },
   deliveryTypeRow: { flexDirection: 'row', gap: 6 },
   deliveryTypeOption: {
     flex: 1,
@@ -1080,49 +1130,40 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: colors.grayLight,
   },
-  deliveryTypeSelected: { borderColor: colors.primary, backgroundColor: colors.primary + '10' },
-  deliveryTypeLabel: { fontSize: fonts.regular, fontWeight: '600', color: colors.gray },
-  deliveryTypeLabelSelected: { color: colors.primary },
+  deliveryTypeLabel: { fontSize: fonts.regular, fontWeight: '600' },
   addressHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  savedAddressesLink: { fontSize: fonts.small, color: colors.primary, fontWeight: '600' },
+  savedAddressesLink: { fontSize: fonts.small, fontWeight: '600' },
   addressPickerList: { marginBottom: 12, gap: 6 },
   addressPickerItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.background,
     borderRadius: 10,
     padding: 10,
   },
-  addressPickerText: { flex: 1, fontSize: fonts.small, color: colors.text },
-  addressPickerBadge: { backgroundColor: colors.primary + '15', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  addressPickerBadgeText: { fontSize: 10, color: colors.primary, fontWeight: '600' },
+  addressPickerText: { flex: 1, fontSize: fonts.small },
+  addressPickerBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  addressPickerBadgeText: { fontSize: 10, fontWeight: '600' },
   locationRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   locationButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
   },
   addressInput: {
     flex: 1,
-    backgroundColor: colors.background,
     borderRadius: 10,
     padding: 12,
     fontSize: fonts.small,
-    color: colors.text,
     minHeight: 40,
   },
   notesInput: {
-    backgroundColor: colors.white,
     borderRadius: 10,
     padding: 12,
     fontSize: fonts.regular,
-    color: colors.text,
     minHeight: 40,
   },
   paymentOption: {
@@ -1131,14 +1172,12 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: colors.grayLight,
     gap: 6,
   },
-  paymentOptionSelected: { borderColor: colors.primary, backgroundColor: colors.primary + '08' },
-  paymentLabel: { fontSize: fonts.regular, fontWeight: '600', color: colors.text },
-  paymentDesc: { fontSize: fonts.small, color: colors.textLight, marginTop: 2 },
+  paymentLabel: { fontSize: fonts.regular, fontWeight: '600' },
+  paymentDesc: { fontSize: fonts.small, marginTop: 2 },
   cardsSection: { marginTop: 12, gap: 6 },
-  cardsTitle: { fontSize: fonts.small, fontWeight: '600', color: colors.textLight, marginBottom: 4 },
+  cardsTitle: { fontSize: fonts.small, fontWeight: '600', marginBottom: 4 },
   cardItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1146,38 +1185,34 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: colors.grayLight,
   },
-  cardItemSelected: { borderColor: colors.primary, backgroundColor: colors.primary + '08' },
-  cardText: { fontSize: fonts.regular, fontWeight: '600', color: colors.text },
-  cardHolder: { fontSize: fonts.small, color: colors.textLight, marginTop: 2 },
+  cardText: { fontSize: fonts.regular, fontWeight: '600' },
+  cardHolder: { fontSize: fonts.small, marginTop: 2 },
   manageCardsLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8 },
-  manageCardsText: { fontSize: fonts.small, color: colors.primary, fontWeight: '600' },
+  manageCardsText: { fontSize: fonts.small, fontWeight: '600' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  summaryLabel: { fontSize: fonts.regular, color: colors.textLight },
-  summaryValue: { fontSize: fonts.regular, color: colors.text },
-  totalRow: { borderTopWidth: 1, borderTopColor: colors.grayLight, paddingTop: 12, marginTop: 4 },
-  totalLabel: { fontSize: fonts.large, fontWeight: 'bold', color: colors.text },
-  totalValue: { fontSize: fonts.large, fontWeight: 'bold', color: colors.primary },
+  summaryLabel: { fontSize: fonts.regular },
+  summaryValue: { fontSize: fonts.regular },
+  totalRow: { borderTopWidth: 1, paddingTop: 12, marginTop: 4 },
+  totalLabel: { fontSize: fonts.large, fontWeight: 'bold' },
+  totalValue: { fontSize: fonts.large, fontWeight: 'bold' },
   checkoutButton: {
     position: 'absolute',
     bottom: 24,
     left: 16,
     right: 16,
-    backgroundColor: colors.primary,
+    backgroundColor: '#FF6B00',
     borderRadius: 10,
     padding: 10,
     alignItems: 'center',
   },
   checkoutDisabled: { opacity: 0.6 },
-  checkoutText: { color: colors.white, fontSize: fonts.large, fontWeight: 'bold' },
+  checkoutText: { color: '#fff', fontSize: fonts.large, fontWeight: 'bold' },
   minimumOrderWarning: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#fef2f2',
     borderWidth: 1,
-    borderColor: '#fecaca',
     borderRadius: 10,
     padding: 12,
     marginBottom: 12,
@@ -1185,7 +1220,6 @@ const styles = StyleSheet.create({
   minimumOrderText: {
     flex: 1,
     fontSize: fonts.small,
-    color: '#dc2626',
     fontWeight: '600',
   },
   loadingOverlay: {
@@ -1207,13 +1241,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    maxHeight: '92%',
-    flex: 1,
+    maxHeight: '85%',
   },
   modalContent: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    flex: 1,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1240,7 +1272,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   modalSaveButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#FF6B00',
     borderRadius: 10,
     padding: 10,
     alignItems: 'center',

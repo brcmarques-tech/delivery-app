@@ -363,12 +363,18 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </Modal>
 
-      <Modal visible={showTerms} animationType="slide">
-        <AcceptTermsScreen readOnly onClose={() => setShowTerms(false)} />
+      <Modal visible={showTerms} animationType="slide" transparent onRequestClose={() => setShowTerms(false)}>
+        <View style={[styles.helpOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+          <TouchableOpacity style={{ flex: 0.05 }} activeOpacity={1} onPress={() => setShowTerms(false)} />
+          <View style={{ flex: 0.95, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' }}>
+            <AcceptTermsScreen readOnly onClose={() => setShowTerms(false)} />
+          </View>
+        </View>
       </Modal>
 
-      <Modal visible={showHelp} animationType="slide" transparent>
+      <Modal visible={showHelp} animationType="slide" transparent onRequestClose={() => setShowHelp(false)}>
         <View style={[styles.helpOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowHelp(false)} />
           <View style={[styles.helpModal, { backgroundColor: colors.card, paddingBottom: insets.bottom + 32 }]}>
             <View style={styles.helpHeader}>
               <Text style={[styles.helpTitle, { color: colors.text }]}>Ajuda & Suporte</Text>

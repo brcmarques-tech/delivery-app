@@ -30,7 +30,8 @@ import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CREATE_ADDRESS } from '../src/lib/graphql/mutations';
 import { useAlert } from '../src/contexts/AlertContext';
-import { colors, fonts } from '../src/theme';
+import { fonts } from '../src/theme';
+import { useTheme } from '../src/contexts/ThemeContext';
 
 const ESTADOS_BR = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
@@ -38,6 +39,7 @@ const ESTADOS_BR = [
 ];
 
 export default function OnboardingAddressScreen() {
+  const { colors } = useTheme();
   const [createAddress] = useMutation(CREATE_ADDRESS);
   const { alert } = useAlert();
 
@@ -202,39 +204,39 @@ export default function OnboardingAddressScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.white }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
-        <View style={styles.iconCircle}>
+        <View style={[styles.iconCircle, { backgroundColor: colors.primary + '15' }]}>
           <Ionicons name="location" size={26} color={colors.primary} />
         </View>
-        <Text style={styles.title}>Onde voce esta?</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: colors.text }]}>Onde voce esta?</Text>
+        <Text style={[styles.subtitle, { color: colors.textLight }]}>
           Cadastre seu endereco principal para{'\n'}encontrar as melhores lojas perto de voce
         </Text>
       </View>
 
-      <TouchableOpacity style={styles.gpsButton} onPress={handleGetLocation} disabled={locating}>
+      <TouchableOpacity style={[styles.gpsButton, { backgroundColor: '#FF6B00' }]} onPress={handleGetLocation} disabled={locating}>
         {locating ? (
-          <ActivityIndicator size="small" color={colors.white} />
+          <ActivityIndicator size="small" color="#fff" />
         ) : (
           <>
-            <Ionicons name="navigate" size={18} color={colors.white} />
+            <Ionicons name="navigate" size={18} color="#fff" />
             <Text style={styles.gpsButtonText}>Usar minha localizacao atual</Text>
           </>
         )}
       </TouchableOpacity>
 
       <View style={styles.dividerRow}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>ou preencha manualmente</Text>
-        <View style={styles.dividerLine} />
+        <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
+        <Text style={[styles.dividerText, { color: colors.gray }]}>ou preencha manualmente</Text>
+        <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
       </View>
 
       <View style={styles.form}>
         <View style={styles.formRow}>
           <TextInput
-            style={[styles.input, { flex: 1 }]}
+            style={[styles.input, { flex: 1, backgroundColor: colors.background, color: colors.text }]}
             placeholder="CEP"
             placeholderTextColor={colors.gray}
             value={form.zipCode}
@@ -248,14 +250,14 @@ export default function OnboardingAddressScreen() {
         </View>
         <View style={styles.formRow}>
           <TextInput
-            style={[styles.input, { flex: 2 }]}
+            style={[styles.input, { flex: 2, backgroundColor: colors.background, color: colors.text }]}
             placeholder="Rua *"
             placeholderTextColor={colors.gray}
             value={form.street}
             onChangeText={(v) => setForm({ ...form, street: v })}
           />
           <TextInput
-            style={[styles.input, { flex: 1 }]}
+            style={[styles.input, { flex: 1, backgroundColor: colors.background, color: colors.text }]}
             placeholder="Numero *"
             placeholderTextColor={colors.gray}
             value={form.number}
@@ -263,14 +265,14 @@ export default function OnboardingAddressScreen() {
           />
         </View>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.background, color: colors.text }]}
           placeholder="Complemento"
           placeholderTextColor={colors.gray}
           value={form.complement}
           onChangeText={(v) => setForm({ ...form, complement: v })}
         />
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.background, color: colors.text }]}
           placeholder="Bairro *"
           placeholderTextColor={colors.gray}
           value={form.neighborhood}
@@ -278,17 +280,17 @@ export default function OnboardingAddressScreen() {
         />
         <View style={styles.formRow}>
           <TextInput
-            style={[styles.input, { flex: 2 }]}
+            style={[styles.input, { flex: 2, backgroundColor: colors.background, color: colors.text }]}
             placeholder="Cidade *"
             placeholderTextColor={colors.gray}
             value={form.city}
             onChangeText={(v) => setForm({ ...form, city: v })}
           />
           <TouchableOpacity
-            style={[styles.input, styles.stateSelector, { flex: 1 }]}
+            style={[styles.input, styles.stateSelector, { flex: 1, backgroundColor: colors.background }]}
             onPress={() => setShowStatePicker(true)}
           >
-            <Text style={form.state ? styles.stateText : styles.statePlaceholder}>
+            <Text style={form.state ? [styles.stateText, { color: colors.text }] : [styles.statePlaceholder, { color: colors.gray }]}>
               {form.state || 'UF *'}
             </Text>
             <Ionicons name="chevron-down" size={16} color={colors.gray} />
@@ -302,8 +304,8 @@ export default function OnboardingAddressScreen() {
           activeOpacity={1}
           onPress={() => setShowStatePicker(false)}
         >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Selecione o estado</Text>
+          <View style={[styles.modalContent, { backgroundColor: colors.white }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Selecione o estado</Text>
             <FlatList
               data={ESTADOS_BR}
               keyExtractor={(item) => item}
@@ -314,7 +316,8 @@ export default function OnboardingAddressScreen() {
                 <TouchableOpacity
                   style={[
                     styles.stateChip,
-                    form.state === item && styles.stateChipActive,
+                    { backgroundColor: colors.background },
+                    form.state === item && { backgroundColor: colors.primary },
                   ]}
                   onPress={() => {
                     setForm((prev) => ({ ...prev, state: item }));
@@ -324,7 +327,8 @@ export default function OnboardingAddressScreen() {
                   <Text
                     style={[
                       styles.stateChipText,
-                      form.state === item && styles.stateChipTextActive,
+                      { color: colors.text },
+                      form.state === item && { color: '#fff' },
                     ]}
                   >
                     {item}
@@ -339,7 +343,7 @@ export default function OnboardingAddressScreen() {
       {!showMap ? (
         <>
           <TouchableOpacity
-            style={[styles.saveButton, geocodingMap && { opacity: 0.6 }]}
+            style={[styles.saveButton, { backgroundColor: '#FF6B00' }, geocodingMap && { opacity: 0.6 }]}
             onPress={handleShowMap}
             disabled={geocodingMap}
           >
@@ -349,19 +353,19 @@ export default function OnboardingAddressScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-            <Text style={styles.skipText}>Pular por enquanto</Text>
+            <Text style={[styles.skipText, { color: colors.textLight }]}>Pular por enquanto</Text>
           </TouchableOpacity>
         </>
       ) : (
         <View style={styles.mapSection}>
-          <Text style={styles.mapTitle}>Confirme a localização</Text>
-          <Text style={styles.mapAddress}>
+          <Text style={[styles.mapTitle, { color: colors.text }]}>Confirme a localização</Text>
+          <Text style={[styles.mapAddress, { color: colors.textLight }]}>
             {form.street}, {form.number} — {form.neighborhood}, {form.city}/{form.state}
           </Text>
-          <Text style={styles.mapHint}>Arraste o pin para ajustar a posição exata</Text>
+          <Text style={[styles.mapHint, { color: colors.primary }]}>Arraste o pin para ajustar a posição exata</Text>
 
           {form.latitude && form.longitude ? (
-            <View style={styles.mapContainer}>
+            <View style={[styles.mapContainer, { backgroundColor: colors.grayLight }]}>
               <MapView
                 ref={mapRef}
                 style={styles.map}
@@ -384,20 +388,20 @@ export default function OnboardingAddressScreen() {
               </MapView>
             </View>
           ) : (
-            <View style={[styles.mapContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={[styles.mapContainer, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
               <Text style={{ color: colors.textLight }}>Não foi possível localizar o endereço</Text>
             </View>
           )}
 
           <View style={styles.mapButtons}>
             <TouchableOpacity
-              style={styles.mapBackButton}
+              style={[styles.mapBackButton, { borderColor: colors.grayLight }]}
               onPress={() => setShowMap(false)}
             >
-              <Text style={styles.mapBackButtonText}>Corrigir endereço</Text>
+              <Text style={[styles.mapBackButtonText, { color: colors.textLight }]}>Corrigir endereço</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.saveButton, { flex: 1 }, saving && { opacity: 0.6 }]}
+              style={[styles.saveButton, { flex: 1, backgroundColor: '#FF6B00' }, saving && { opacity: 0.6 }]}
               onPress={handleSave}
               disabled={saving}
             >
@@ -414,14 +418,13 @@ export default function OnboardingAddressScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.white },
+  container: { flex: 1 },
   content: { padding: 12, paddingTop: 60, paddingBottom: 40 },
   header: { alignItems: 'center', marginBottom: 32 },
   iconCircle: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
@@ -429,12 +432,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: fonts.title,
     fontWeight: 'bold',
-    color: colors.text,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: fonts.regular,
-    color: colors.textLight,
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 22,
@@ -444,12 +445,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: colors.primary,
     borderRadius: 10,
     padding: 12,
   },
   gpsButtonText: {
-    color: colors.white,
+    color: '#fff',
     fontWeight: 'bold',
     fontSize: fonts.regular,
   },
@@ -462,30 +462,25 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: colors.grayLight,
   },
   dividerText: {
     fontSize: fonts.small,
-    color: colors.gray,
   },
   form: { gap: 6 },
   formRow: { flexDirection: 'row', gap: 6 },
   input: {
-    backgroundColor: colors.background,
     borderRadius: 10,
     padding: 10,
     fontSize: fonts.regular,
-    color: colors.text,
   },
   saveButton: {
-    backgroundColor: colors.primary,
     borderRadius: 10,
     padding: 12,
     alignItems: 'center',
     marginTop: 12,
   },
   saveButtonText: {
-    color: colors.white,
+    color: '#fff',
     fontWeight: 'bold',
     fontSize: fonts.large,
   },
@@ -495,7 +490,6 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   skipText: {
-    color: colors.textLight,
     fontSize: fonts.regular,
   },
   stateSelector: {
@@ -505,11 +499,9 @@ const styles = StyleSheet.create({
   },
   stateText: {
     fontSize: fonts.regular,
-    color: colors.text,
   },
   statePlaceholder: {
     fontSize: fonts.regular,
-    color: colors.gray,
   },
   modalOverlay: {
     flex: 1,
@@ -517,7 +509,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: colors.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 12,
@@ -526,7 +517,6 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: fonts.large,
     fontWeight: 'bold',
-    color: colors.text,
     textAlign: 'center',
     marginBottom: 12,
   },
@@ -534,19 +524,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 10,
-    backgroundColor: colors.background,
     alignItems: 'center',
-  },
-  stateChipActive: {
-    backgroundColor: colors.primary,
   },
   stateChipText: {
     fontSize: fonts.regular,
     fontWeight: '600',
-    color: colors.text,
-  },
-  stateChipTextActive: {
-    color: colors.white,
   },
   mapSection: {
     marginTop: 12,
@@ -555,18 +537,15 @@ const styles = StyleSheet.create({
   mapTitle: {
     fontSize: fonts.large,
     fontWeight: 'bold',
-    color: colors.text,
     textAlign: 'center',
   },
   mapAddress: {
     fontSize: fonts.small,
-    color: colors.textLight,
     textAlign: 'center',
   },
   mapHint: {
     fontSize: fonts.regular,
     fontWeight: '600',
-    color: colors.primary,
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -574,7 +553,6 @@ const styles = StyleSheet.create({
     height: 250,
     borderRadius: 10,
     overflow: 'hidden',
-    backgroundColor: colors.grayLight,
   },
   map: {
     flex: 1,
@@ -590,11 +568,9 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.grayLight,
   },
   mapBackButtonText: {
     fontWeight: 'bold',
     fontSize: fonts.regular,
-    color: colors.textLight,
   },
 });

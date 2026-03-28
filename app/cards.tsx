@@ -94,9 +94,10 @@ export default function CardsScreen() {
   // it's never persisted and cleared on navigation (see L3 below).
   const [cvv, setCvv] = useState('');
 
-  // L3/L9: Clear sensitive card form fields when navigating away
+  // Refetch cards when screen gains focus + clear form on leave
   useFocusEffect(
     useCallback(() => {
+      refetch();
       return () => {
         setCvv('');
         setCardNumber('');
@@ -237,7 +238,10 @@ export default function CardsScreen() {
       }
 
       const tokenData = await tokenResponse.json();
-      await saveCardMut({ variables: { token: tokenData.id } });
+      const { errors } = await saveCardMut({ variables: { token: tokenData.id } });
+      if (errors && errors.length > 0) {
+        throw new Error(errors[0].message || 'Erro ao salvar cartao no servidor');
+      }
       refetch();
 
       setCardNumber('');

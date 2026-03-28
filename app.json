@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Delivery App",
-    "slug": "delivery-app",
+    "name": "Shopping App",
+    "slug": "shopping-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "delivery-app",
+    "scheme": "shopping-app",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.bcmtech.deliveryapp"
+      "bundleIdentifier": "com.bcmtech.shoppingapp"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +23,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.bcmtech.deliveryapp",
+      "package": "com.bcmtech.shoppingapp",
       "googleServicesFile": "./google-services.json",
       "config": {
         "googleMaps": {

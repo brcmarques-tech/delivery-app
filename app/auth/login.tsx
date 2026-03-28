@@ -18,14 +18,16 @@ import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
-import { colors, fonts } from '../../src/theme';
+import { useTheme } from '../../src/contexts/ThemeContext';
+import { fonts } from '../../src/theme';
 
 const API_BASE = 'https://api.bcmtech.com.br';
 const RETURN_URL = Constants.appOwnership === 'expo'
   ? Linking.createURL('google-auth')
-  : 'delivery-app://google-auth';
+  : 'shopping-app://google-auth';
 
 export default function LoginScreen() {
+  const { colors } = useTheme();
   const { login, loginWithGoogle, setAuthData } = useAuth();
   const { alert } = useAlert();
   const [email, setEmail] = useState('');
@@ -109,23 +111,23 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.white }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.header}>
         <View style={styles.logoWrapper}>
           <Text style={styles.logoBcm}>BCM TECH</Text>
           <View style={styles.logoTextRow}>
-            <Text style={styles.logo}>Delivery</Text>
-            <Text style={styles.logoApp}>App</Text>
+            <Text style={[styles.logo, { color: colors.primary }]}>Shopping</Text>
+            <Text style={[styles.logoApp, { color: colors.textLight }]}>App</Text>
           </View>
         </View>
-        <Text style={styles.subtitle}>Tudo perto de voce</Text>
+        <Text style={[styles.subtitle, { color: colors.textLight }]}>Tudo perto de voce</Text>
       </View>
 
       <View style={styles.form}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.grayLight, color: colors.text }]}
           placeholder="Email"
           placeholderTextColor={colors.gray}
           value={email}
@@ -133,9 +135,9 @@ export default function LoginScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
         />
-        <View style={styles.passwordContainer}>
+        <View style={[styles.passwordContainer, { backgroundColor: colors.grayLight }]}>
           <TextInput
-            style={styles.passwordInput}
+            style={[styles.passwordInput, { color: colors.text }]}
             placeholder="Senha"
             placeholderTextColor={colors.gray}
             value={password}
@@ -155,7 +157,7 @@ export default function LoginScreen() {
         </View>
 
         <TouchableOpacity onPress={() => router.push('/auth/forgot-password')}>
-          <Text style={styles.forgotPassword}>Esqueci minha senha</Text>
+          <Text style={[styles.forgotPassword, { color: colors.primary }]}>Esqueci minha senha</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -169,13 +171,13 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>ou</Text>
-          <View style={styles.dividerLine} />
+          <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
+          <Text style={[styles.dividerText, { color: colors.gray }]}>ou</Text>
+          <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
         </View>
 
         <TouchableOpacity
-          style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+          style={[styles.googleButton, { backgroundColor: colors.white, borderColor: colors.grayLight }, googleLoading && styles.buttonDisabled]}
           onPress={handleGoogleLogin}
           disabled={googleLoading}
         >
@@ -187,14 +189,14 @@ export default function LoginScreen() {
                 source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
                 style={styles.googleIcon}
               />
-              <Text style={styles.googleButtonText}>Continuar com Google</Text>
+              <Text style={[styles.googleButtonText, { color: colors.text }]}>Continuar com Google</Text>
             </>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.push('/auth/register')}>
-          <Text style={styles.link}>
-            Nao tem conta? <Text style={styles.linkBold}>Cadastre-se</Text>
+          <Text style={[styles.link, { color: colors.textLight }]}>
+            Nao tem conta? <Text style={[styles.linkBold, { color: colors.primary }]}>Cadastre-se</Text>
           </Text>
         </TouchableOpacity>
       </View>
@@ -205,7 +207,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
     justifyContent: 'center',
     padding: 12,
   },
@@ -237,52 +238,44 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 40,
     fontWeight: '800',
-    color: colors.primary,
   },
   logoApp: {
     fontSize: 24,
     fontWeight: '600',
-    color: colors.textLight,
     marginLeft: 6,
   },
   subtitle: {
     fontSize: fonts.large,
-    color: colors.textLight,
     marginTop: 8,
   },
   form: {
     gap: 6,
   },
   input: {
-    backgroundColor: colors.grayLight,
     borderRadius: 10,
     padding: 12,
     fontSize: fonts.regular,
-    color: colors.text,
   },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.grayLight,
     borderRadius: 10,
   },
   passwordInput: {
     flex: 1,
     padding: 12,
     fontSize: fonts.regular,
-    color: colors.text,
   },
   eyeButton: {
     paddingHorizontal: 10,
     paddingVertical: 12,
   },
   forgotPassword: {
-    color: colors.primary,
     fontSize: fonts.small,
     textAlign: 'right',
   },
   button: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#FF6B00',
     borderRadius: 10,
     padding: 12,
     alignItems: 'center',
@@ -292,7 +285,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: colors.white,
+    color: '#fff',
     fontSize: fonts.large,
     fontWeight: 'bold',
   },
@@ -304,21 +297,17 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: colors.grayLight,
   },
   dividerText: {
-    color: colors.gray,
     fontSize: fonts.small,
   },
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.white,
     borderRadius: 10,
     padding: 10,
     borderWidth: 1,
-    borderColor: colors.grayLight,
     gap: 6,
   },
   googleIcon: {
@@ -326,18 +315,15 @@ const styles = StyleSheet.create({
     height: 20,
   },
   googleButtonText: {
-    color: colors.text,
     fontSize: fonts.regular,
     fontWeight: '600',
   },
   link: {
     textAlign: 'center',
-    color: colors.textLight,
     fontSize: fonts.regular,
     marginTop: 12,
   },
   linkBold: {
-    color: colors.primary,
     fontWeight: 'bold',
   },
 });

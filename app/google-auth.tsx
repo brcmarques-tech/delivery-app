@@ -3,7 +3,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useAlert } from '../src/contexts/AlertContext';
-import { colors } from '../src/theme';
+import { useTheme } from '../src/contexts/ThemeContext';
 
 export default function GoogleAuthScreen() {
   const params = useLocalSearchParams<{
@@ -16,6 +16,7 @@ export default function GoogleAuthScreen() {
     googleId?: string;
     accessToken?: string;
   }>();
+  const { colors } = useTheme();
   const { loginWithGoogle, setAuthData } = useAuth();
   const { alert } = useAlert();
 
@@ -54,7 +55,7 @@ export default function GoogleAuthScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.white }]}>
       <ActivityIndicator size="large" color={colors.primary} />
     </View>
   );
@@ -63,7 +64,6 @@ export default function GoogleAuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
