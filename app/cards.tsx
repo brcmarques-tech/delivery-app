@@ -144,7 +144,7 @@ export default function CardsScreen() {
     return digits;
   }
 
-  async function handleDeleteCard(cardId: string) {
+  const handleDeleteCard = useCallback(async (cardId: string) => {
     alert('Remover Cartao', 'Tem certeza que deseja remover este cartao?', [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -161,7 +161,35 @@ export default function CardsScreen() {
         },
       },
     ]);
-  }
+  }, [alert, deleteCardMut, refetch]);
+
+  const renderCardItem = useCallback(({ item }: { item: any }) => (
+    <View style={[styles.cardItem, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+      <View style={[styles.cardIconBg, { backgroundColor: getBrandColor(item.brand) + '15' }]}>
+        <Ionicons name={getBrandIcon(item.brand) as any} size={18} color={getBrandColor(item.brand)} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.cardBrand, { color: themeColors.text }]}>
+          {(item.brand || 'Cartao').charAt(0).toUpperCase() + (item.brand || 'cartao').slice(1)} **** {item.lastFourDigits}
+        </Text>
+        {item.holderName && (
+          <Text style={[styles.cardHolder, { color: themeColors.textSecondary }]}>{item.holderName}</Text>
+        )}
+        {item.expMonth && item.expYear && (
+          <Text style={[styles.cardExpiry, { color: themeColors.textSecondary }]}>
+            Validade: {String(item.expMonth).padStart(2, '0')}/{item.expYear}
+          </Text>
+        )}
+      </View>
+      <TouchableOpacity
+        onPress={() => handleDeleteCard(item.id)}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        style={styles.deleteBtn}
+      >
+        <Ionicons name="trash-outline" size={18} color="#ef4444" />
+      </TouchableOpacity>
+    </View>
+  ), [themeColors, handleDeleteCard]);
 
   async function handleSaveCard() {
     // H2: Double-tap prevention
@@ -488,33 +516,8 @@ export default function CardsScreen() {
           data={cards}
           keyExtractor={(item: any) => item.id}
           contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 16 }]}
-          renderItem={({ item }: { item: any }) => (
-            <View style={[styles.cardItem, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
-              <View style={[styles.cardIconBg, { backgroundColor: getBrandColor(item.brand) + '15' }]}>
-                <Ionicons name={getBrandIcon(item.brand) as any} size={18} color={getBrandColor(item.brand)} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.cardBrand, { color: themeColors.text }]}>
-                  {(item.brand || 'Cartao').charAt(0).toUpperCase() + (item.brand || 'cartao').slice(1)} **** {item.lastFourDigits}
-                </Text>
-                {item.holderName && (
-                  <Text style={[styles.cardHolder, { color: themeColors.textSecondary }]}>{item.holderName}</Text>
-                )}
-                {item.expMonth && item.expYear && (
-                  <Text style={[styles.cardExpiry, { color: themeColors.textSecondary }]}>
-                    Validade: {String(item.expMonth).padStart(2, '0')}/{item.expYear}
-                  </Text>
-                )}
-              </View>
-              <TouchableOpacity
-                onPress={() => handleDeleteCard(item.id)}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                style={styles.deleteBtn}
-              >
-                <Ionicons name="trash-outline" size={18} color="#ef4444" />
-              </TouchableOpacity>
-            </View>
-          )}
+          removeClippedSubviews={true}
+          renderItem={renderCardItem}
           ListEmptyComponent={
             !showForm ? (
               <View style={styles.emptyContainer}>

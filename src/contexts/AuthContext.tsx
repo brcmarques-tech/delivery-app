@@ -22,6 +22,7 @@ interface User {
   acceptedTermsAt?: string | null;
   emailVerified?: boolean;
   phoneVerified?: boolean;
+  avatarUrl?: string | null;
 }
 
 interface AuthContextData {
@@ -35,6 +36,7 @@ interface AuthContextData {
   logout: () => Promise<void>;
   updateUser: (user: User) => Promise<void>;
   setAuthData: (token: string, user: User) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -223,7 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, loginWithGoogle, registerWithGoogle, register, logout, updateUser, setAuthData }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginWithGoogle, registerWithGoogle, register, logout, updateUser, setAuthData, refreshUser: validateToken }}>
       {children}
     </AuthContext.Provider>
   );
