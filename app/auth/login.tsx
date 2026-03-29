@@ -11,12 +11,14 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
+import { Image as ExpoImage } from 'expo-image';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -26,7 +28,13 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
   withDelay,
+  withTiming,
+  runOnJS,
+  Easing,
 } from 'react-native-reanimated';
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const CART_IMG = require('../../assets/splash-cart.png');
 
 const API_BASE = 'https://api.bcmtech.com.br';
 const RETURN_URL = Constants.appOwnership === 'expo'
@@ -67,6 +75,69 @@ export default function LoginScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [transitioning, setTransitioning] = useState(false);
+
+  // Transition animation values
+  // Phase 1: header slides up, form slides down
+  const headerTranslateY = useSharedValue(0);
+  const formTranslateY = useSharedValue(0);
+  const contentOpacity = useSharedValue(1);
+  // Phase 2: cart slides left to right
+  const cartTranslateX = useSharedValue(-SCREEN_W);
+  const cartOpacity = useSharedValue(0);
+  // Background
+  const bgColor = useSharedValue(0); // 0 = current, 1 = white
+
+  const headerAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: headerTranslateY.value }],
+    opacity: contentOpacity.value,
+  }));
+
+  const formAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: formTranslateY.value }],
+    opacity: contentOpacity.value,
+  }));
+
+  const cartAnimStyle = useAnimatedStyle(() => ({
+    opacity: cartOpacity.value,
+    transform: [{ translateX: cartTranslateX.value }],
+  }));
+
+  const overlayAnimStyle = useAnimatedStyle(() => ({
+    opacity: bgColor.value,
+  }));
+
+  function playTransitionAndNavigate() {
+    setTransitioning(true);
+
+    // Phase 1: slide content out (400ms)
+    headerTranslateY.value = withTiming(-SCREEN_H * 0.5, { duration: 400, easing: Easing.in(Easing.cubic) });
+    formTranslateY.value = withTiming(SCREEN_H * 0.5, { duration: 400, easing: Easing.in(Easing.cubic) });
+    contentOpacity.value = withTiming(0, { duration: 400 });
+    bgColor.value = withTiming(1, { duration: 400 });
+
+    // Phase 2: cart slides across (after content exits)
+    cartOpacity.value = withDelay(400, withTiming(1, { duration: 150 }));
+    cartTranslateX.value = withDelay(400,
+      withTiming(0, { duration: 600, easing: Easing.out(Easing.cubic) })
+    );
+
+    // Phase 2b: cart pauses with bounce then exits
+    setTimeout(() => {
+      // Small bounce
+      cartTranslateX.value = withTiming(-15, { duration: 150 }, () => {
+        cartTranslateX.value = withTiming(10, { duration: 150 }, () => {
+          cartTranslateX.value = withTiming(0, { duration: 100 }, () => {
+            // Exit to right
+            cartTranslateX.value = withTiming(SCREEN_W, { duration: 500, easing: Easing.in(Easing.cubic) });
+            cartOpacity.value = withDelay(300, withTiming(0, { duration: 200 }, () => {
+              runOnJS(router.replace)('/');
+            }));
+          });
+        });
+      });
+    }, 1050); // 400 (phase1) + 600 (slide in) + 50 buffer
+  }
 
   async function handleGoogleLogin() {
     setGoogleLoading(true);
@@ -90,12 +161,12 @@ export default function LoginScreen() {
 
         if (params.accessToken) {
           await loginWithGoogle(params.accessToken as string);
-          router.replace('/');
+          playTransitionAndNavigate();
         } else if (params.token && params.user) {
           try {
             const userData = JSON.parse(params.user as string);
             await setAuthData(params.token as string, userData);
-            router.replace('/');
+            playTransitionAndNavigate();
           } catch {
             alert('Erro', 'Dados de autenticacao invalidos.');
           }
@@ -122,7 +193,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email, password, forceLogin);
-      router.replace('/');
+      playTransitionAndNavigate();
     } catch (err: any) {
       const msg = err?.message || '';
       if (msg.includes('ACTIVE_SESSION')) {
@@ -152,119 +223,133 @@ export default function LoginScreen() {
       keyboardShouldPersistTaps="handled"
       bounces={false}
     >
-      <View style={styles.brandedHeader}>
-        <View style={styles.decorCircle1} />
-        <View style={styles.decorCircle2} />
-        <View style={styles.decorCircle3} />
-        <OnceAnimated delay={0} fromY={-30}>
-          <View style={styles.brandedContent}>
-            <Image
-              source={require('../../assets/logo.png')}
-              style={styles.brandedLogo}
-              resizeMode="contain"
-            />
-            <Text style={styles.brandedTagline}>Tudo perto de voce</Text>
+      <Animated.View style={headerAnimStyle}>
+        <View style={styles.brandedHeader}>
+          <View style={styles.decorCircle1} />
+          <View style={styles.decorCircle2} />
+          <View style={styles.decorCircle3} />
+          <OnceAnimated delay={0} fromY={-30}>
+            <View style={styles.brandedContent}>
+              <Image
+                source={require('../../assets/logo.png')}
+                style={styles.brandedLogo}
+                resizeMode="contain"
+              />
+              <Text style={styles.brandedTagline}>Tudo perto de voce</Text>
+            </View>
+          </OnceAnimated>
+        </View>
+      </Animated.View>
+
+      <Animated.View style={formAnimStyle}>
+        <OnceAnimated delay={50} fromY={30}>
+          <View style={[styles.formCard, { backgroundColor: colors.white }]}>
+            <View style={styles.form}>
+              <OnceAnimated delay={100} fromX={30}>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.grayLight, color: colors.text }]}
+                  placeholder="Email"
+                  placeholderTextColor={colors.gray}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </OnceAnimated>
+
+              <OnceAnimated delay={150} fromX={30}>
+                <View style={[styles.passwordContainer, { backgroundColor: colors.grayLight }]}>
+                  <TextInput
+                    style={[styles.passwordInput, { color: colors.text }]}
+                    placeholder="Senha"
+                    placeholderTextColor={colors.gray}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeButton}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={18}
+                      color={colors.gray}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </OnceAnimated>
+
+              <Text style={[styles.errorText, !loginError && { height: 0, marginTop: 0 }]}>{loginError}</Text>
+
+              <OnceAnimated delay={200} fromX={0}>
+                <TouchableOpacity onPress={() => router.push('/auth/forgot-password')}>
+                  <Text style={[styles.forgotPassword, { color: colors.primary }]}>Esqueci minha senha</Text>
+                </TouchableOpacity>
+              </OnceAnimated>
+
+              <OnceAnimated delay={230} fromY={15}>
+                <TouchableOpacity
+                  style={[styles.button, loading && styles.buttonDisabled]}
+                  onPress={() => handleLogin()}
+                  disabled={loading || transitioning}
+                >
+                  <Text style={styles.buttonText}>
+                    {loading ? 'Entrando...' : 'Entrar'}
+                  </Text>
+                </TouchableOpacity>
+              </OnceAnimated>
+
+              <OnceAnimated delay={280} fromY={0}>
+                <View style={styles.divider}>
+                  <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
+                  <Text style={[styles.dividerText, { color: colors.gray }]}>ou</Text>
+                  <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
+                </View>
+              </OnceAnimated>
+
+              <OnceAnimated delay={320} fromY={15}>
+                <TouchableOpacity
+                  style={[styles.googleButton, { backgroundColor: colors.white, borderColor: colors.grayLight }, googleLoading && styles.buttonDisabled]}
+                  onPress={handleGoogleLogin}
+                  disabled={googleLoading || transitioning}
+                >
+                  {googleLoading ? (
+                    <ActivityIndicator size="small" color={colors.text} />
+                  ) : (
+                    <>
+                      <Image
+                        source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
+                        style={styles.googleIcon}
+                      />
+                      <Text style={[styles.googleButtonText, { color: colors.text }]}>Continuar com Google</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </OnceAnimated>
+
+              <OnceAnimated delay={360} fromY={0}>
+                <TouchableOpacity onPress={() => router.push('/auth/register')}>
+                  <Text style={[styles.link, { color: colors.textLight }]}>
+                    Nao tem conta? <Text style={[styles.linkBold, { color: colors.primary }]}>Cadastre-se</Text>
+                  </Text>
+                </TouchableOpacity>
+              </OnceAnimated>
+            </View>
           </View>
         </OnceAnimated>
-      </View>
-
-      <OnceAnimated delay={50} fromY={30}>
-        <View style={[styles.formCard, { backgroundColor: colors.white }]}>
-          <View style={styles.form}>
-            <OnceAnimated delay={100} fromX={30}>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.grayLight, color: colors.text }]}
-                placeholder="Email"
-                placeholderTextColor={colors.gray}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </OnceAnimated>
-
-            <OnceAnimated delay={150} fromX={30}>
-              <View style={[styles.passwordContainer, { backgroundColor: colors.grayLight }]}>
-                <TextInput
-                  style={[styles.passwordInput, { color: colors.text }]}
-                  placeholder="Senha"
-                  placeholderTextColor={colors.gray}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                />
-                <TouchableOpacity
-                  style={styles.eyeButton}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  <Ionicons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={18}
-                    color={colors.gray}
-                  />
-                </TouchableOpacity>
-              </View>
-            </OnceAnimated>
-
-            <Text style={[styles.errorText, !loginError && { height: 0, marginTop: 0 }]}>{loginError}</Text>
-
-            <OnceAnimated delay={200} fromX={0}>
-              <TouchableOpacity onPress={() => router.push('/auth/forgot-password')}>
-                <Text style={[styles.forgotPassword, { color: colors.primary }]}>Esqueci minha senha</Text>
-              </TouchableOpacity>
-            </OnceAnimated>
-
-            <OnceAnimated delay={230} fromY={15}>
-              <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
-                onPress={() => handleLogin()}
-                disabled={loading}
-              >
-                <Text style={styles.buttonText}>
-                  {loading ? 'Entrando...' : 'Entrar'}
-                </Text>
-              </TouchableOpacity>
-            </OnceAnimated>
-
-            <OnceAnimated delay={280} fromY={0}>
-              <View style={styles.divider}>
-                <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
-                <Text style={[styles.dividerText, { color: colors.gray }]}>ou</Text>
-                <View style={[styles.dividerLine, { backgroundColor: colors.grayLight }]} />
-              </View>
-            </OnceAnimated>
-
-            <OnceAnimated delay={320} fromY={15}>
-              <TouchableOpacity
-                style={[styles.googleButton, { backgroundColor: colors.white, borderColor: colors.grayLight }, googleLoading && styles.buttonDisabled]}
-                onPress={handleGoogleLogin}
-                disabled={googleLoading}
-              >
-                {googleLoading ? (
-                  <ActivityIndicator size="small" color={colors.text} />
-                ) : (
-                  <>
-                    <Image
-                      source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
-                      style={styles.googleIcon}
-                    />
-                    <Text style={[styles.googleButtonText, { color: colors.text }]}>Continuar com Google</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </OnceAnimated>
-
-            <OnceAnimated delay={360} fromY={0}>
-              <TouchableOpacity onPress={() => router.push('/auth/register')}>
-                <Text style={[styles.link, { color: colors.textLight }]}>
-                  Nao tem conta? <Text style={[styles.linkBold, { color: colors.primary }]}>Cadastre-se</Text>
-                </Text>
-              </TouchableOpacity>
-            </OnceAnimated>
-          </View>
-        </View>
-      </OnceAnimated>
+      </Animated.View>
     </ScrollView>
+
+      {/* White overlay + cart crossing animation */}
+      {transitioning && (
+        <>
+          <Animated.View style={[styles.transitionOverlay, overlayAnimStyle]} />
+          <Animated.View style={[styles.transitionCart, cartAnimStyle]}>
+            <ExpoImage source={CART_IMG} style={styles.transitionCartImage} contentFit="contain" />
+          </Animated.View>
+        </>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -412,5 +497,23 @@ const styles = StyleSheet.create({
   },
   linkBold: {
     fontWeight: 'bold',
+  },
+  transitionOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#FFFFFF',
+    zIndex: 100,
+  },
+  transitionCart: {
+    position: 'absolute',
+    top: SCREEN_H / 2 - SCREEN_W * 0.225,
+    left: 0,
+    width: SCREEN_W * 0.45,
+    height: SCREEN_W * 0.45,
+    zIndex: 101,
+    alignSelf: 'center',
+  },
+  transitionCartImage: {
+    width: SCREEN_W * 0.45,
+    height: SCREEN_W * 0.45,
   },
 });

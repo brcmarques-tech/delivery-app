@@ -11,6 +11,7 @@ export default function Index() {
   const { user, loading } = useAuth();
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const [splashHidden, setSplashHidden] = useState(false);
+  const [animDone, setAnimDone] = useState(false);
 
   const { data: addrData, loading: addrLoading, error: addrError } = useQuery(GET_MY_ADDRESSES, {
     skip: !user,
@@ -23,6 +24,10 @@ export default function Index() {
     });
   }, []);
 
+  const onAnimationDone = useCallback(() => {
+    setAnimDone(true);
+  }, []);
+
   // Hide native splash as soon as our custom splash renders
   const onSplashReady = useCallback(() => {
     if (!splashHidden) {
@@ -31,8 +36,9 @@ export default function Index() {
     }
   }, [splashHidden]);
 
-  if (loading || onboardingDone === null) {
-    return <SplashLoading onReady={onSplashReady} />;
+  // Skip splash entirely if user is already logged in (came from login transition)
+  if (loading || onboardingDone === null || (!animDone && !user)) {
+    return <SplashLoading onReady={onSplashReady} onAnimationDone={onAnimationDone} />;
   }
 
   if (!user) {
