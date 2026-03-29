@@ -23,6 +23,7 @@ import { fonts } from '../../src/theme';
 import { AnimatedListItem } from '../../src/components/AnimatedListItem';
 import { AnimatedPressable } from '../../src/components/AnimatedPressable';
 import { AnimatedItem } from '../../src/components/AnimatedItem';
+import ReAnimated, { FadeIn, FadeOut, FadeInDown, FadeInRight, FadeOutRight } from 'react-native-reanimated';
 
 type FilterType = 'all' | 'open' | 'free_delivery' | 'promo';
 type TabType = 'products' | 'services';
@@ -56,17 +57,19 @@ const SERVICE_CATEGORIES = [
   { label: 'Mecanica', icon: 'car-outline' as const, query: 'mecanica' },
 ];
 
+type CategoryType = typeof PRODUCT_CATEGORIES[number];
+
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [activeTab, setActiveTab] = useState<TabType>('products');
+  const [activeCategory, setActiveCategory] = useState<CategoryType | null>(null);
   const [recentProducts, setRecentProducts] = useState<string[]>([]);
   const [recentServices, setRecentServices] = useState<string[]>([]);
   const [showRecent, setShowRecent] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const tabAnim = useRef(new Animated.Value(0)).current;
-  const swipeRef = useRef<ScrollView>(null);
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
@@ -96,13 +99,19 @@ export default function SearchScreen() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Search products when debounced query changes
+  // Search when debounced query changes or category changes
   useEffect(() => {
-    if (debouncedQuery.length >= 2) {
+    if (activeCategory) {
+      const searchTerm = debouncedQuery.length >= 2
+        ? `${activeCategory.query},${debouncedQuery}`
+        : activeCategory.query;
+      searchProducts({ variables: { query: searchTerm, limit: 100 } });
+      searchServices({ variables: { query: searchTerm, limit: 100 } });
+    } else if (debouncedQuery.length >= 2) {
       searchProducts({ variables: { query: debouncedQuery, limit: 30 } });
       searchServices({ variables: { query: debouncedQuery, limit: 30 } });
     }
-  }, [debouncedQuery]);
+  }, [debouncedQuery, activeCategory]);
 
   const saveRecentSearch = useCallback(async (term: string) => {
     const trimmed = term.trim();
@@ -131,17 +140,28 @@ export default function SearchScreen() {
     if (query.trim().length >= 2) saveRecentSearch(query);
   }
 
-  const contentWidth = screenWidth - 20; // padding 10 each side
+  function handleCategorySelect(cat: CategoryType) {
+    if (activeCategory?.label === cat.label) {
+      setActiveCategory(null);
+      setQuery('');
+    } else {
+      setActiveCategory(cat);
+      setQuery('');
+    }
+  }
+
 
   function switchTab(tab: TabType) {
     setActiveTab(tab);
     setActiveFilter('all');
+    setActiveCategory(null);
+    setQuery('');
     Animated.timing(tabAnim, {
       toValue: tab === 'products' ? 0 : 1,
       useNativeDriver: false,
       duration: 150,
     }).start();
-    swipeRef.current?.scrollTo({ x: tab === 'products' ? 0 : contentWidth, animated: false });
+
   }
 
   // Stores split by type
@@ -169,19 +189,37 @@ export default function SearchScreen() {
 
   // Filter products
   const allProducts = productsData?.searchProducts || [];
-  const filteredProducts = allProducts.filter((p: any) => {
-    if (activeFilter === 'open') return p.store?.isOpen;
-    if (activeFilter === 'free_delivery') return false;
-    if (activeFilter === 'promo') return p.promotionalPrice && p.promotionalPrice < p.price;
-    return true;
-  });
+  const filteredProducts = activeCategory
+    ? allProducts
+        .filter((p: any) => {
+          const catName = (p.category?.name || '').toLowerCase();
+          const keywords = activeCategory.query.toLowerCase().split(',');
+          return keywords.some((kw: string) => catName.includes(kw.trim())) || catName.includes(activeCategory.label.toLowerCase());
+        })
+        .filter((p: any) => !query.trim() || p.name.toLowerCase().includes(query.trim().toLowerCase()))
+        .sort((a: any, b: any) => a.name.localeCompare(b.name))
+    : allProducts.filter((p: any) => {
+        if (activeFilter === 'open') return p.store?.isOpen;
+        if (activeFilter === 'free_delivery') return false;
+        if (activeFilter === 'promo') return p.promotionalPrice && p.promotionalPrice < p.price;
+        return true;
+      });
 
   // Filter services
   const allServices = servicesData?.searchServices || [];
-  const filteredServices = allServices.filter((s: any) => {
-    if (activeFilter === 'open') return s.store?.isOpen;
-    return true;
-  });
+  const filteredServices = activeCategory
+    ? allServices
+        .filter((s: any) => {
+          const catName = (s.category?.name || '').toLowerCase();
+          const keywords = activeCategory.query.toLowerCase().split(',');
+          return keywords.some((kw: string) => catName.includes(kw.trim())) || catName.includes(activeCategory.label.toLowerCase());
+        })
+        .filter((s: any) => !query.trim() || s.name.toLowerCase().includes(query.trim().toLowerCase()))
+        .sort((a: any, b: any) => a.name.localeCompare(b.name))
+    : allServices.filter((s: any) => {
+        if (activeFilter === 'open') return s.store?.isOpen;
+        return true;
+      });
 
   // Promotions matching search
   const promotions = promosData?.activePromotions || [];
@@ -191,10 +229,13 @@ export default function SearchScreen() {
     (p.store?.name || '').toLowerCase().includes(debouncedQuery.toLowerCase()),
   ) : [];
 
+  const isSearching = debouncedQuery.length >= 2;
+  const isCategoryMode = activeCategory !== null;
+  const categoryItems = activeTab === 'products' ? filteredProducts : filteredServices;
   const hasResults = activeTab === 'products'
     ? filteredStores.length > 0 || filteredProducts.length > 0 || matchingPromos.length > 0
     : filteredStores.length > 0 || filteredServices.length > 0;
-  const isSearching = debouncedQuery.length >= 2;
+  const hasCategoryResults = categoryItems.length > 0;
 
   const tabHalfWidth = (screenWidth - 20) / 2;
   const indicatorLeft = tabAnim.interpolate({
@@ -254,7 +295,7 @@ export default function SearchScreen() {
             <TouchableOpacity
               key={cat.label}
               style={[styles.categoryCard, { backgroundColor: colors.card }]}
-              onPress={() => handleSearch(cat.query)}
+              onPress={() => handleCategorySelect(cat)}
             >
               <View style={[styles.categoryIcon, { backgroundColor: colors.primary + '15' }]}>
                 <Ionicons name={cat.icon} size={16} color={colors.primary} />
@@ -292,31 +333,84 @@ export default function SearchScreen() {
     );
   }
 
+  function renderCategoryItem(item: any, index: number) {
+    const isProduct = activeTab === 'products';
+    const hasPromo = isProduct && item.promotionalPrice && item.promotionalPrice < item.price;
+    return (
+      <AnimatedListItem key={item.id} index={index}>
+        <AnimatedPressable
+          style={[styles.acItem, { backgroundColor: colors.card }]}
+          onPress={() => router.push(`/store/${item.store?.id}`)}
+        >
+          {item.imageUrl ? (
+            <Image source={item.imageUrl} style={styles.acLogo} cachePolicy="memory-disk" />
+          ) : (
+            <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
+              <Ionicons name={isProduct ? 'cube-outline' : 'construct-outline'} size={16} color={colors.gray} />
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
+            <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{item.store?.name}</Text>
+          </View>
+          {isProduct ? (
+            <Text style={{ fontSize: fonts.small, fontWeight: '700', color: hasPromo ? colors.success : colors.text }}>
+              R$ {Number(hasPromo ? item.promotionalPrice : item.price).toFixed(2)}
+            </Text>
+          ) : item.requiresQuote ? (
+            <Text style={{ fontSize: fonts.tiny, color: colors.primary, fontWeight: '600' }}>Orcamento</Text>
+          ) : item.price ? (
+            <Text style={{ fontSize: fonts.small, fontWeight: '700', color: colors.text }}>
+              R$ {Number(item.price).toFixed(2)}
+            </Text>
+          ) : null}
+        </AnimatedPressable>
+      </AnimatedListItem>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.card, paddingTop: insets.top + 8 }]}>
         <Text style={[styles.title, { color: colors.text }]}>Buscar</Text>
         <View style={{ zIndex: 999 }}>
-          <View style={[styles.searchBox, { backgroundColor: colors.grayLight }]}>
-            <Ionicons name="search" size={18} color={colors.gray} />
-            <TextInput
-              ref={inputRef}
-              style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Buscar lojas, produtos, servicos..."
-              placeholderTextColor={colors.gray}
-              value={query}
-              onChangeText={(t) => { setQuery(t); setShowRecent(false); }}
-              onFocus={() => { if (!query && recentSearches.length > 0) setShowRecent(true); }}
-              onBlur={() => { setTimeout(() => setShowRecent(false), 200); }}
-              onSubmitEditing={() => { handleSubmit(); setShowRecent(false); }}
-              returnKeyType="search"
-              autoCorrect={false}
-            />
-            {query.length > 0 && (
-              <TouchableOpacity onPress={() => { setQuery(''); setShowRecent(recentSearches.length > 0); inputRef.current?.focus(); }}>
-                <Ionicons name="close-circle" size={18} color={colors.gray} />
-              </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={[styles.searchBox, { backgroundColor: colors.grayLight, flex: 1 }]}>
+              <Ionicons name="search" size={18} color={colors.gray} />
+              <TextInput
+                ref={inputRef}
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholder={activeCategory ? `Buscar em ${activeCategory.label}...` : 'Buscar lojas, produtos, servicos...'}
+                placeholderTextColor={colors.gray}
+                value={query}
+                onChangeText={(t) => { setQuery(t); setShowRecent(false); }}
+                onFocus={() => { if (!query && recentSearches.length > 0 && !activeCategory) setShowRecent(true); }}
+                onBlur={() => { setTimeout(() => setShowRecent(false), 200); }}
+                onSubmitEditing={() => { handleSubmit(); setShowRecent(false); }}
+                returnKeyType="search"
+                autoCorrect={false}
+              />
+              {query.length > 0 && (
+                <TouchableOpacity onPress={() => {
+                  setQuery('');
+                  if (!activeCategory) setShowRecent(recentSearches.length > 0);
+                  inputRef.current?.focus();
+                }}>
+                  <Ionicons name="close-circle" size={18} color={colors.gray} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {/* Active category chip — slides in from right */}
+            {activeCategory && (
+              <ReAnimated.View entering={FadeInRight.duration(250)} exiting={FadeOutRight.duration(200)}>
+                <TouchableOpacity
+                  style={[styles.activeCategoryChip, { backgroundColor: colors.primary }]}
+                  onPress={() => { setActiveCategory(null); setQuery(''); }}
+                >
+                  <Ionicons name={activeCategory.icon as any} size={20} color="#FFF" />
+                </TouchableOpacity>
+              </ReAnimated.View>
             )}
           </View>
           {showRecent && recentSearches.length > 0 && (
@@ -360,8 +454,8 @@ export default function SearchScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Filter chips */}
-        {isSearching && (
+        {/* Filter chips - only when text searching without category */}
+        {isSearching && !isCategoryMode && (
           <View style={styles.filtersRow}>
             {(activeTab === 'products' ? [
               { key: 'all' as FilterType, label: 'Todos', icon: 'grid-outline' as const },
@@ -391,83 +485,11 @@ export default function SearchScreen() {
         )}
       </View>
 
-      {/* Content — idle categories + stores always rendered, autocomplete overlays */}
+      {/* Content */}
       <View style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.idleContent} onScrollBeginDrag={() => { setShowRecent(false); }}>
-          {/* Categories + stores — swipeable */}
-          <ScrollView
-            ref={swipeRef}
-            horizontal
-            snapToInterval={contentWidth}
-            decelerationRate="fast"
-            showsHorizontalScrollIndicator={false}
-            scrollEventThrottle={16}
-            onMomentumScrollEnd={(e) => {
-              const page = Math.round(e.nativeEvent.contentOffset.x / contentWidth);
-              const newTab = page === 0 ? 'products' as TabType : 'services' as TabType;
-              if (newTab !== activeTab) {
-                setActiveTab(newTab);
-                Animated.timing(tabAnim, {
-                  toValue: page,
-                  useNativeDriver: false,
-                  duration: 150,
-                }).start();
-              }
-            }}
-          >
-            <View style={{ width: contentWidth }}>
-              {renderCategoriesAndStores(PRODUCT_CATEGORIES, productStores)}
-            </View>
-            <View style={{ width: contentWidth }}>
-              {renderCategoriesAndStores(SERVICE_CATEGORIES, serviceStores)}
-            </View>
-          </ScrollView>
-
-          {/* Promotions highlight */}
-          {promotions.length > 0 && (
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Ofertas do momento</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {promotions.slice(0, 6).map((promo: any, index: number) => {
-                  const discount = promo.product?.price && promo.promotionalPrice
-                    ? Math.round((1 - promo.promotionalPrice / promo.product.price) * 100) : 0;
-                  return (
-                    <AnimatedListItem key={promo.id} index={index}>
-                    <AnimatedPressable
-                      style={[styles.promoCard, { backgroundColor: colors.card }]}
-                      onPress={() => router.push(`/promotion/${promo.id}`)}
-                    >
-                      {(promo.product?.imageUrl || promo.imageUrl) ? (
-                        <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy="memory-disk" />
-                      ) : (
-                        <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
-                          <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
-                        </View>
-                      )}
-                      {discount > 0 && (
-                        <View style={styles.promoBadge}>
-                          <Text style={styles.promoBadgeText}>-{discount}%</Text>
-                        </View>
-                      )}
-                      <View style={styles.promoInfo}>
-                        <Text style={[styles.promoName, { color: colors.text }]} numberOfLines={1}>{promo.title}</Text>
-                        <Text style={[styles.promoStore, { color: colors.textLight }]} numberOfLines={1}>{promo.store?.name}</Text>
-                        {promo.promotionalPrice && (
-                          <Text style={[styles.promoPrice, { color: colors.primary }]}>R$ {Number(promo.promotionalPrice).toFixed(2)}</Text>
-                        )}
-                      </View>
-                    </AnimatedPressable>
-                    </AnimatedListItem>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Autocomplete overlay */}
-        {isSearching && (
-          <View style={[styles.autocompleteOverlay, { backgroundColor: colors.background }]}>
+        {/* Category results view */}
+        {isCategoryMode ? (
+          <ReAnimated.View entering={FadeInDown.duration(300)} exiting={FadeOut.duration(200)} style={{ flex: 1 }}>
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 10 }}>
               {(productsLoading || servicesLoading) && (
                 <View style={styles.loadingRow}>
@@ -476,106 +498,190 @@ export default function SearchScreen() {
                 </View>
               )}
 
-              {/* Stores first */}
-              {filteredStores.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((store: any, index: number) => (
-                <AnimatedListItem key={`store-${store.id}`} index={index}>
-                <AnimatedPressable
-                  style={[styles.acItem, { backgroundColor: colors.card }]}
-                  onPress={() => { setQuery(''); router.push(`/store/${store.id}`); }}
-                >
-                  {store.logoUrl ? (
-                    <Image source={store.logoUrl} style={styles.acLogo} cachePolicy="memory-disk" />
-                  ) : (
-                    <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                      <Ionicons name="storefront-outline" size={16} color={colors.gray} />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{store.name}</Text>
-                    <Text style={{ fontSize: fonts.tiny, color: colors.gray }}>
-                      {(store.storeType || 'PRODUCTS') === 'PRODUCTS' ? 'Loja' : 'Prestador'}
+              {categoryItems.map((item: any, index: number) => renderCategoryItem(item, index))}
+
+              {!(productsLoading || servicesLoading) && !hasCategoryResults && (
+                <AnimatedItem delay={100} fromY={20}>
+                  <View style={styles.emptyContainer}>
+                    <Ionicons name="search-outline" size={56} color={colors.grayLight} />
+                    <Text style={[styles.emptyText, { color: colors.textLight }]}>
+                      {query.trim()
+                        ? `Nenhum resultado para "${query}" em ${activeCategory.label}`
+                        : `Nenhum item em ${activeCategory.label}`}
+                    </Text>
+                    <Text style={[styles.emptySubtext, { color: colors.gray }]}>
+                      {query.trim() ? 'Tente buscar com outras palavras' : 'Tente outra categoria'}
                     </Text>
                   </View>
-                  <View style={[styles.acBadge, { backgroundColor: colors.primary + '20' }]}>
-                    <Ionicons name="storefront" size={12} color={colors.primary} />
-                  </View>
-                </AnimatedPressable>
-                </AnimatedListItem>
-              ))}
-
-              {/* Products (products tab) — sorted alphabetically */}
-              {activeTab === 'products' && filteredProducts
-                .sort((a: any, b: any) => a.name.localeCompare(b.name))
-                .map((product: any, index: number) => {
-                  const hasPromo = product.promotionalPrice && product.promotionalPrice < product.price;
-                  return (
-                    <AnimatedListItem key={`prod-${product.id}`} index={filteredStores.length + index}>
-                    <AnimatedPressable
-                      style={[styles.acItem, { backgroundColor: colors.card }]}
-                      onPress={() => { setQuery(''); router.push(`/store/${product.store?.id}`); }}
-                    >
-                      {product.imageUrl ? (
-                        <Image source={product.imageUrl} style={styles.acLogo} cachePolicy="memory-disk" />
-                      ) : (
-                        <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                          <Ionicons name="cube-outline" size={16} color={colors.gray} />
-                        </View>
-                      )}
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{product.name}</Text>
-                        <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{product.store?.name}</Text>
-                      </View>
-                      <Text style={{ fontSize: fonts.small, fontWeight: '700', color: hasPromo ? colors.success : colors.text }}>
-                        R$ {Number(hasPromo ? product.promotionalPrice : product.price).toFixed(2)}
-                      </Text>
-                    </AnimatedPressable>
-                    </AnimatedListItem>
-                  );
-                })}
-
-              {/* Services (services tab) — sorted alphabetically */}
-              {activeTab === 'services' && filteredServices
-                .sort((a: any, b: any) => a.name.localeCompare(b.name))
-                .map((service: any, index: number) => (
-                  <AnimatedListItem key={`svc-${service.id}`} index={filteredStores.length + index}>
-                  <AnimatedPressable
-                    style={[styles.acItem, { backgroundColor: colors.card }]}
-                    onPress={() => { setQuery(''); router.push(`/store/${service.store?.id}`); }}
-                  >
-                    {service.imageUrl ? (
-                      <Image source={service.imageUrl} style={styles.acLogo} cachePolicy="memory-disk" />
-                    ) : (
-                      <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                        <Ionicons name="construct-outline" size={16} color={colors.gray} />
-                      </View>
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{service.name}</Text>
-                      <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{service.store?.name}</Text>
-                    </View>
-                    {service.requiresQuote ? (
-                      <Text style={{ fontSize: fonts.tiny, color: colors.primary, fontWeight: '600' }}>Orcamento</Text>
-                    ) : service.price ? (
-                      <Text style={{ fontSize: fonts.small, fontWeight: '700', color: colors.text }}>
-                        R$ {Number(service.price).toFixed(2)}
-                      </Text>
-                    ) : null}
-                  </AnimatedPressable>
-                  </AnimatedListItem>
-                ))}
-
-              {/* Empty state */}
-              {!(productsLoading || servicesLoading) && !hasResults && debouncedQuery.length >= 2 && (
-                <AnimatedItem delay={100} fromY={20}>
-                <View style={styles.emptyContainer}>
-                  <Ionicons name="search-outline" size={56} color={colors.grayLight} />
-                  <Text style={[styles.emptyText, { color: colors.textLight }]}>Nenhum resultado para "{debouncedQuery}"</Text>
-                  <Text style={[styles.emptySubtext, { color: colors.gray }]}>Tente buscar com outras palavras</Text>
-                </View>
                 </AnimatedItem>
               )}
             </ScrollView>
-          </View>
+          </ReAnimated.View>
+        ) : (
+          <>
+            {/* Idle: categories + stores + promos */}
+            <ScrollView contentContainerStyle={styles.idleContent} onScrollBeginDrag={() => { setShowRecent(false); }}>
+              {/* Categories + stores — based on active tab */}
+              {activeTab === 'products'
+                ? renderCategoriesAndStores(PRODUCT_CATEGORIES, productStores)
+                : renderCategoriesAndStores(SERVICE_CATEGORIES, serviceStores)
+              }
+
+              {/* Promotions highlight */}
+              {promotions.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Ofertas do momento</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {promotions.slice(0, 6).map((promo: any, index: number) => {
+                      const discount = promo.product?.price && promo.promotionalPrice
+                        ? Math.round((1 - promo.promotionalPrice / promo.product.price) * 100) : 0;
+                      return (
+                        <AnimatedListItem key={promo.id} index={index}>
+                        <AnimatedPressable
+                          style={[styles.promoCard, { backgroundColor: colors.card }]}
+                          onPress={() => router.push(`/promotion/${promo.id}`)}
+                        >
+                          {(promo.product?.imageUrl || promo.imageUrl) ? (
+                            <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy="memory-disk" />
+                          ) : (
+                            <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                              <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
+                            </View>
+                          )}
+                          {discount > 0 && (
+                            <View style={styles.promoBadge}>
+                              <Text style={styles.promoBadgeText}>-{discount}%</Text>
+                            </View>
+                          )}
+                          <View style={styles.promoInfo}>
+                            <Text style={[styles.promoName, { color: colors.text }]} numberOfLines={1}>{promo.title}</Text>
+                            <Text style={[styles.promoStore, { color: colors.textLight }]} numberOfLines={1}>{promo.store?.name}</Text>
+                            {promo.promotionalPrice && (
+                              <Text style={[styles.promoPrice, { color: colors.primary }]}>R$ {Number(promo.promotionalPrice).toFixed(2)}</Text>
+                            )}
+                          </View>
+                        </AnimatedPressable>
+                        </AnimatedListItem>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Autocomplete overlay — only for text search without category */}
+            {isSearching && (
+              <View style={[styles.autocompleteOverlay, { backgroundColor: colors.background }]}>
+                <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 10 }}>
+                  {(productsLoading || servicesLoading) && (
+                    <View style={styles.loadingRow}>
+                      <ActivityIndicator size="small" color={colors.primary} />
+                      <Text style={[styles.loadingText, { color: colors.textLight }]}>Buscando...</Text>
+                    </View>
+                  )}
+
+                  {/* Stores first */}
+                  {filteredStores.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((store: any, index: number) => (
+                    <AnimatedListItem key={`store-${store.id}`} index={index}>
+                    <AnimatedPressable
+                      style={[styles.acItem, { backgroundColor: colors.card }]}
+                      onPress={() => { setQuery(''); router.push(`/store/${store.id}`); }}
+                    >
+                      {store.logoUrl ? (
+                        <Image source={store.logoUrl} style={styles.acLogo} cachePolicy="memory-disk" />
+                      ) : (
+                        <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
+                          <Ionicons name="storefront-outline" size={16} color={colors.gray} />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{store.name}</Text>
+                        <Text style={{ fontSize: fonts.tiny, color: colors.gray }}>
+                          {(store.storeType || 'PRODUCTS') === 'PRODUCTS' ? 'Loja' : 'Prestador'}
+                        </Text>
+                      </View>
+                      <View style={[styles.acBadge, { backgroundColor: colors.primary + '20' }]}>
+                        <Ionicons name="storefront" size={12} color={colors.primary} />
+                      </View>
+                    </AnimatedPressable>
+                    </AnimatedListItem>
+                  ))}
+
+                  {/* Products (products tab) — sorted alphabetically */}
+                  {activeTab === 'products' && filteredProducts
+                    .sort((a: any, b: any) => a.name.localeCompare(b.name))
+                    .map((product: any, index: number) => {
+                      const hasPromo = product.promotionalPrice && product.promotionalPrice < product.price;
+                      return (
+                        <AnimatedListItem key={`prod-${product.id}`} index={filteredStores.length + index}>
+                        <AnimatedPressable
+                          style={[styles.acItem, { backgroundColor: colors.card }]}
+                          onPress={() => { setQuery(''); router.push(`/store/${product.store?.id}`); }}
+                        >
+                          {product.imageUrl ? (
+                            <Image source={product.imageUrl} style={styles.acLogo} cachePolicy="memory-disk" />
+                          ) : (
+                            <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
+                              <Ionicons name="cube-outline" size={16} color={colors.gray} />
+                            </View>
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{product.name}</Text>
+                            <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{product.store?.name}</Text>
+                          </View>
+                          <Text style={{ fontSize: fonts.small, fontWeight: '700', color: hasPromo ? colors.success : colors.text }}>
+                            R$ {Number(hasPromo ? product.promotionalPrice : product.price).toFixed(2)}
+                          </Text>
+                        </AnimatedPressable>
+                        </AnimatedListItem>
+                      );
+                    })}
+
+                  {/* Services (services tab) — sorted alphabetically */}
+                  {activeTab === 'services' && filteredServices
+                    .sort((a: any, b: any) => a.name.localeCompare(b.name))
+                    .map((service: any, index: number) => (
+                      <AnimatedListItem key={`svc-${service.id}`} index={filteredStores.length + index}>
+                      <AnimatedPressable
+                        style={[styles.acItem, { backgroundColor: colors.card }]}
+                        onPress={() => { setQuery(''); router.push(`/store/${service.store?.id}`); }}
+                      >
+                        {service.imageUrl ? (
+                          <Image source={service.imageUrl} style={styles.acLogo} cachePolicy="memory-disk" />
+                        ) : (
+                          <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
+                            <Ionicons name="construct-outline" size={16} color={colors.gray} />
+                          </View>
+                        )}
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{service.name}</Text>
+                          <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{service.store?.name}</Text>
+                        </View>
+                        {service.requiresQuote ? (
+                          <Text style={{ fontSize: fonts.tiny, color: colors.primary, fontWeight: '600' }}>Orcamento</Text>
+                        ) : service.price ? (
+                          <Text style={{ fontSize: fonts.small, fontWeight: '700', color: colors.text }}>
+                            R$ {Number(service.price).toFixed(2)}
+                          </Text>
+                        ) : null}
+                      </AnimatedPressable>
+                      </AnimatedListItem>
+                    ))}
+
+                  {/* Empty state */}
+                  {!(productsLoading || servicesLoading) && !hasResults && debouncedQuery.length >= 2 && (
+                    <AnimatedItem delay={100} fromY={20}>
+                    <View style={styles.emptyContainer}>
+                      <Ionicons name="search-outline" size={56} color={colors.grayLight} />
+                      <Text style={[styles.emptyText, { color: colors.textLight }]}>Nenhum resultado para "{debouncedQuery}"</Text>
+                      <Text style={[styles.emptySubtext, { color: colors.gray }]}>Tente buscar com outras palavras</Text>
+                    </View>
+                    </AnimatedItem>
+                  )}
+                </ScrollView>
+              </View>
+            )}
+          </>
         )}
       </View>
 
@@ -606,6 +712,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   filterChipText: { fontSize: fonts.tiny, fontWeight: '600' },
+
+  // Active category chip
+  activeCategoryChip: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
   // Recent dropdown (floats below searchBox)
   recentDropdown: {

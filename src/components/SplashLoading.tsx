@@ -10,57 +10,96 @@ import { colors } from '../theme';
 
 const { width } = Dimensions.get('window');
 const LOGO = require('../../assets/logo.png');
+const CART = require('../../assets/splash-cart.png');
 
-export function SplashLoading({ onReady }: { onReady?: () => void } = {}) {
+interface SplashProps {
+  onReady?: () => void;
+  onAnimationDone?: () => void;
+}
+
+export function SplashLoading({ onReady, onAnimationDone }: SplashProps = {}) {
   const fadeIn = useRef(new Animated.Value(0)).current;
   const scaleLogo = useRef(new Animated.Value(0.7)).current;
   const fadeFooter = useRef(new Animated.Value(0)).current;
-  const dotOpacity1 = useRef(new Animated.Value(0.3)).current;
-  const dotOpacity2 = useRef(new Animated.Value(0.3)).current;
-  const dotOpacity3 = useRef(new Animated.Value(0.3)).current;
+  const cartTranslateX = useRef(new Animated.Value(-width)).current;
+  const cartOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Logo entrance
-    Animated.parallel([
-      Animated.timing(fadeIn, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleLogo, {
-        toValue: 1,
-        friction: 6,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Hide native splash once our custom splash is visible
     onReady?.();
 
-    // Footer + dots fade in
-    Animated.timing(fadeFooter, {
-      toValue: 1,
-      duration: 400,
-      delay: 500,
-      useNativeDriver: true,
-    }).start();
-
-    // Loading dots animation
-    function animateDots() {
+    // Full cart animation
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(cartOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(cartTranslateX, {
+          toValue: 0,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]),
+      // Pause in center with a subtle bounce
       Animated.sequence([
-        Animated.timing(dotOpacity1, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.timing(dotOpacity2, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.timing(dotOpacity3, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.parallel([
-          Animated.timing(dotOpacity1, { toValue: 0.3, duration: 200, useNativeDriver: true }),
-          Animated.timing(dotOpacity2, { toValue: 0.3, duration: 200, useNativeDriver: true }),
-          Animated.timing(dotOpacity3, { toValue: 0.3, duration: 200, useNativeDriver: true }),
-        ]),
-      ]).start(() => animateDots());
-    }
-    const timeout = setTimeout(animateDots, 700);
-    return () => clearTimeout(timeout);
+        Animated.timing(cartTranslateX, {
+          toValue: -15,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(cartTranslateX, {
+          toValue: 10,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(cartTranslateX, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.delay(200),
+      ]),
+      // Cart slides out to right
+      Animated.parallel([
+        Animated.timing(cartTranslateX, {
+          toValue: width,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(cartOpacity, {
+          toValue: 0,
+          duration: 400,
+          delay: 300,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start(() => {
+      // After cart exits, show logo
+      Animated.parallel([
+        Animated.timing(fadeIn, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleLogo, {
+          toValue: 1,
+          friction: 6,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Footer fade in, then notify animation is done
+      Animated.timing(fadeFooter, {
+        toValue: 1,
+        duration: 400,
+        delay: 300,
+        useNativeDriver: true,
+      }).start(() => {
+        setTimeout(() => onAnimationDone?.(), 800);
+      });
+    });
   }, []);
 
   return (
@@ -68,6 +107,19 @@ export function SplashLoading({ onReady }: { onReady?: () => void } = {}) {
       {/* Subtle background decoration */}
       <View style={styles.bgCircle1} />
       <View style={styles.bgCircle2} />
+
+      {/* Cart image - slides from left to right */}
+      <Animated.View
+        style={[
+          styles.cartWrapper,
+          {
+            opacity: cartOpacity,
+            transform: [{ translateX: cartTranslateX }],
+          },
+        ]}
+      >
+        <Image source={CART} style={styles.cartImage} contentFit="contain" />
+      </Animated.View>
 
       {/* Logo */}
       <Animated.View
@@ -77,13 +129,6 @@ export function SplashLoading({ onReady }: { onReady?: () => void } = {}) {
         ]}
       >
         <Image source={LOGO} style={styles.logo} contentFit="contain" />
-      </Animated.View>
-
-      {/* Loading dots */}
-      <Animated.View style={[styles.dotsContainer, { opacity: fadeFooter }]}>
-        <Animated.View style={[styles.dot, { opacity: dotOpacity1 }]} />
-        <Animated.View style={[styles.dot, { opacity: dotOpacity2 }]} />
-        <Animated.View style={[styles.dot, { opacity: dotOpacity3 }]} />
       </Animated.View>
 
       {/* Footer */}
@@ -119,22 +164,19 @@ const styles = StyleSheet.create({
     borderRadius: width * 0.35,
     backgroundColor: colors.primary + '06',
   },
+  cartWrapper: {
+    position: 'absolute',
+  },
+  cartImage: {
+    width: width * 0.45,
+    height: width * 0.45,
+  },
   logoWrapper: {
     marginBottom: 40,
   },
   logo: {
     width: width * 0.7,
     height: width * 0.35,
-  },
-  dotsContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.primary,
   },
   footer: {
     position: 'absolute',
