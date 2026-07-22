@@ -17,7 +17,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAlert } from '../../src/contexts/AlertContext';
-import { fonts } from '../../src/theme';
 import {
   GET_APPOINTMENT,
   RATING_FOR_APPOINTMENT,
@@ -211,7 +210,7 @@ export default function AppointmentDetailScreen() {
           {apt.price != null ? (
             <View style={s.row}>
               <Ionicons name="cash-outline" size={16} color={colors.textSecondary} />
-              <Text style={[s.rowText, { color: colors.text, fontFamily: fonts.semiBold }]}>
+              <Text style={[s.rowText, { color: colors.text, fontWeight: '600' }]}>
                 R$ {Number(apt.price).toFixed(2)}
               </Text>
             </View>
@@ -230,7 +229,7 @@ export default function AppointmentDetailScreen() {
         {apt.notes ? (
           <View style={[s.card, { backgroundColor: colors.card }]}>
             <Text style={[s.sectionTitle, { color: colors.text }]}>Observacoes</Text>
-            <Text style={{ color: colors.textSecondary, fontFamily: fonts.regular }}>{apt.notes}</Text>
+            <Text style={{ color: colors.textSecondary, fontWeight: '400' }}>{apt.notes}</Text>
           </View>
         ) : null}
 
@@ -238,7 +237,7 @@ export default function AppointmentDetailScreen() {
         {apt.address ? (
           <View style={[s.card, { backgroundColor: colors.card }]}>
             <Text style={[s.sectionTitle, { color: colors.text }]}>Endereco</Text>
-            <Text style={{ color: colors.textSecondary, fontFamily: fonts.regular }}>{apt.address}</Text>
+            <Text style={{ color: colors.textSecondary, fontWeight: '400' }}>{apt.address}</Text>
           </View>
         ) : null}
 
@@ -282,13 +281,13 @@ export default function AppointmentDetailScreen() {
         {apt.quoteDescription ? (
           <View style={[s.card, { backgroundColor: colors.card }]}>
             <Text style={[s.sectionTitle, { color: colors.text }]}>Descricao do orcamento</Text>
-            <Text style={{ color: colors.textSecondary, fontFamily: fonts.regular }}>{apt.quoteDescription}</Text>
+            <Text style={{ color: colors.textSecondary, fontWeight: '400' }}>{apt.quoteDescription}</Text>
           </View>
         ) : null}
         {apt.quoteResponse ? (
           <View style={[s.card, { backgroundColor: colors.card }]}>
             <Text style={[s.sectionTitle, { color: colors.text }]}>Resposta do prestador</Text>
-            <Text style={{ color: colors.textSecondary, fontFamily: fonts.regular }}>{apt.quoteResponse}</Text>
+            <Text style={{ color: colors.textSecondary, fontWeight: '400' }}>{apt.quoteResponse}</Text>
           </View>
         ) : null}
 
@@ -375,7 +374,7 @@ export default function AppointmentDetailScreen() {
               ))}
             </View>
             {existingRating.comment ? (
-              <Text style={{ color: colors.textSecondary, fontFamily: fonts.regular, marginTop: 8 }}>
+              <Text style={{ color: colors.textSecondary, fontWeight: '400', marginTop: 8 }}>
                 {existingRating.comment}
               </Text>
             ) : null}
@@ -441,26 +440,26 @@ const s = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
   backBtn: { width: 40, height: 40, justifyContent: 'center' },
-  headerTitle: { fontFamily: fonts.bold, fontSize: 18 },
+  headerTitle: { fontWeight: '700', fontSize: 18 },
   content: { flex: 1, paddingHorizontal: 16 },
   statusBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginBottom: 8 },
   statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
-  statusText: { fontFamily: fonts.semiBold, fontSize: 14 },
-  aptNumber: { fontFamily: fonts.regular, fontSize: 13, marginBottom: 16 },
+  statusText: { fontWeight: '600', fontSize: 14 },
+  aptNumber: { fontWeight: '400', fontSize: 13, marginBottom: 16 },
   card: { borderRadius: 12, padding: 16, marginBottom: 12 },
-  cardTitle: { fontFamily: fonts.bold, fontSize: 18, marginBottom: 4 },
-  cardDesc: { fontFamily: fonts.regular, fontSize: 14, marginBottom: 12 },
-  sectionTitle: { fontFamily: fonts.semiBold, fontSize: 16, marginBottom: 12 },
+  cardTitle: { fontWeight: '700', fontSize: 18, marginBottom: 4 },
+  cardDesc: { fontWeight: '400', fontSize: 14, marginBottom: 12 },
+  sectionTitle: { fontWeight: '600', fontSize: 16, marginBottom: 12 },
   row: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  rowText: { fontFamily: fonts.regular, fontSize: 14, marginLeft: 8 },
+  rowText: { fontWeight: '400', fontSize: 14, marginLeft: 8 },
   actions: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, gap: 8 },
-  actionBtnText: { fontFamily: fonts.semiBold, fontSize: 15, color: '#fff' },
+  actionBtnText: { fontWeight: '600', fontSize: 15, color: '#fff' },
   cancelBtn: { borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 12 },
-  cancelBtnText: { fontFamily: fonts.semiBold, fontSize: 15, color: '#EF4444' },
+  cancelBtnText: { fontWeight: '600', fontSize: 15, color: '#EF4444' },
   rateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, gap: 8, marginBottom: 12 },
-  rateBtnText: { fontFamily: fonts.semiBold, fontSize: 15, color: '#fff' },
+  rateBtnText: { fontWeight: '600', fontSize: 15, color: '#fff' },
   stars: { flexDirection: 'row', justifyContent: 'center', marginVertical: 12 },
-  input: { borderWidth: 1, borderRadius: 10, padding: 12, fontFamily: fonts.regular, fontSize: 15, marginBottom: 12 },
+  input: { borderWidth: 1, borderRadius: 10, padding: 12, fontWeight: '400', fontSize: 15, marginBottom: 12 },
   textArea: { minHeight: 80, textAlignVertical: 'top' },
 });
