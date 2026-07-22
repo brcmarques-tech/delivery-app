@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
+import { getSecureItem, setSecureItem, deleteSecureItem } from '../lib/secureStorage';
 import { useApolloClient, useSubscription } from '@apollo/client';
 import { Alert, AppState } from 'react-native';
 import { router } from 'expo-router';
@@ -111,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function forceLogout() {
     // C2: Token in SecureStore (sensitive), user in AsyncStorage (non-sensitive)
-    await SecureStore.deleteItemAsync('token');
+    await deleteSecureItem('token');
     await AsyncStorage.removeItem('user');
     setToken(null);
     setUser(null);
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function loadStoredAuth() {
-    const storedToken = await SecureStore.getItemAsync('token');
+    const storedToken = await getSecureItem('token');
     const storedUser = await AsyncStorage.getItem('user');
     if (storedToken && storedUser) {
       setToken(storedToken);
@@ -154,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       variables: { input: { email, password }, forceLogin },
     });
     const { accessToken, user: userData } = data.loginApp;
-    await SecureStore.setItemAsync('token', accessToken);
+    await setSecureItem('token', accessToken);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);
     setUser(userData);
@@ -167,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       variables: { idToken },
     });
     const { accessToken, user: userData } = data.googleAuthApp;
-    await SecureStore.setItemAsync('token', accessToken);
+    await setSecureItem('token', accessToken);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);
     setUser(userData);
@@ -179,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       variables: { idToken, phone, cpf },
     });
     const { accessToken, user: userData } = data.registerAppWithGoogle;
-    await SecureStore.setItemAsync('token', accessToken);
+    await setSecureItem('token', accessToken);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);
     setUser(userData);
@@ -191,7 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       variables: { input: { name, email, password, phone, cpf } },
     });
     const { accessToken, user: userData } = data.registerApp;
-    await SecureStore.setItemAsync('token', accessToken);
+    await setSecureItem('token', accessToken);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);
     setUser(userData);
@@ -204,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function setAuthData(accessToken: string, userData: User) {
     markJustLoggedIn();
-    await SecureStore.setItemAsync('token', accessToken);
+    await setSecureItem('token', accessToken);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);
     setUser(userData);
@@ -216,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore — server may be unreachable, still clear locally
     }
-    await SecureStore.deleteItemAsync('token');
+    await deleteSecureItem('token');
     await AsyncStorage.removeItem('user');
     setToken(null);
     setUser(null);

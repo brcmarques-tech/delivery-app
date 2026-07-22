@@ -5,11 +5,16 @@ import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient } from 'graphql-ws';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
+import { getSecureItem, deleteSecureItem } from './secureStorage';
 import { Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 
-const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
+// IP da maquina de dev na LAN. Configuravel via EXPO_PUBLIC_API_HOST no .env
+// (que e gitignored), para nao commitar IP especifico de maquina — ver regra
+// "Nunca commitar overrides de URL" no CLAUDE.md. O fallback mantem o
+// comportamento anterior para quem nao definir a variavel.
+const LAN_HOST = process.env.EXPO_PUBLIC_API_HOST || '192.168.0.143';
+const DEV_HOST = Platform.OS === 'web' ? 'localhost' : LAN_HOST;
 const PROD_URL = 'https://api.bcmtech.com.br';
 
 const USE_LOCAL = __DEV__;
@@ -24,7 +29,7 @@ const httpLink = createHttpLink({
 
 const authLink = setContext(async (_, { headers }) => {
   // C2: Read token from SecureStore instead of AsyncStorage
-  const token = await SecureStore.getItemAsync('token');
+  const token = await getSecureItem('token');
   return {
     headers: {
       ...headers,
@@ -43,7 +48,7 @@ try {
       shouldRetry: () => true,
       keepAlive: 10000,
       connectionParams: async () => {
-        const token = await SecureStore.getItemAsync('token');
+        const token = await getSecureItem('token');
         return { authorization: token ? `Bearer ${token}` : '' };
       },
       on: {
@@ -67,7 +72,7 @@ const errorLink = onError(({ graphQLErrors, operation }) => {
   if (sessionExpired && !sessionExpiredHandled) {
     sessionExpiredHandled = true;
     // Silent logout — the subscription handles the user-facing alert
-    Promise.all([SecureStore.deleteItemAsync('token'), AsyncStorage.removeItem('user')]).then(() => {
+    Promise.all([deleteSecureItem('token'), AsyncStorage.removeItem('user')]).then(() => {
       sessionExpiredHandled = false;
       router.replace('/auth/login');
     });
