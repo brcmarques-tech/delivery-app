@@ -2,17 +2,52 @@ import { useEffect, useRef, useCallback } from 'react';
 import { Platform, AppState } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
+import { getSecureItem } from '../lib/secureStorage';
 
 const LOCATION_TASK_NAME = 'DELIVERY_BACKGROUND_LOCATION';
-const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
+
+// KAN-224: a entrega ativa e persistida no storage para sobreviver ao relaunch
+// do app pelo SO. Quando o sistema mata o app e reabre APENAS a task de
+// background, o modulo JS recarrega zerado — sem persistir, activeDeliveryId
+// ficava null e NENHUMA localizacao era enviada durante a entrega.
+const ACTIVE_DELIVERY_KEY = 'activeDeliveryTracking';
+
+// DEV_HOST vem do .env (EXPO_PUBLIC_API_HOST) para bater com o apollo.ts. Antes
+// era um IP fixo (192.168.0.143) que ja nem existia nesta rede, entao o socket
+// de rastreamento em dev nunca conectava.
+const DEV_HOST = Platform.OS === 'web'
+  ? 'localhost'
+  : (process.env.EXPO_PUBLIC_API_HOST || 'localhost');
 const PROD_WS = 'https://api.bcmtech.com.br';
 const WS_URL = __DEV__ ? `http://${DEV_HOST}:3000` : PROD_WS;
 
 let socketInstance: Socket | null = null;
 let activeDeliveryId: string | null = null;
 let activeOrderId: string | null = null;
+let authToken: string | null = null;
+
+// Reidrata o estado a partir do storage quando o modulo foi reiniciado pelo SO
+// (relaunch em background) — nesses casos as vars de modulo comecam nulas.
+async function ensureHydrated(): Promise<void> {
+  if (!activeDeliveryId || !activeOrderId) {
+    try {
+      const raw = await AsyncStorage.getItem(ACTIVE_DELIVERY_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        activeDeliveryId = parsed?.deliveryId ?? null;
+        activeOrderId = parsed?.orderId ?? null;
+      }
+    } catch {}
+  }
+  if (!authToken) {
+    try {
+      authToken = await getSecureItem('token');
+    } catch {}
+  }
+}
 
 function getSocket(): Socket {
   if (!socketInstance || !socketInstance.connected) {
@@ -26,6 +61,16 @@ function getSocket(): Socket {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 5000,
+      // KAN-224: autentica o socket de rastreamento. Sem token no handshake,
+      // qualquer cliente podia emitir updateLocation para qualquer deliveryId.
+      auth: { token: authToken },
+    });
+    socketInstance.on('connect', () => {
+      // Re-entra na sala do pedido em toda (re)conexao — inclusive no relaunch
+      // em background, onde startTracking nao chega a rodar.
+      if (activeOrderId) {
+        socketInstance?.emit('joinOrder', { orderId: activeOrderId });
+      }
     });
     socketInstance.on('connect_error', () => {
       // Silently handle connection errors to prevent crash
@@ -34,7 +79,8 @@ function getSocket(): Socket {
   return socketInstance;
 }
 
-function sendLocation(latitude: number, longitude: number) {
+async function sendLocation(latitude: number, longitude: number): Promise<void> {
+  await ensureHydrated();
   if (!activeDeliveryId || !activeOrderId) return;
 
   try {
@@ -51,15 +97,12 @@ function sendLocation(latitude: number, longitude: number) {
   }
 }
 
-// Background task handler - runs even when app is minimized
-TaskManager.defineTask(LOCATION_TASK_NAME, ({ data, error }: any) => {
+// Background task handler - roda mesmo com o app minimizado OU relanched pelo SO
+TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
   if (error) return;
-  if (data) {
-    const { locations } = data;
-    const location = locations?.[0];
-    if (location) {
-      sendLocation(location.coords.latitude, location.coords.longitude);
-    }
+  const location = data?.locations?.[0];
+  if (location) {
+    await sendLocation(location.coords.latitude, location.coords.longitude);
   }
 });
 
@@ -69,7 +112,7 @@ interface ActiveDelivery {
 }
 
 export function useDeliveryTracking(activeDelivery: ActiveDelivery | null) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const trackingRef = useRef(false);
   const foregroundSubRef = useRef<Location.LocationSubscription | null>(null);
 
@@ -86,6 +129,14 @@ export function useDeliveryTracking(activeDelivery: ActiveDelivery | null) {
 
     activeDeliveryId = activeDelivery.deliveryId;
     activeOrderId = activeDelivery.orderId;
+    authToken = token;
+    // KAN-224: persiste para o relaunch em background conseguir reidratar.
+    try {
+      await AsyncStorage.setItem(
+        ACTIVE_DELIVERY_KEY,
+        JSON.stringify({ deliveryId: activeDelivery.deliveryId, orderId: activeDelivery.orderId }),
+      );
+    } catch {}
 
     // Join the order room via WebSocket
     const socket = getSocket();
@@ -138,7 +189,7 @@ export function useDeliveryTracking(activeDelivery: ActiveDelivery | null) {
     }
 
     trackingRef.current = true;
-  }, [activeDelivery]);
+  }, [activeDelivery, token]);
 
   const stopTracking = useCallback(async () => {
     if (!trackingRef.current) return;
@@ -167,6 +218,10 @@ export function useDeliveryTracking(activeDelivery: ActiveDelivery | null) {
 
     activeDeliveryId = null;
     activeOrderId = null;
+    authToken = null;
+    try {
+      await AsyncStorage.removeItem(ACTIVE_DELIVERY_KEY);
+    } catch {}
     trackingRef.current = false;
   }, []);
 

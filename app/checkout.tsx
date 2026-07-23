@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { devLog } from '../src/lib/devLog'; // KAN-223
 import {
   View,
   Text,
@@ -501,7 +502,7 @@ export default function CheckoutScreen() {
       }
 
       setLoading(true);
-      console.log('[CHECKOUT] Calling createOrder mutation...', { storeId, isPickup, paymentMethod, selectedCardId, itemCount: checkoutItems.length });
+      devLog('[CHECKOUT] Calling createOrder mutation...', { storeId, isPickup, paymentMethod, selectedCardId, itemCount: checkoutItems.length });
       const { data } = await createOrder({
         variables: {
           input: {
@@ -529,7 +530,7 @@ export default function CheckoutScreen() {
       });
 
       const order = data.createOrder;
-      console.log('[CHECKOUT] Order created:', { id: order.id, orderNumber: order.orderNumber, status: order.status, checkoutUrl: order.checkoutUrl, paymentMethod: order.paymentMethod });
+      devLog('[CHECKOUT] Order created:', { id: order.id, orderNumber: order.orderNumber, status: order.status, checkoutUrl: order.checkoutUrl, paymentMethod: order.paymentMethod });
 
       // H1: Reconcile client-side price with server total
       const serverTotal = Number(order.total);
@@ -546,7 +547,7 @@ export default function CheckoutScreen() {
       // Navigate directly to order screen — no alert blocking the flow
       router.replace(`/order/${order.id}`);
     } catch (err: any) {
-      console.log('[CHECKOUT] ERROR:', err.message || err);
+      devLog('[CHECKOUT] ERROR:', err.message || err);
       alert('Erro', err.message || 'Nao foi possivel fazer o pedido');
     } finally {
       setLoading(false);

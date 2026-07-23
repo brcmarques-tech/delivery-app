@@ -5,6 +5,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
+import { devLog } from '../../src/lib/devLog'; // KAN-223
 import { GET_ORDER } from '../../src/lib/graphql/queries';
 import { CONFIRM_RECEIPT, CONFIRM_PICKUP, CONFIRM_DELIVERY, CUSTOMER_DENY_DELIVERY, CANCEL_ORDER, DISPUTE_COMPLETED_ORDER, CANCEL_DISPUTE } from '../../src/lib/graphql/mutations';
 import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
@@ -51,8 +52,8 @@ export default function OrderDetailScreen() {
   // Real-time updates for this order
   useSubscription(ORDER_UPDATED, {
     variables: { orderId: id },
-    onData: ({ data: subData }) => { console.log('[SUB] orderUpdated received:', subData?.data?.orderUpdated?.status); refetch(); },
-    onError: (err) => { console.log('[SUB] orderUpdated error:', err?.message); },
+    onData: ({ data: subData }) => { devLog('[SUB] orderUpdated received:', subData?.data?.orderUpdated?.status); refetch(); },
+    onError: (err) => { devLog('[SUB] orderUpdated error:', err?.message); },
   });
   useSubscription(DELIVERY_UPDATED, {
     variables: { orderId: id },

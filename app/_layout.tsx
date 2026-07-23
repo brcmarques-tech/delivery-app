@@ -15,8 +15,14 @@ import { useProductSync } from '../src/hooks/useProductSync';
 import { DeliveryConfirmationModal } from '../src/components/DeliveryConfirmationModal';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 
+// KAN-221: era process.env.SENTRY_DSN, sem o prefixo EXPO_PUBLIC_ — no Expo so
+// variaveis EXPO_PUBLIC_* sao inlinadas no bundle, entao o dsn ficava undefined
+// e NENHUM erro era reportado em producao.
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
 Sentry.init({
-  dsn: process.env.SENTRY_DSN,
+  dsn: SENTRY_DSN,
+  enabled: !!SENTRY_DSN && !__DEV__,
+  environment: __DEV__ ? 'development' : 'production',
   tracesSampleRate: 0.1,
 });
 
