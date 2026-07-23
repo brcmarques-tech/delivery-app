@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { devLog } from '../../src/lib/devLog'; // KAN-223
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -206,7 +207,7 @@ export default function DeliveriesScreen() {
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log(`[APP-SOCKET] Connected, socketId=${socket.id}, emitting delivererOnline userId=${user?.id}`);
+      devLog(`[APP-SOCKET] Connected, socketId=${socket.id}, emitting delivererOnline userId=${user?.id}`);
       socket.emit('delivererOnline', { userId: user?.id, latitude, longitude });
       // Refresh data on reconnect
       refetchAvailable();
@@ -214,19 +215,19 @@ export default function DeliveriesScreen() {
     });
 
     socket.on('disconnect', (reason) => {
-      console.log(`[APP-SOCKET] Disconnected, reason=${reason}`);
+      devLog(`[APP-SOCKET] Disconnected, reason=${reason}`);
     });
 
     // Listen for delivery offers
     socket.on('deliveryOffer', (offer: DeliveryOffer) => {
-      console.log(`[APP-SOCKET] deliveryOffer received: orderId=${offer.orderId}, orderNumber=${offer.orderNumber}, fee=${offer.deliveryFee}, timeout=${offer.timeoutSeconds}s`);
+      devLog(`[APP-SOCKET] deliveryOffer received: orderId=${offer.orderId}, orderNumber=${offer.orderNumber}, fee=${offer.deliveryFee}, timeout=${offer.timeoutSeconds}s`);
       refetchAvailable();
       try { Vibration.vibrate([0, 500, 200, 500]); } catch {}
     });
 
     // Listen for broadcast available deliveries
     socket.on('newAvailableDelivery', (data: any) => {
-      console.log(`[APP-SOCKET] newAvailableDelivery:`, JSON.stringify(data));
+      devLog(`[APP-SOCKET] newAvailableDelivery:`, JSON.stringify(data));
       refetchAvailable();
       refetchMy();
     });
@@ -274,7 +275,7 @@ export default function DeliveriesScreen() {
     setTogglingOnline(true);
     try {
       if (isOnline) {
-        console.log(`[APP-ONLINE] Going OFFLINE, userId=${user?.id}`);
+        devLog(`[APP-ONLINE] Going OFFLINE, userId=${user?.id}`);
         // Go offline - only here we send delivererOffline
         if (socketRef.current) {
           socketRef.current.emit('delivererOffline', { userId: user?.id });
@@ -292,7 +293,7 @@ export default function DeliveriesScreen() {
       }
 
       // Go online
-      console.log(`[APP-ONLINE] Going ONLINE, userId=${user?.id}`);
+      devLog(`[APP-ONLINE] Going ONLINE, userId=${user?.id}`);
       const connected = await connectSocket();
       if (!connected) {
         alert('Erro', 'Permissao de localizacao necessaria para receber entregas');
@@ -394,7 +395,7 @@ export default function DeliveriesScreen() {
   useSubscription(ORDER_UPDATED, {
     onData: ({ data: subData }) => {
       const o = subData?.data?.orderUpdated;
-      console.log(`[APP-SUB] orderUpdated: #${o?.orderNumber || '?'}, status=${o?.status || '?'}`);
+      devLog(`[APP-SUB] orderUpdated: #${o?.orderNumber || '?'}, status=${o?.status || '?'}`);
       refetchAvailable();
       refetchMy();
     },
@@ -402,7 +403,7 @@ export default function DeliveriesScreen() {
   useSubscription(DELIVERY_UPDATED, {
     onData: ({ data: subData }) => {
       const d = subData?.data?.deliveryUpdated;
-      console.log(`[APP-SUB] deliveryUpdated: deliveryId=${d?.id || '?'}`);
+      devLog(`[APP-SUB] deliveryUpdated: deliveryId=${d?.id || '?'}`);
       refetchMy(); refetchAvailable();
     },
   });
@@ -483,9 +484,9 @@ export default function DeliveriesScreen() {
 
   async function handleAccept(orderId: string, orderNumber: string) {
     if (actionLoading) return;
-    console.log(`[APP-ACCEPT] orderId=${orderId}, orderNumber=${orderNumber}`);
+    devLog(`[APP-ACCEPT] orderId=${orderId}, orderNumber=${orderNumber}`);
     if (!paymentConnected) {
-      console.log(`[APP-ACCEPT] BLOCKED: payment not connected`);
+      devLog(`[APP-ACCEPT] BLOCKED: payment not connected`);
       alert('Conta nao conectada', 'Conecte sua conta de pagamento para aceitar entregas.');
       return;
     }
@@ -495,11 +496,11 @@ export default function DeliveriesScreen() {
         text: 'Aceitar',
         onPress: async () => {
           if (actionLoading) return;
-          console.log(`[APP-ACCEPT] User confirmed, calling mutation`);
+          devLog(`[APP-ACCEPT] User confirmed, calling mutation`);
           setActionLoading(orderId);
           try {
             const { data: acceptData } = await acceptDelivery({ variables: { orderId } });
-            console.log(`[APP-ACCEPT] Mutation SUCCESS: deliveryId=${acceptData?.acceptDelivery?.id}`);
+            devLog(`[APP-ACCEPT] Mutation SUCCESS: deliveryId=${acceptData?.acceptDelivery?.id}`);
             refetchAvailable();
             await refetchMy();
             setTab('my');
@@ -529,23 +530,23 @@ export default function DeliveriesScreen() {
 
   async function handleConfirmPickup(deliveryId: string, order?: any) {
     if (actionLoading) return;
-    console.log(`[APP-PICKUP] deliveryId=${deliveryId}, orderNumber=${order?.orderNumber || '?'}`);
+    devLog(`[APP-PICKUP] deliveryId=${deliveryId}, orderNumber=${order?.orderNumber || '?'}`);
     alert('Confirmar coleta', 'Voce ja retirou o pedido na loja?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Sim, coletei',
         onPress: async () => {
           if (actionLoading) return;
-          console.log(`[APP-PICKUP] User confirmed, calling mutation`);
+          devLog(`[APP-PICKUP] User confirmed, calling mutation`);
           setActionLoading(deliveryId);
           try {
             await confirmPickup({ variables: { deliveryId } });
-            console.log(`[APP-PICKUP] SUCCESS: deliveryId=${deliveryId}, status -> DELIVERING`);
+            devLog(`[APP-PICKUP] SUCCESS: deliveryId=${deliveryId}, status -> DELIVERING`);
             await refetchMy();
             // Show client map modal
             const lat = Number(order?.deliveryLatitude);
             const lng = Number(order?.deliveryLongitude);
-            console.log(`[APP-PICKUP] Client location: lat=${lat}, lng=${lng}, addr=${order?.deliveryAddress}`);
+            devLog(`[APP-PICKUP] Client location: lat=${lat}, lng=${lng}, addr=${order?.deliveryAddress}`);
             if (lat && lng) {
               setClientLocation({
                 latitude: lat,
@@ -566,18 +567,18 @@ export default function DeliveriesScreen() {
 
   async function handleConfirmDelivery(deliveryId: string) {
     if (actionLoading) return;
-    console.log(`[APP-DELIVERY] deliveryId=${deliveryId}`);
+    devLog(`[APP-DELIVERY] deliveryId=${deliveryId}`);
     alert('Confirmar entrega', 'O pedido foi entregue ao cliente?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Sim, entreguei',
         onPress: async () => {
           if (actionLoading) return;
-          console.log(`[APP-DELIVERY] User confirmed, calling mutation`);
+          devLog(`[APP-DELIVERY] User confirmed, calling mutation`);
           setActionLoading(deliveryId);
           try {
             await confirmDeliveryMut({ variables: { deliveryId } });
-            console.log(`[APP-DELIVERY] SUCCESS: deliveryId=${deliveryId}, status -> DELIVERER_CONFIRMED_DELIVERY`);
+            devLog(`[APP-DELIVERY] SUCCESS: deliveryId=${deliveryId}, status -> DELIVERER_CONFIRMED_DELIVERY`);
             refetchMy();
             refetchAvailable();
           } catch (e: any) {
