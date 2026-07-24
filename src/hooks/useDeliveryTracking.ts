@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 import { getSecureItem } from '../lib/secureStorage';
+import { socketBaseUrl } from '../lib/apiHost';
 
 const LOCATION_TASK_NAME = 'DELIVERY_BACKGROUND_LOCATION';
 
@@ -15,14 +16,10 @@ const LOCATION_TASK_NAME = 'DELIVERY_BACKGROUND_LOCATION';
 // ficava null e NENHUMA localizacao era enviada durante a entrega.
 const ACTIVE_DELIVERY_KEY = 'activeDeliveryTracking';
 
-// DEV_HOST vem do .env (EXPO_PUBLIC_API_HOST) para bater com o apollo.ts. Antes
-// era um IP fixo (192.168.0.143) que ja nem existia nesta rede, entao o socket
-// de rastreamento em dev nunca conectava.
-const DEV_HOST = Platform.OS === 'web'
-  ? 'localhost'
-  : (process.env.EXPO_PUBLIC_API_HOST || 'localhost');
-const PROD_WS = 'https://api.bcmtech.com.br';
-const WS_URL = __DEV__ ? `http://${DEV_HOST}:3000` : PROD_WS;
+// KAN-255: URL vem do util compartilhado (src/lib/apiHost.ts), que le
+// EXPO_PUBLIC_API_HOST. Antes era um IP fixo (192.168.0.143) que ja nem existia
+// nesta rede, entao o socket de rastreamento em dev nunca conectava.
+const WS_URL = socketBaseUrl();
 
 let socketInstance: Socket | null = null;
 let activeDeliveryId: string | null = null;

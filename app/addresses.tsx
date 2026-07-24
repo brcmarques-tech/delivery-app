@@ -54,7 +54,8 @@ export default function AddressesScreen() {
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [geocodingMap, setGeocodingMap] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const mapRef = useRef<MapView>(null);
+  // KAN-255: MapView aqui e um VALOR (`let MapView: any = View`), nao um tipo.
+  const mapRef = useRef<any>(null);
   const emptyForm = {
     street: '',
     number: '',
@@ -462,7 +463,7 @@ export default function AddressesScreen() {
                     <Marker
                       coordinate={{ latitude: form.latitude, longitude: form.longitude }}
                       draggable
-                      onDragEnd={(e) => {
+                      onDragEnd={(e: any) => {
                         const { latitude, longitude } = e.nativeEvent.coordinate;
                         setForm((prev) => ({ ...prev, latitude, longitude }));
                       }}

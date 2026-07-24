@@ -145,6 +145,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // KAN-241: id temporario precisa ser unico de verdade. Antes era
+    // `local-${Date.now()}`, entao dois itens de peso variavel adicionados no
+    // mesmo milissegundo recebiam o MESMO id e a reconciliacao trocava o item
+    // errado (quantidade/peso incorretos ou item duplicado no carrinho).
+    const tempId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
     // Update local instantly
     updateItems((prev) => {
       const existing = prev.find((i) => i.productId === info.productId && !i.isVariableWeight);
@@ -154,7 +160,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         );
       }
       return [...prev, {
-        id: `local-${Date.now()}`,
+        id: tempId,
         productId: info.productId,
         name: info.name,
         price: info.price,
@@ -176,7 +182,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (!ci) return;
       // Replace local temp item with server item (real id)
       updateItems((prev) => {
-        const localIdx = prev.findIndex((i) => i.id.startsWith('local-') && i.productId === info.productId);
+        // KAN-241: casa pelo tempId exato capturado no closure. Antes buscava
+        // por (startsWith('local-') && productId), que podia casar o item
+        // temporario errado quando havia varios do mesmo produto.
+        const localIdx = prev.findIndex((i) => i.id === tempId);
         const serverItem: CartItem = {
           id: ci.id,
           productId: ci.product.id,

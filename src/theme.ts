@@ -17,6 +17,10 @@ export const colors = {
 
 export const fonts = {
   regular: 14,
+  // KAN-236: `fonts.medium` ja era usado como fontSize em profile.tsx e
+  // addresses.tsx, mas nao existia aqui — resultava em `fontSize: undefined`
+  // (caia no default 14 do RN). Fica entre regular (14) e large (16).
+  medium: 15,
   small: 12,
   tiny: 10,
   large: 16,

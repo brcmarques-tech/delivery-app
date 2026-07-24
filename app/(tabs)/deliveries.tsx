@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { devLog } from '../../src/lib/devLog'; // KAN-223
+import { socketBaseUrl } from '../../src/lib/apiHost'; // KAN-255
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -73,9 +74,11 @@ async function openNavigation(lat: number, lng: number, label: string) {
   }
 }
 
-const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
-const PROD_WS = 'https://api.bcmtech.com.br';
-const WS_URL = __DEV__ ? `http://${DEV_HOST}:3000` : PROD_WS;
+// KAN-255: URL vem do util compartilhado (src/lib/apiHost.ts), que le
+// EXPO_PUBLIC_API_HOST. Antes era o IP fixo `192.168.0.143`, que ignorava o
+// .env e ja nem existia mais nesta rede — o socket do entregador conectava no
+// lugar errado em dev e falhava em silencio.
+const WS_URL = socketBaseUrl();
 
 type Tab = 'available' | 'my';
 
@@ -101,7 +104,7 @@ interface AcceptedStore {
 export default function DeliveriesScreen() {
   const insets = useSafeAreaInsets();
   const { alert } = useAlert();
-  const { user } = useAuth();
+  const { user, token } = useAuth(); // KAN-224/255: token autentica o socket
   const { colors, isDark } = useTheme();
   const [tab, setTab] = useState<Tab>('available');
   const [isOnline, setIsOnline] = useState(false);
@@ -203,7 +206,14 @@ export default function DeliveriesScreen() {
       longitude = current.coords.longitude;
     }
 
-    const socket = io(WS_URL, { transports: ['websocket'] });
+    // KAN-224/255: envia o token no handshake. Este socket ficava sem
+    // autenticacao nenhuma — qualquer cliente podia emitir `delivererOnline`
+    // se passando por outro entregador. Mesmo buraco ja fechado no
+    // useDeliveryTracking.
+    const socket = io(WS_URL, {
+      transports: ['websocket'],
+      auth: { token },
+    });
     socketRef.current = socket;
 
     socket.on('connect', () => {

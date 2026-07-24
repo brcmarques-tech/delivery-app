@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { devLog } from '../src/lib/devLog'; // KAN-223
+import { fetchWithTimeout } from '../src/lib/fetchWithTimeout'; // KAN-240
 import {
   View,
   Text,
@@ -135,8 +136,13 @@ export default function CheckoutScreen() {
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('DELIVERY');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ON_DELIVERY');
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
-  // M1: Track whether delivery fee calculation has completed
-  const [feeCalculated, setFeeCalculated] = useState(false);
+  // M1: Track whether delivery fee calculation has completed.
+  // KAN-256: era um `useState` alimentado pelo `onCompleted` do useLazyQuery.
+  // Esse callback nao dispara de forma confiavel (ex.: resposta servida do
+  // cache), e o unico consumidor e a linha "Entrega" do resumo: se ele nao
+  // rodasse, a tela ficava presa em "Calculando..." em vez de mostrar o frete,
+  // no meio do checkout. Agora e derivado do proprio `data` do hook (definido
+  // logo abaixo da declaracao do calcFee).
   // M3: Coupon code state
   const [couponCode, setCouponCode] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
@@ -176,7 +182,7 @@ export default function CheckoutScreen() {
     if (digits.length !== 8) return;
     setLoadingCep(true);
     try {
-      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const res = await fetchWithTimeout(`https://viacep.com.br/ws/${digits}/json/`);
       const data = await res.json();
       if (!data.erro) {
         setStreet(data.logradouro || '');
@@ -224,7 +230,7 @@ export default function CheckoutScreen() {
     }
 
     try {
-      const tokenResponse = await fetch(
+      const tokenResponse = await fetchWithTimeout(
         `https://api.pagar.me/core/v5/tokens?appId=${PAGARME_PUBLIC_KEY}`,
         {
           method: 'POST',
@@ -280,9 +286,11 @@ export default function CheckoutScreen() {
   }
 
   const [createOrder] = useMutation(CREATE_ORDER);
-  const [calcFee, { data: feeData, loading: feeLoading }] = useLazyQuery(CALCULATE_DELIVERY_FEE, {
-    onCompleted: () => setFeeCalculated(true),
-  });
+  const [calcFee, { data: feeData, loading: feeLoading }] = useLazyQuery(CALCULATE_DELIVERY_FEE);
+  // KAN-256: estado derivado (ver comentario na declaracao antiga acima).
+  // Enquanto estiver buscando, volta para "Calculando..." — que e o
+  // comportamento correto ao trocar de endereco.
+  const feeCalculated = !!feeData && !feeLoading;
   const [calcTime, { data: timeData, loading: timeLoading }] = useLazyQuery(ESTIMATE_DELIVERY_TIME);
   const { data: addressesData } = useQuery(GET_MY_ADDRESSES);
   const { data: storeData } = useQuery(GET_STORE, { variables: { id: storeId }, skip: !storeId });
@@ -306,7 +314,7 @@ export default function CheckoutScreen() {
   async function geocodeNominatim(query: string): Promise<{ latitude: number; longitude: number } | null> {
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=br`;
-      const res = await fetch(url, { headers: { 'User-Agent': 'bcmTech-Shopping/1.0' } });
+      const res = await fetchWithTimeout(url, { headers: { 'User-Agent': 'bcmTech-Shopping/1.0' } });
       const data = await res.json();
       if (data.length > 0) {
         const lat = parseFloat(data[0].lat);

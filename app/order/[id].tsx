@@ -538,8 +538,15 @@ export default function OrderDetailScreen() {
               Confirme em {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
             </Text>
           )}
+          {/* KAN-255: o texto era "Confirmando automaticamente...", mas nao ha
+              nenhuma acao disparada no cliente ao zerar — a confirmacao
+              automatica e do servidor. Se o servidor nao confirmasse, o texto
+              mentia indefinidamente. Trocado por uma formulacao passiva e
+              honesta sobre quem faz a acao. */}
           {timeLeft === 0 && (
-            <Text style={[styles.confirmTimer, { color: colors.primary }]}>Confirmando automaticamente...</Text>
+            <Text style={[styles.confirmTimer, { color: colors.primary }]}>
+              Aguardando confirmação automática do sistema...
+            </Text>
           )}
           <TouchableOpacity
             style={[styles.confirmButton, { backgroundColor: colors.success }]}

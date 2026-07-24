@@ -28,6 +28,16 @@ import ReAnimated, { FadeIn, FadeOut, FadeInDown, FadeInRight, FadeOutRight } fr
 type FilterType = 'all' | 'open' | 'free_delivery' | 'promo';
 type TabType = 'products' | 'services';
 
+// KAN-255: tipo estrutural comum a PRODUCT_CATEGORIES e SERVICE_CATEGORIES.
+// Antes o parametro de renderCategoriesAndStores era `typeof PRODUCT_CATEGORIES`,
+// o que travava os literais de `icon` do primeiro array e impedia passar o
+// segundo (icones diferentes).
+type CategoryItem = {
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  query: string;
+};
+
 const RECENT_PRODUCTS_KEY = 'recentSearches_products';
 const RECENT_SERVICES_KEY = 'recentSearches_services';
 const MAX_RECENT = 8;
@@ -57,7 +67,9 @@ const SERVICE_CATEGORIES = [
   { label: 'Mecanica', icon: 'car-outline' as const, query: 'mecanica' },
 ];
 
-type CategoryType = typeof PRODUCT_CATEGORIES[number];
+// KAN-255: era `typeof PRODUCT_CATEGORIES[number]`, que so aceitava categorias
+// de produto — categorias de servico (outros icones) nao passavam.
+type CategoryType = CategoryItem;
 
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
@@ -286,7 +298,7 @@ export default function SearchScreen() {
     );
   }
 
-  function renderCategoriesAndStores(categories: typeof PRODUCT_CATEGORIES, stores: any[]) {
+  function renderCategoriesAndStores(categories: CategoryItem[], stores: any[]) {
     return (
       <View>
         {/* Categories grid */}

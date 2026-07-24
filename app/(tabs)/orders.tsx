@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GET_MY_ORDERS, MY_APPOINTMENTS } from '../../src/lib/graphql/queries';
 import { CANCEL_APPOINTMENT } from '../../src/lib/graphql/mutations';
 import { ORDER_UPDATED } from '../../src/lib/graphql/subscriptions';
+import { useAuth } from '../../src/contexts/AuthContext'; // KAN-238
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,6 +42,7 @@ const appointmentStatusLabels: Record<string, { label: string; colorKey: string 
 };
 
 export default function OrdersScreen() {
+  const { user } = useAuth(); // KAN-238: guard das subscriptions
   const { colors } = useTheme();
   const { showAlert } = useAlert();
   const insets = useSafeAreaInsets();
@@ -49,7 +51,8 @@ export default function OrdersScreen() {
   // Orders
   const { data, loading, refetch } = useQuery(GET_MY_ORDERS);
   const orders = data?.myOrders || [];
-  const refetchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  // KAN-255: useRef exige valor inicial (ou `undefined` no tipo).
+  const refetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const debouncedRefetch = useCallback(() => {
     clearTimeout(refetchTimeoutRef.current);
     refetchTimeoutRef.current = setTimeout(() => refetch(), 1000);
@@ -80,7 +83,11 @@ export default function OrdersScreen() {
   };
 
   // Real-time order updates (debounced to prevent excessive refetches)
+  // KAN-238: `skip: !user` — sem isso a subscription continuava ativa mesmo
+  // deslogado, abrindo WS e gerando erro de auth no servidor. O mesmo guard ja
+  // existia no listener global (useOrderNotifications); aqui faltava.
   useSubscription(ORDER_UPDATED, {
+    skip: !user,
     onData: () => { debouncedRefetch(); },
   });
 

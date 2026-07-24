@@ -13,6 +13,9 @@ interface User {
   name: string;
   email: string;
   cpf?: string;
+  // KAN-237: o contrato PDF (accept-terms.tsx) imprime user.phone, mas o campo
+  // nao existia aqui — dado contratual sumia silenciosamente e o tsc acusava.
+  phone?: string | null;
   role: string;
   isDeliverer?: boolean;
   pendingRole?: string | null;

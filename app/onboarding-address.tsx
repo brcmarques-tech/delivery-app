@@ -49,7 +49,8 @@ export default function OnboardingAddressScreen() {
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [geocodingMap, setGeocodingMap] = useState(false);
-  const mapRef = useRef<MapView>(null);
+  // KAN-255: MapView aqui e um VALOR (`let MapView: any = View`), nao um tipo.
+  const mapRef = useRef<any>(null);
   const [form, setForm] = useState({
     street: '',
     number: '',
@@ -380,7 +381,7 @@ export default function OnboardingAddressScreen() {
                 <Marker
                   coordinate={{ latitude: form.latitude, longitude: form.longitude }}
                   draggable
-                  onDragEnd={(e) => {
+                  onDragEnd={(e: any) => {
                     const { latitude, longitude } = e.nativeEvent.coordinate;
                     setForm((prev) => ({ ...prev, latitude, longitude }));
                   }}

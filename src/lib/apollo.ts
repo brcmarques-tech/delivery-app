@@ -6,25 +6,24 @@ import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient } from 'graphql-ws';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSecureItem, deleteSecureItem } from './secureStorage';
+import { devLog } from './devLog';
+import { fetchWithTimeout, DEFAULT_TIMEOUT_MS } from './fetchWithTimeout';
+import { httpBaseUrl, wsBaseUrl } from './apiHost';
 import { Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 
-// IP da maquina de dev na LAN. Configuravel via EXPO_PUBLIC_API_HOST no .env
-// (que e gitignored), para nao commitar IP especifico de maquina — ver regra
-// "Nunca commitar overrides de URL" no CLAUDE.md. O fallback mantem o
-// comportamento anterior para quem nao definir a variavel.
-const LAN_HOST = process.env.EXPO_PUBLIC_API_HOST || '192.168.0.143';
-const DEV_HOST = Platform.OS === 'web' ? 'localhost' : LAN_HOST;
-const PROD_URL = 'https://api.bcmtech.com.br';
+// KAN-255: montagem da URL centralizada em src/lib/apiHost.ts (era duplicada em
+// tres arquivos, dois deles com IP de LAN hardcoded e desatualizado).
+const API_URL = `${httpBaseUrl()}/graphql`;
+const WS_URL = `${wsBaseUrl()}/graphql`;
 
-const USE_LOCAL = __DEV__;
-
-const BASE_URL = USE_LOCAL ? `http://${DEV_HOST}:3000` : PROD_URL;
-const API_URL = `${BASE_URL}/graphql`;
-const WS_URL = `${USE_LOCAL ? `ws://${DEV_HOST}:3000` : 'wss://api.bcmtech.com.br'}/graphql`;
+// KAN-240: sem timeout, uma rede ruim deixa a promise pendente indefinidamente.
+// Helper compartilhado em src/lib/fetchWithTimeout.ts.
+const HTTP_TIMEOUT_MS = DEFAULT_TIMEOUT_MS;
 
 const httpLink = createHttpLink({
   uri: API_URL,
+  fetch: ((input: any, init?: any) => fetchWithTimeout(input, init)) as any,
 });
 
 const authLink = setContext(async (_, { headers }) => {
@@ -62,9 +61,20 @@ try {
 
 let sessionExpiredHandled = false;
 const AUTH_OPERATIONS = ['LoginApp', 'RegisterApp', 'GoogleAuthApp', 'RegisterAppWithGoogle'];
-const errorLink = onError(({ graphQLErrors, operation }) => {
+const errorLink = onError(({ graphQLErrors, networkError, operation }) => {
   // Ignore UNAUTHENTICATED from login/register mutations — those are expected credential errors
   if (AUTH_OPERATIONS.includes(operation.operationName)) return;
+
+  // KAN-240: networkError era completamente ignorado — ficar offline no meio de
+  // uma operacao nao sinalizava nada. Agora fica registrado (so em dev, via
+  // devLog, para nao vazar em producao — ver KAN-223), distinguindo timeout.
+  if (networkError) {
+    const isTimeout = (networkError as any)?.name === 'AbortError';
+    devLog(
+      `[APOLLO] networkError em ${operation.operationName}:`,
+      isTimeout ? `timeout apos ${HTTP_TIMEOUT_MS}ms` : networkError.message,
+    );
+  }
 
   const sessionExpired = graphQLErrors?.some(
     (e) => e.message?.includes('SESSION_EXPIRED') || e.extensions?.code === 'UNAUTHENTICATED'

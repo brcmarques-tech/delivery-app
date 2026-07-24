@@ -17,25 +17,20 @@ try {
 
 if (Notifications) {
   Notifications.setNotificationHandler({
-    handleNotification: async (notification: any) => {
-      const title = notification?.request?.content?.title;
-      const body = notification?.request?.content?.body;
-      setTimeout(() => {
-        Alert.alert(
-          title || 'Notificação',
-          body || 'Você recebeu uma notificação.',
-          [{ text: 'OK' }],
-        );
-      }, 300);
-
-      return {
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      };
-    },
+    // KAN-239: antes este handler disparava um Alert.alert E retornava
+    // shouldShowAlert/shouldShowBanner: true — o usuario via DOIS popups por
+    // notificacao com o app aberto, e o Alert generico ainda atropelava
+    // notificacoes que ja tem tratamento proprio por tipo (ex.:
+    // REQUEST_CANCEL_DISPUTE no addNotificationReceivedListener), empilhando
+    // dialogos. Escolhido um unico caminho: o banner nativo. A UI especifica
+    // por tipo continua a cargo dos listeners.
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
   });
 }
 
