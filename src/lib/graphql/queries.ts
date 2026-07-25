@@ -573,6 +573,7 @@ export const GET_MY_DELIVERIES = gql`
         disputedAt
         disputeReason
         store {
+          id
           name
           street
           number
@@ -583,6 +584,7 @@ export const GET_MY_DELIVERIES = gql`
           longitude
         }
         customer {
+          id
           name
           phone
         }
@@ -590,6 +592,7 @@ export const GET_MY_DELIVERIES = gql`
           id
           quantity
           product {
+            id
             name
           }
         }
@@ -606,6 +609,7 @@ export const MY_BALANCE = gql`
       availableAmount
       waitingFundsAmount
       transferredAmount
+      autoAnticipationEnabled
     }
   }
 `;

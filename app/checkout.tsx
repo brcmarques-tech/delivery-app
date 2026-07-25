@@ -435,10 +435,11 @@ export default function CheckoutScreen() {
     }
   }
 
-  async function handleCheckout() {
+  async function handleCheckout(opts?: { skipAgeCheck?: boolean }) {
     // C1: Double-tap prevention
     if (submittingRef.current) return;
     submittingRef.current = true;
+    const skipAgeCheck = opts?.skipAgeCheck === true;
 
     try {
       // L5: Offline check before checkout
@@ -448,8 +449,11 @@ export default function CheckoutScreen() {
         return;
       }
 
-      // Age verification check
-      if (!ageVerified) {
+      // Age verification check. O override skipAgeCheck vem do botão do modal:
+      // antes o modal chamava handleCheckout() via setTimeout, mas essa closure
+      // era a do render em que ageVerified ainda era false, então o modal reabria
+      // e o cliente tinha que tocar duas vezes. Agora passamos a decisão explícita.
+      if (!ageVerified && !skipAgeCheck) {
         const storeProducts = storeData?.store?.products || [];
         const hasAgeRestricted = checkoutItems.some((item) => {
           const product = storeProducts.find((p: any) => p.id === item.productId);
@@ -854,7 +858,7 @@ export default function CheckoutScreen() {
 
       <TouchableOpacity
         style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: colors.primary }, (loading || belowMinimum || (!isPickup && !coords)) && styles.checkoutDisabled]}
-        onPress={handleCheckout}
+        onPress={() => handleCheckout()}
         disabled={loading || belowMinimum || (!isPickup && !coords)}
       >
         <Text style={styles.checkoutText}>
@@ -890,8 +894,9 @@ export default function CheckoutScreen() {
                 onPress={() => {
                   setAgeVerified(true);
                   setShowAgeModal(false);
-                  // Re-trigger checkout after confirming
-                  setTimeout(() => handleCheckout(), 100);
+                  // Re-trigger checkout com override explícito (não depende do
+                  // estado ageVerified, que ainda não atualizou nesta closure).
+                  setTimeout(() => handleCheckout({ skipAgeCheck: true }), 100);
                 }}
               >
                 <Text style={{ color: '#fff', fontSize: fonts.regular, fontWeight: 'bold' }}>Confirmo que tenho +18</Text>

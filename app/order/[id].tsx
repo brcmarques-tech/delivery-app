@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking, ActivityIndicator, Alert, Modal, TextInput, Share } from 'react-native';
 import { Image } from 'expo-image';
 import * as Clipboard from 'expo-clipboard';
@@ -49,13 +49,17 @@ export default function OrderDetailScreen() {
     fetchPolicy: 'cache-and-network',
   });
 
-  // Real-time updates for this order
+  // Real-time updates for this order. skip: !id — sem isto a subscription abria
+  // com orderId undefined e mantinha uma operação WS autenticada viva mesmo sem
+  // id/pós-expiração de sessão (mesmo padrão do fix KAN-238 nas outras telas).
   useSubscription(ORDER_UPDATED, {
+    skip: !id,
     variables: { orderId: id },
     onData: ({ data: subData }) => { devLog('[SUB] orderUpdated received:', subData?.data?.orderUpdated?.status); refetch(); },
     onError: (err) => { devLog('[SUB] orderUpdated error:', err?.message); },
   });
   useSubscription(DELIVERY_UPDATED, {
+    skip: !id,
     variables: { orderId: id },
     onData: () => { refetch(); },
   });
@@ -188,25 +192,39 @@ export default function OrderDetailScreen() {
     }
   };
 
+  // Frontend#1: guarda síncrona de duplo-toque. `disabled={pickingUp}` atualiza o
+  // estado um render depois — um duplo-toque rápido disparava confirmPickup/
+  // confirmDelivery duas vezes; a 2ª batia numa transição inválida e mostrava um
+  // "Nao foi possivel confirmar" falso sobre uma ação que na verdade deu certo.
+  const confirmingRef = useRef(false);
+
   const handleConfirmPickup = async () => {
     if (!order?.delivery?.id) return;
+    if (confirmingRef.current) return;
+    confirmingRef.current = true;
     try {
       await confirmPickup({ variables: { deliveryId: order.delivery.id } });
       Alert.alert('Confirmado!', 'Retirada confirmada.');
       refetch();
     } catch (err: any) {
       Alert.alert('Erro', err.message);
+    } finally {
+      confirmingRef.current = false;
     }
   };
 
   const handleConfirmDelivery = async () => {
     if (!order?.delivery?.id) return;
+    if (confirmingRef.current) return;
+    confirmingRef.current = true;
     try {
       await confirmDelivery({ variables: { deliveryId: order.delivery.id } });
       Alert.alert('Confirmado!', 'Entrega confirmada.');
       refetch();
     } catch (err: any) {
       Alert.alert('Erro', err.message);
+    } finally {
+      confirmingRef.current = false;
     }
   };
 
@@ -477,7 +495,7 @@ export default function OrderDetailScreen() {
           >
             <Ionicons name="call" size={18} color={colors.primary} />
           </TouchableOpacity>
-          {order.delivery.currentLatitude && order.deliveryLatitude && (
+          {order.delivery.currentLatitude && order.delivery.currentLongitude && order.deliveryLatitude && order.deliveryLongitude && (
             <TouchableOpacity
               style={styles.callButton}
               onPress={() => Linking.openURL(`https://www.google.com/maps/dir/${order.delivery.currentLatitude},${order.delivery.currentLongitude}/${order.deliveryLatitude},${order.deliveryLongitude}`)}

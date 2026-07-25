@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,7 @@ export function DeliveryConfirmationModal() {
   const { user } = useAuth();
   const { showAlert } = useAlert();
   const [confirming, setConfirming] = useState(false);
+  const confirmingRef = useRef(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   const { data, refetch } = useQuery(GET_MY_ORDERS, {
@@ -40,12 +41,16 @@ export function DeliveryConfirmationModal() {
 
   const [confirmReceipt] = useMutation(CONFIRM_RECEIPT);
 
-  // Find orders that are DELIVERED but not confirmed by customer
+  // Pedido aguardando a confirmação do cliente (libera o pagamento do entregador).
+  // Após o entregador confirmar, o pedido fica em DELIVERER_CONFIRMED_DELIVERY —
+  // o backend NUNCA o coloca em 'DELIVERED' nesse ponto, então o filtro antigo
+  // (o.status === 'DELIVERED') nunca casava e o popup nunca aparecia; a
+  // confirmação só rolava se o cliente abrisse a tela do pedido na mão.
   const pendingOrder: PendingOrder | null = React.useMemo(() => {
     if (!data?.myOrders) return null;
     const order = data.myOrders.find(
       (o: any) =>
-        o.status === 'DELIVERED' &&
+        (o.status === 'DELIVERER_CONFIRMED_DELIVERY' || o.status === 'DELIVERED') &&
         !o.customerConfirmedAt &&
         o.delivery?.deliveredAt &&
         !dismissed.has(o.id),
@@ -81,6 +86,11 @@ export function DeliveryConfirmationModal() {
   if (!pendingOrder) return null;
 
   const handleConfirm = async () => {
+    // Frontend#2: guarda síncrona — `confirmReceipt` libera o pagamento ao
+    // entregador; `disabled={confirming}` atualiza o estado um render depois, então
+    // um duplo-toque disparava a liberação duas vezes.
+    if (confirmingRef.current) return;
+    confirmingRef.current = true;
     setConfirming(true);
     try {
       await confirmReceipt({ variables: { orderId: pendingOrder.id } });
@@ -98,6 +108,7 @@ export function DeliveryConfirmationModal() {
       });
     } finally {
       setConfirming(false);
+      confirmingRef.current = false;
     }
   };
 
