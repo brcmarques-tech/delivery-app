@@ -26,6 +26,70 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../src/theme';
 import { imageCachePolicy } from '../../src/lib/deviceTier'; // Perf (F0)
 
+// UX: fileira de chips de categoria com setinhas indicando que ha mais
+// conteudo para os lados. Componente isolado e memoizado de proposito: o
+// onScroll faz setState a cada rolagem — aqui dentro, so a fileira
+// re-renderiza (a tela da loja inteira fica parada; padrao F3).
+const CategoryChips = React.memo(function CategoryChips({
+  categories,
+  activeCatId,
+  onSelect,
+  colors,
+}: {
+  categories: any[];
+  activeCatId: string | null;
+  onSelect: (id: string | null) => void;
+  colors: any;
+}) {
+  const [scrollX, setScrollX] = useState(0);
+  const [contentW, setContentW] = useState(0);
+  const [viewW, setViewW] = useState(0);
+  const showLeft = scrollX > 6;
+  const showRight = contentW > viewW && scrollX + viewW < contentW - 6;
+
+  return (
+    <View style={{ marginTop: 8 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        onScroll={(e) => setScrollX(e.nativeEvent.contentOffset.x)}
+        scrollEventThrottle={32}
+        onContentSizeChange={(w) => setContentW(w)}
+        onLayout={(e) => setViewW(e.nativeEvent.layout.width)}
+      >
+        <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 2 }}>
+          <TouchableOpacity
+            style={[styles.catChip, { backgroundColor: !activeCatId ? colors.primary : colors.grayLight }]}
+            onPress={() => onSelect(null)}
+          >
+            <Text style={[styles.catChipText, { color: !activeCatId ? '#FFF' : colors.textLight }]}>Todas</Text>
+          </TouchableOpacity>
+          {categories.map((cat: any) => (
+            <TouchableOpacity
+              key={cat.id}
+              style={[styles.catChip, { backgroundColor: activeCatId === cat.id ? colors.primary : colors.grayLight }]}
+              onPress={() => onSelect(activeCatId === cat.id ? null : cat.id)}
+            >
+              <Text style={[styles.catChipText, { color: activeCatId === cat.id ? '#FFF' : colors.textLight }]}>{cat.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+      {showLeft && (
+        <View pointerEvents="none" style={[styles.catArrow, { left: 0, backgroundColor: colors.card }]}>
+          <Ionicons name="chevron-back" size={14} color={colors.gray} />
+        </View>
+      )}
+      {showRight && (
+        <View pointerEvents="none" style={[styles.catArrow, { right: 0, backgroundColor: colors.card }]}>
+          <Ionicons name="chevron-forward" size={14} color={colors.gray} />
+        </View>
+      )}
+    </View>
+  );
+});
+
 export default function StoreScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -295,27 +359,14 @@ export default function StoreScreen() {
           )}
         </View>
         {/* UX: chips de categoria da loja — filtro server-side (funciona com
-            catalogo paginado de qualquer tamanho) */}
+            catalogo paginado de qualquer tamanho), com setinhas de overflow */}
         {!isServiceStore && (store.categories || []).length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} keyboardShouldPersistTaps="handled">
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              <TouchableOpacity
-                style={[styles.catChip, { backgroundColor: !activeCatId ? colors.primary : colors.grayLight }]}
-                onPress={() => setActiveCatId(null)}
-              >
-                <Text style={[styles.catChipText, { color: !activeCatId ? '#FFF' : colors.textLight }]}>Todas</Text>
-              </TouchableOpacity>
-              {(store.categories || []).map((cat: any) => (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[styles.catChip, { backgroundColor: activeCatId === cat.id ? colors.primary : colors.grayLight }]}
-                  onPress={() => setActiveCatId(activeCatId === cat.id ? null : cat.id)}
-                >
-                  <Text style={[styles.catChipText, { color: activeCatId === cat.id ? '#FFF' : colors.textLight }]}>{cat.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
+          <CategoryChips
+            categories={store.categories || []}
+            activeCatId={activeCatId}
+            onSelect={setActiveCatId}
+            colors={colors}
+          />
         )}
       </View>
 
@@ -625,6 +676,22 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     justifyContent: 'center',
+  },
+  catArrow: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 11,
+    opacity: 0.95,
+    // sombra leve pra "flutuar" sobre os chips
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
   },
   catChipText: {
     fontSize: fonts.small,
