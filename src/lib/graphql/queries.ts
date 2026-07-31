@@ -168,8 +168,8 @@ export const GET_MY_CART_BY_STORE = gql`
 `;
 
 export const GET_MY_ORDERS = gql`
-  query MyOrders {
-    myOrders {
+  query MyOrders($limit: Int, $offset: Int) {
+    myOrders(limit: $limit, offset: $offset) {
       id
       orderNumber
       status
@@ -551,8 +551,8 @@ export const GET_AVAILABLE_DELIVERIES = gql`
 `;
 
 export const GET_MY_DELIVERIES = gql`
-  query MyDeliveries {
-    myDeliveries {
+  query MyDeliveries($limit: Int, $offset: Int) {
+    myDeliveries(limit: $limit, offset: $offset) {
       id
       pickedUpAt
       deliveredAt
@@ -634,8 +634,8 @@ export const AVAILABLE_SLOTS = gql`
 `;
 
 export const MY_APPOINTMENTS = gql`
-  query MyAppointments {
-    myAppointments {
+  query MyAppointments($limit: Int, $offset: Int) {
+    myAppointments(limit: $limit, offset: $offset) {
       id
       appointmentNumber
       scheduledDate

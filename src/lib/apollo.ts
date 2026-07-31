@@ -105,12 +105,25 @@ const link = wsLink
     )
   : authLink.concat(httpLink);
 
+
+// Perf (F6): merge offset-based compartilhado (equivalente ao offsetLimitPagination).
+function offsetMerge(existing: any[] = [], incoming: any[], { args }: any) {
+  const offset = args?.offset ?? 0;
+  const merged = existing.slice(0);
+  for (let i = 0; i < incoming.length; i++) merged[offset + i] = incoming[i];
+  return merged;
+}
+
 const cache = new InMemoryCache({
   typePolicies: {
     Query: {
       fields: {
-        myOrders: { merge: (_existing, incoming) => incoming },
-        myDeliveries: { merge: (_existing, incoming) => incoming },
+        // Perf (F6): merge de paginacao por offset. keyArgs:false = uma lista
+        // unica por campo; cada pagina entra na posicao do seu offset (refetch
+        // com offset 0 sobrescreve o inicio e preserva o resto ja carregado).
+        myOrders: { keyArgs: false, merge: offsetMerge },
+        myDeliveries: { keyArgs: false, merge: offsetMerge },
+        myAppointments: { keyArgs: false, merge: offsetMerge },
         availableDeliveries: { merge: (_existing, incoming) => incoming },
         storeOrders: { merge: (_existing, incoming) => incoming },
         popularProducts: { merge: (_existing, incoming) => incoming },

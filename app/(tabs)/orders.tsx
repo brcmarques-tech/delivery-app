@@ -58,7 +58,9 @@ export default function OrdersScreen() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('orders');
 
   // Orders
-  const { data, loading, refetch } = useQuery(GET_MY_ORDERS);
+  const { data, loading, refetch, fetchMore } = useQuery(GET_MY_ORDERS, {
+    variables: { limit: 20, offset: 0 },
+  });
   // Perf (F3): memoizado — antes era array novo por render alimentando o FlatList.
   const orders = useMemo(() => data?.myOrders || [], [data?.myOrders]);
   // KAN-255: useRef exige valor inicial (ou `undefined` no tipo).
@@ -69,8 +71,23 @@ export default function OrdersScreen() {
   }, [refetch]);
 
   // Appointments
-  const { data: appointmentsData, loading: appointmentsLoading, refetch: refetchAppointments } = useQuery(MY_APPOINTMENTS);
+  const { data: appointmentsData, loading: appointmentsLoading, refetch: refetchAppointments, fetchMore: fetchMoreAppointments } = useQuery(MY_APPOINTMENTS, {
+    variables: { limit: 20, offset: 0 },
+  });
   const appointments = useMemo(() => appointmentsData?.myAppointments || [], [appointmentsData?.myAppointments]);
+
+  // Perf (F6): paginacao por scroll. So busca a proxima pagina quando a ultima
+  // veio cheia (lista multipla do tamanho da pagina); o offsetMerge do Apollo
+  // encaixa cada pagina na posicao certa.
+  const loadMoreOrders = useCallback(() => {
+    if (orders.length === 0 || orders.length % 20 !== 0) return;
+    fetchMore({ variables: { limit: 20, offset: orders.length } }).catch(() => {});
+  }, [orders.length, fetchMore]);
+
+  const loadMoreAppointments = useCallback(() => {
+    if (appointments.length === 0 || appointments.length % 20 !== 0) return;
+    fetchMoreAppointments({ variables: { limit: 20, offset: appointments.length } }).catch(() => {});
+  }, [appointments.length, fetchMoreAppointments]);
   const [cancelAppointment] = useMutation(CANCEL_APPOINTMENT);
 
   // Perf (F3): memoizado por tema. Antes era um objeto novo por render e estava
@@ -320,6 +337,8 @@ export default function OrdersScreen() {
           <FlatList
             data={orders}
             keyExtractor={(item) => item.id}
+            onEndReached={loadMoreOrders}
+            onEndReachedThreshold={0.4}
             contentContainerStyle={[styles.list, orders.length === 0 && { flexGrow: 1, justifyContent: 'center' }]}
             {...listPerfProps}
             refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} />}
@@ -348,6 +367,8 @@ export default function OrdersScreen() {
           <FlatList
             data={appointments}
             keyExtractor={(item) => item.id}
+            onEndReached={loadMoreAppointments}
+            onEndReachedThreshold={0.4}
             contentContainerStyle={[styles.list, appointments.length === 0 && { flexGrow: 1, justifyContent: 'center' }]}
             {...listPerfProps}
             refreshControl={<RefreshControl refreshing={appointmentsLoading} onRefresh={refetchAppointments} />}

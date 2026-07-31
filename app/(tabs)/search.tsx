@@ -527,17 +527,24 @@ export default function SearchScreen() {
         {/* Category results view */}
         {isCategoryMode ? (
           <ReAnimated.View entering={FadeInDown.duration(300)} exiting={FadeOut.duration(200)} style={{ flex: 1 }}>
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 10 }}>
-              {(productsLoading || servicesLoading) && (
+            {/* Perf (F4): era ScrollView + .map — com limit 100, TODOS os
+                resultados (cada um com imagem) montavam na memoria de uma vez.
+                FlatList virtualiza: so a janela visivel existe; RAM cai e a
+                digitacao para de engasgar. Knobs vem do deviceTier (F0). */}
+            <FlatList
+              data={categoryItems}
+              keyExtractor={(item: any) => item.id}
+              renderItem={({ item, index }) => renderCategoryItem(item, index)}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ padding: 10 }}
+              {...listPerfProps}
+              ListHeaderComponent={(productsLoading || servicesLoading) ? (
                 <View style={styles.loadingRow}>
                   <ActivityIndicator size="small" color={colors.primary} />
                   <Text style={[styles.loadingText, { color: colors.textLight }]}>Buscando...</Text>
                 </View>
-              )}
-
-              {categoryItems.map((item: any, index: number) => renderCategoryItem(item, index))}
-
-              {!(productsLoading || servicesLoading) && !hasCategoryResults && (
+              ) : null}
+              ListEmptyComponent={!(productsLoading || servicesLoading) ? (
                 <AnimatedItem delay={100} fromY={20}>
                   <View style={styles.emptyContainer}>
                     <Ionicons name="search-outline" size={56} color={colors.grayLight} />
@@ -551,8 +558,8 @@ export default function SearchScreen() {
                     </Text>
                   </View>
                 </AnimatedItem>
-              )}
-            </ScrollView>
+              ) : null}
+            />
           </ReAnimated.View>
         ) : (
           <>

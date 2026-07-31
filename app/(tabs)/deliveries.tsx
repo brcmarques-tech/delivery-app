@@ -470,7 +470,8 @@ export default function DeliveriesScreen() {
     data: myData,
     loading: loadingMy,
     refetch: refetchMy,
-  } = useQuery(GET_MY_DELIVERIES, { fetchPolicy: 'cache-and-network' });
+    fetchMore: fetchMoreMy,
+  } = useQuery(GET_MY_DELIVERIES, { fetchPolicy: 'cache-and-network', variables: { limit: 20, offset: 0 } });
 
   // Real-time updates.
   // Perf (F2): handler UNICO com debounce trailing. Antes um evento de entrega
@@ -573,6 +574,12 @@ export default function DeliveriesScreen() {
     () => [...activeDeliveries, ...completedDeliveries],
     [activeDeliveries, completedDeliveries],
   );
+
+  // Perf (F6): paginacao por scroll do historico de entregas.
+  const loadMoreMy = useCallback(() => {
+    if (myDeliveries.length === 0 || myDeliveries.length % 20 !== 0) return;
+    fetchMoreMy({ variables: { limit: 20, offset: myDeliveries.length } }).catch(() => {});
+  }, [myDeliveries.length, fetchMoreMy]);
 
   // Background location tracking for active delivery
   const activeDeliveryForTracking = useMemo(() => {
@@ -1147,6 +1154,8 @@ export default function DeliveriesScreen() {
       ) : (
         <FlatList
           data={myListData}
+          onEndReached={loadMoreMy}
+          onEndReachedThreshold={0.4}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           {...listPerfProps}
