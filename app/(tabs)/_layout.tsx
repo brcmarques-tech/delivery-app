@@ -13,6 +13,10 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 const ACTIVE_ORDER_STATUSES = ['AWAITING_PAYMENT', 'PAYMENT_REVIEW', 'PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'PICKED_UP', 'DELIVERING', 'VENDOR_CONFIRMED_PICKUP', 'DELIVERER_CONFIRMED_DELIVERY'];
 
+// Perf (F3): funcao estavel em module scope — o inline `(props) => <CustomTabBar/>`
+// era recriado a cada render do TabsLayout, re-renderizando a tab bar inteira.
+const renderTabBar = (props: BottomTabBarProps) => <CustomTabBar {...props} />;
+
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -103,27 +107,54 @@ export default function TabsLayout() {
   // Active orders count for badge (auto-updates via subscription)
   const { data: ordersData, refetch: refetchOrders } = useQuery(GET_MY_ORDERS, { skip: !user, fetchPolicy: 'cache-and-network' });
   const activeOrderCount = (ordersData?.myOrders || []).filter((o: any) => ACTIVE_ORDER_STATUSES.includes(o.status)).length;
+  // Perf (F2): o payload do orderUpdated ja e normalizado no cache pelo Apollo
+  // (id + status), entao pedido CONHECIDO atualiza o badge sozinho, sem rede.
+  // So refetch quando chega um pedido que ainda nao esta na lista (o cache nao
+  // tem como inserir membro novo em myOrders). Antes era refetch POR EVENTO —
+  // e a tela de pedidos fazia outro identico, dobrando cada round-trip.
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const ids = new Set<string>((ordersData?.myOrders || []).map((o: any) => o.id));
+    knownOrderIdsRef.current = ids;
+  }, [ordersData]);
   useSubscription(ORDER_UPDATED, {
     skip: !user,
-    onData: () => { refetchOrders(); },
+    onData: ({ data }) => {
+      const updated = data?.data?.orderUpdated;
+      if (updated?.id && !knownOrderIdsRef.current.has(updated.id)) {
+        refetchOrders();
+      }
+    },
   });
 
   // Available deliveries count for badge (auto-updates via subscription)
   const { data: deliveriesData, refetch: refetchDeliveries } = useQuery(GET_AVAILABLE_DELIVERIES, { skip: !isDeliverer, fetchPolicy: 'cache-and-network' });
   const availableDeliveryCount = (deliveriesData?.availableDeliveries || []).length;
+  // Perf (F2): entrada/saida da lista de disponiveis exige refetch, mas com
+  // throttle — antes cada tick de entrega (inclusive GPS) disparava a query.
+  const lastDeliveriesRefetchRef = useRef(0);
   useSubscription(DELIVERY_UPDATED, {
     skip: !isDeliverer,
-    onData: () => { refetchDeliveries(); },
+    onData: () => {
+      const now = Date.now();
+      if (now - lastDeliveriesRefetchRef.current < 5_000) return;
+      lastDeliveriesRefetchRef.current = now;
+      refetchDeliveries();
+    },
   });
+
+  // Perf (F3): screenOptions memoizado — era objeto novo a cada render do layout
+  // (que re-renderiza a cada badge/subscription), re-renderizando a tab bar.
+  const screenOptions = useMemo(() => ({
+    tabBarActiveTintColor: colors.primary,
+    tabBarInactiveTintColor: colors.gray,
+    headerShown: false,
+  }), [colors]);
 
   return (
     <Tabs
-      tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.gray,
-        headerShown: false,
-      }}
+      tabBar={renderTabBar}
+      screenOptions={screenOptions}
     >
       <Tabs.Screen
         name="home"

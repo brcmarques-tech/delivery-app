@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSecureItem, setSecureItem, deleteSecureItem } from '../lib/secureStorage';
 import { useApolloClient, useSubscription } from '@apollo/client';
@@ -54,6 +54,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const appState = useRef(AppState.currentState);
   const kickedRef = useRef(false);
   const justLoggedInRef = useRef(false);
+  // Perf: espelho do user em ref para o refresh periodico comparar sem entrar
+  // como dependencia dos callbacks (evita recriar o interval a cada mudanca).
+  const userRef = useRef<User | null>(user);
+  useEffect(() => { userRef.current = user; }, [user]);
+
+  const forceLogout = useCallback(async () => {
+    // C2: Token in SecureStore (sensitive), user in AsyncStorage (non-sensitive)
+    await deleteSecureItem('token');
+    await AsyncStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+    await apolloClient.clearStore();
+  }, [apolloClient]);
+
+  // Perf: so troca o objeto `user` quando ele realmente mudou. Antes, o refresh
+  // periodico (5 min) e o de foreground faziam setUser(freshUser) com um objeto
+  // novo mesmo sem mudanca — como o AuthProvider fica no topo da arvore, isso
+  // cascateava um re-render do app inteiro num timer eterno. Agora e no-op quando
+  // nada mudou.
+  const applyFreshUser = useCallback(async (freshUser: User) => {
+    const serialized = JSON.stringify(freshUser);
+    if (serialized === JSON.stringify(userRef.current)) return;
+    await AsyncStorage.setItem('user', serialized);
+    setUser(freshUser);
+  }, []);
+
+  const validateToken = useCallback(async () => {
+    try {
+      const { data } = await apolloClient.query({
+        query: GET_ME,
+        fetchPolicy: 'network-only',
+      });
+      if (data?.meApp) {
+        await applyFreshUser(data.meApp);
+      } else {
+        await forceLogout();
+      }
+    } catch {
+      await forceLogout();
+    }
+  }, [apolloClient, applyFreshUser, forceLogout]);
+
+  const loadStoredAuth = useCallback(async () => {
+    const storedToken = await getSecureItem('token');
+    const storedUser = await AsyncStorage.getItem('user');
+    if (storedToken && storedUser) {
+      setToken(storedToken);
+      setUser(JSON.parse(storedUser));
+      try {
+        const { data } = await apolloClient.query({
+          query: GET_ME,
+          fetchPolicy: 'network-only',
+        });
+        if (data?.meApp) {
+          await applyFreshUser(data.meApp);
+        } else {
+          await forceLogout();
+        }
+      } catch {
+        await forceLogout();
+      }
+    }
+    setLoading(false);
+  }, [apolloClient, applyFreshUser, forceLogout]);
 
   // Listen for session kicked via WebSocket
   useSubscription(SESSION_KICKED, {
@@ -74,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadStoredAuth();
-  }, []);
+  }, [loadStoredAuth]);
 
   // Re-validate token when app comes back to foreground
   useEffect(() => {
@@ -85,72 +149,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       appState.current = nextState;
     });
     return () => sub.remove();
-  }, [token]);
+  }, [token, validateToken]);
 
   // Periodic token refresh (every 5 minutes)
   useEffect(() => {
     if (!token) return;
     const interval = setInterval(validateToken, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, validateToken]);
 
-  async function validateToken() {
-    try {
-      const { data } = await apolloClient.query({
-        query: GET_ME,
-        fetchPolicy: 'network-only',
-      });
-      if (data?.meApp) {
-        const freshUser = data.meApp;
-        await AsyncStorage.setItem('user', JSON.stringify(freshUser));
-        setUser(freshUser);
-      } else {
-        await forceLogout();
-      }
-    } catch {
-      await forceLogout();
-    }
-  }
-
-  async function forceLogout() {
-    // C2: Token in SecureStore (sensitive), user in AsyncStorage (non-sensitive)
-    await deleteSecureItem('token');
-    await AsyncStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
-    await apolloClient.clearStore();
-  }
-
-  async function loadStoredAuth() {
-    const storedToken = await getSecureItem('token');
-    const storedUser = await AsyncStorage.getItem('user');
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-      try {
-        const { data } = await apolloClient.query({
-          query: GET_ME,
-          fetchPolicy: 'network-only',
-        });
-        if (data?.meApp) {
-          await AsyncStorage.setItem('user', JSON.stringify(data.meApp));
-          setUser(data.meApp);
-        } else {
-          await forceLogout();
-        }
-      } catch {
-        await forceLogout();
-      }
-    }
-    setLoading(false);
-  }
-
-  function markJustLoggedIn() {
+  const markJustLoggedIn = useCallback(() => {
     justLoggedInRef.current = true;
     setTimeout(() => { justLoggedInRef.current = false; }, 3000);
-  }
+  }, []);
 
-  async function login(email: string, password: string, forceLogin: boolean = false) {
+  const login = useCallback(async (email: string, password: string, forceLogin: boolean = false) => {
     if (forceLogin) markJustLoggedIn();
     const { data } = await apolloClient.mutate({
       mutation: LOGIN,
@@ -161,9 +174,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);
     setUser(userData);
-  }
+  }, [apolloClient, markJustLoggedIn]);
 
-  async function loginWithGoogle(idToken: string) {
+  const loginWithGoogle = useCallback(async (idToken: string) => {
     markJustLoggedIn();
     const { data } = await apolloClient.mutate({
       mutation: GOOGLE_AUTH_APP,
@@ -174,9 +187,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);
     setUser(userData);
-  }
+  }, [apolloClient, markJustLoggedIn]);
 
-  async function registerWithGoogle(idToken: string, phone: string, cpf: string) {
+  const registerWithGoogle = useCallback(async (idToken: string, phone: string, cpf: string) => {
     const { data } = await apolloClient.mutate({
       mutation: REGISTER_APP_WITH_GOOGLE,
       variables: { idToken, phone, cpf },
@@ -186,9 +199,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);
     setUser(userData);
-  }
+  }, [apolloClient]);
 
-  async function register(name: string, email: string, password: string, phone: string, role?: string, cpf?: string) {
+  const register = useCallback(async (name: string, email: string, password: string, phone: string, role?: string, cpf?: string) => {
     const { data } = await apolloClient.mutate({
       mutation: REGISTER,
       variables: { input: { name, email, password, phone, cpf } },
@@ -198,22 +211,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);
     setUser(userData);
-  }
+  }, [apolloClient]);
 
-  async function updateUser(updatedUser: User) {
+  const updateUser = useCallback(async (updatedUser: User) => {
     await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
     setUser(updatedUser);
-  }
+  }, []);
 
-  async function setAuthData(accessToken: string, userData: User) {
+  const setAuthData = useCallback(async (accessToken: string, userData: User) => {
     markJustLoggedIn();
     await setSecureItem('token', accessToken);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
     setToken(accessToken);
     setUser(userData);
-  }
+  }, [markJustLoggedIn]);
 
-  async function logout() {
+  const logout = useCallback(async () => {
     try {
       await apolloClient.mutate({ mutation: LOGOUT });
     } catch {
@@ -224,10 +237,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setUser(null);
     await apolloClient.clearStore();
-  }
+  }, [apolloClient]);
+
+  // Perf: value memoizado. Como os callbacks sao estaveis (useCallback), o value
+  // so muda quando user/token/loading mudam — em vez de a cada render do provider,
+  // que antes re-renderizava TODO consumidor de useAuth (app inteiro).
+  const value = useMemo<AuthContextData>(() => ({
+    user, token, loading, login, loginWithGoogle, registerWithGoogle,
+    register, logout, updateUser, setAuthData, refreshUser: validateToken,
+  }), [user, token, loading, login, loginWithGoogle, registerWithGoogle, register, logout, updateUser, setAuthData, validateToken]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, loginWithGoogle, registerWithGoogle, register, logout, updateUser, setAuthData, refreshUser: validateToken }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,8 +1,11 @@
 import * as Sentry from '@sentry/react-native';
+import { useEffect } from 'react';
+import { AppState } from 'react-native';
 import { Stack } from 'expo-router';
 import { ApolloProvider } from '@apollo/client';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import { Image as ExpoImage } from 'expo-image';
 import { apolloClient } from '../src/lib/apollo';
 import { AuthProvider } from '../src/contexts/AuthContext';
 import { CartProvider } from '../src/contexts/CartContext';
@@ -36,6 +39,20 @@ function NotificationListener() {
   return null;
 }
 
+// Perf (F0): quando o SO avisa que a memoria apertou (iOS: memoryWarning),
+// despeja o cache de bitmap decodificado do expo-image — a imagem continua no
+// cache de DISCO, entao re-exibir custa so um decode, nao rede. Garante que o
+// app cede RAM antes de o sistema mata-lo.
+function MemoryPressureHandler() {
+  useEffect(() => {
+    const sub = AppState.addEventListener('memoryWarning' as any, () => {
+      ExpoImage.clearMemoryCache().catch(() => {});
+    });
+    return () => sub.remove();
+  }, []);
+  return null;
+}
+
 function ThemedStatusBar() {
   const { isDark } = useTheme();
   return <StatusBar style={isDark ? 'light' : 'dark'} />;
@@ -51,6 +68,7 @@ export default function RootLayout() {
               <LocationProvider>
                 <CartProvider>
                   <NotificationListener />
+                  <MemoryPressureHandler />
                   <DeliveryConfirmationModal />
                   <ThemedStatusBar />
                   <Stack screenOptions={{ headerShown: false }} />

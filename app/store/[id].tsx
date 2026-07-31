@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,13 +15,14 @@ import { useQuery, useSubscription, useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { GET_STORE, IS_FOLLOWING_STORE, GET_FOLLOWER_COUNT } from '../../src/lib/graphql/queries';
 import { FOLLOW_STORE, UNFOLLOW_STORE } from '../../src/lib/graphql/mutations';
-import { PRODUCT_UPDATED, STORE_UPDATED } from '../../src/lib/graphql/subscriptions';
+import { STORE_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useCart } from '../../src/contexts/CartContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../src/theme';
+import { imageCachePolicy } from '../../src/lib/deviceTier'; // Perf (F0)
 
 export default function StoreScreen() {
   const insets = useSafeAreaInsets();
@@ -56,11 +57,12 @@ export default function StoreScreen() {
     } catch {}
   }
 
-  // Real-time: refresh when products or store changes
-  useSubscription(PRODUCT_UPDATED, {
-    variables: { storeId: id },
-    onData: () => { refetch(); },
-  });
+  // Real-time: refresh when the STORE itself changes (name, isOpen, fees...).
+  // Perf (F2): a subscription PRODUCT_UPDATED que existia aqui foi removida — o
+  // useProductSync global ja patcheia price/promotionalPrice/name/imageUrl/
+  // isAvailable/stock direto no cache normalizado, e o Apollo propaga pra esta
+  // tela sozinho. Antes, CADA mudanca de 1 produto re-baixava a loja INTEIRA
+  // (todos os produtos + servicos + categorias).
   useSubscription(STORE_UPDATED, {
     variables: { storeId: id },
     onData: () => { refetch(); },
@@ -73,9 +75,21 @@ export default function StoreScreen() {
   const [weightGrams, setWeightGrams] = useState(500);
 
   const store = data?.store;
-  const products = store?.products || [];
-  const services = (store?.services || []).filter((s: any) => s.isActive);
+  // Perf (F3): derivados memoizados. Antes products/services/sections eram
+  // recalculados (filter/map/Map) a CADA render — inclusive a cada toque de
+  // +/- de quantidade no modal, que re-filtrava o catalogo inteiro.
+  const products = useMemo(() => store?.products || [], [store?.products]);
+  const services = useMemo(
+    () => (store?.services || []).filter((s: any) => s.isActive),
+    [store?.services],
+  );
   const isServiceStore = store?.storeType === 'SERVICES';
+
+  const openProductModal = useCallback((product: any) => {
+    setSelectedProduct(product);
+    setQuantity(1);
+    setWeightGrams(500);
+  }, []);
 
   // Auto-open product modal when navigating from home screen
   useEffect(() => {
@@ -85,63 +99,59 @@ export default function StoreScreen() {
     }
   }, [productId, products.length]);
 
+  // Build sections based on store type (memoizado — so muda quando o catalogo muda)
+  const sections = useMemo(() => {
+    const built: { title: string; data: any[] }[] = [];
+    const categories = store?.categories || [];
+
+    if (isServiceStore) {
+      // Service store: group services by category
+      const serviceCategories = [...new Map(
+        services.filter((s: any) => s.category).map((s: any) => [s.category.id, s.category])
+      ).values()];
+
+      serviceCategories.forEach((cat: any) => {
+        built.push({
+          title: cat.name,
+          data: services.filter((s: any) => s.category?.id === cat.id),
+        });
+      });
+
+      const uncategorizedServices = services.filter((s: any) => !s.category);
+      if (uncategorizedServices.length > 0) {
+        built.push({ title: 'Outros', data: uncategorizedServices });
+      }
+
+      if (built.length === 0 && services.length > 0) {
+        built.push({ title: 'Servicos', data: services });
+      }
+    } else {
+      // Product store: group products by category
+      categories.forEach((cat: any) => {
+        const catProducts = products.filter((p: any) => p.category?.id === cat.id);
+        if (catProducts.length > 0) {
+          built.push({ title: cat.name, data: catProducts });
+        }
+      });
+
+      const uncategorized = products.filter((p: any) => !p.category);
+      if (uncategorized.length > 0) {
+        built.push({ title: 'Outros', data: uncategorized });
+      }
+
+      if (built.length === 0 && products.length > 0) {
+        built.push({ title: 'Produtos', data: products });
+      }
+    }
+    return built;
+  }, [store?.categories, products, services, isServiceStore]);
+
   if (loading || !store) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
         <Text style={[styles.loadingText, { color: colors.textLight }]}>Carregando...</Text>
       </View>
     );
-  }
-
-  const categories = store.categories || [];
-
-  // Build sections based on store type
-  const sections: { title: string; data: any[] }[] = [];
-
-  if (isServiceStore) {
-    // Service store: group services by category
-    const serviceCategories = [...new Map(
-      services.filter((s: any) => s.category).map((s: any) => [s.category.id, s.category])
-    ).values()];
-
-    serviceCategories.forEach((cat: any) => {
-      sections.push({
-        title: cat.name,
-        data: services.filter((s: any) => s.category?.id === cat.id),
-      });
-    });
-
-    const uncategorizedServices = services.filter((s: any) => !s.category);
-    if (uncategorizedServices.length > 0) {
-      sections.push({ title: 'Outros', data: uncategorizedServices });
-    }
-
-    if (sections.length === 0 && services.length > 0) {
-      sections.push({ title: 'Servicos', data: services });
-    }
-  } else {
-    // Product store: group products by category
-    categories.forEach((cat: any) => {
-      const catProducts = products.filter((p: any) => p.category?.id === cat.id);
-      if (catProducts.length > 0) {
-        sections.push({ title: cat.name, data: catProducts });
-      }
-    });
-
-    const uncategorized = products.filter((p: any) => !p.category);
-    if (uncategorized.length > 0) {
-      sections.push({ title: 'Outros', data: uncategorized });
-    }
-
-    if (sections.length === 0 && products.length > 0) {
-      sections.push({ title: 'Produtos', data: products });
-    }
-  }
-
-  function openProductModal(product: any) {
-    setSelectedProduct(product);
-    setQuantity(1);
-    setWeightGrams(500);
   }
 
   function confirmAdd() {
@@ -268,7 +278,7 @@ export default function StoreScreen() {
                 <View style={styles.productRight}>
                   {item.imageUrl ? (
                     <TouchableOpacity activeOpacity={0.8} onPress={() => setZoomedImage(item.imageUrl)}>
-                      <Image source={item.imageUrl} style={styles.productImage} cachePolicy="memory-disk" recyclingKey={item.id} />
+                      <Image source={item.imageUrl} style={styles.productImage} cachePolicy={imageCachePolicy} recyclingKey={item.id} />
                     </TouchableOpacity>
                   ) : (
                     <View style={[styles.productImage, styles.productImagePlaceholder, { backgroundColor: colors.grayLight }]}>
@@ -318,7 +328,7 @@ export default function StoreScreen() {
             <View style={styles.productRight}>
               {item.imageUrl ? (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setZoomedImage(item.imageUrl)}>
-                  <Image source={item.imageUrl} style={styles.productImage} cachePolicy="memory-disk" recyclingKey={item.id} />
+                  <Image source={item.imageUrl} style={styles.productImage} cachePolicy={imageCachePolicy} recyclingKey={item.id} />
                 </TouchableOpacity>
               ) : (
                 <View style={[styles.productImage, styles.productImagePlaceholder, { backgroundColor: colors.grayLight }]}>
@@ -363,7 +373,7 @@ export default function StoreScreen() {
         <Pressable style={styles.imageModalOverlay} onPress={() => setZoomedImage(null)}>
           <View style={styles.imageModalContainer}>
             {zoomedImage && (
-              <Image source={zoomedImage} style={styles.imageModalImage} contentFit="contain" cachePolicy="memory-disk" />
+              <Image source={zoomedImage} style={styles.imageModalImage} contentFit="contain" cachePolicy={imageCachePolicy} />
             )}
           </View>
           <TouchableOpacity style={[styles.imageModalClose, { top: insets.top + 8 }]} onPress={() => setZoomedImage(null)}>
@@ -381,7 +391,7 @@ export default function StoreScreen() {
                 {/* Imagem */}
                 {selectedProduct.imageUrl && (
                   <TouchableOpacity activeOpacity={0.9} onPress={() => { setSelectedProduct(null); setTimeout(() => setZoomedImage(selectedProduct.imageUrl), 300); }}>
-                    <Image source={selectedProduct.imageUrl} style={styles.addModalImage} cachePolicy="memory-disk" />
+                    <Image source={selectedProduct.imageUrl} style={styles.addModalImage} cachePolicy={imageCachePolicy} />
                   </TouchableOpacity>
                 )}
 

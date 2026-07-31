@@ -4,16 +4,31 @@ import { ORDER_UPDATED } from '../lib/graphql/subscriptions';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlert } from '../contexts/AlertContext';
 
+// Perf (F2): intervalo minimo entre refreshes disparados por evento de pedido.
+// Mudanca de role/aprovacao raramente coincide com um update de pedido; o refresh
+// periodico do AuthContext (5 min + foreground) ja cobre o caso geral.
+const REFRESH_THROTTLE_MS = 60_000;
+
 export function useOrderNotifications() {
   const { user, refreshUser } = useAuth();
   const { alert } = useAlert();
   const initializedRef = useRef(0);
   const prevUserRef = useRef(user);
+  const lastRefreshRef = useRef(0);
 
-  // Refresh user data when orders change (role/approval may update)
+  // Refresh user data when orders change (role/approval may update).
+  // Perf (F2): antes era um GET_ME network-only POR EVENTO — num pedido ativo que
+  // troca de status varias vezes isso virava tempestade de rede + re-render.
+  // Agora no maximo 1 refresh por minuto (e o AuthContext ja ignora respostas
+  // identicas, entao o custo residual e so a chamada).
   useSubscription(ORDER_UPDATED, {
     skip: !user,
-    onData: () => { refreshUser(); },
+    onData: () => {
+      const now = Date.now();
+      if (now - lastRefreshRef.current < REFRESH_THROTTLE_MS) return;
+      lastRefreshRef.current = now;
+      refreshUser();
+    },
   });
 
   // Detect role/approval changes and notify user

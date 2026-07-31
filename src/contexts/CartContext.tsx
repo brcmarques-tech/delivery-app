@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useMutation, useQuery, useSubscription } from '@apollo/client';
+import { useMutation, useQuery } from '@apollo/client';
 import { ADD_TO_CART, UPDATE_CART_ITEM, REMOVE_FROM_CART, CLEAR_CART } from '../lib/graphql/mutations';
 import { GET_MY_CART } from '../lib/graphql/queries';
-import { PRODUCT_UPDATED } from '../lib/graphql/subscriptions';
+import { onProductUpdated } from '../lib/productEvents';
 import { useAuth } from './AuthContext';
 
 const CART_STORAGE_KEY = '@cart_items';
@@ -110,21 +110,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [removeFromCartMutation] = useMutation(REMOVE_FROM_CART);
   const [clearCartMutation] = useMutation(CLEAR_CART);
 
-  // Refetch cart when a product price changes
-  useSubscription(PRODUCT_UPDATED, {
-    skip: !user || items.length === 0,
-    onData: ({ data: subData }) => {
-      const updated = subData?.data?.productUpdated;
-      if (!updated?.id) return;
-      const inCart = items.some((i) => i.productId === updated.id);
-      if (inCart) {
-        // Update price locally
-        updateItems((prev) =>
-          prev.map((i) => i.productId === updated.id ? { ...i, price: updated.promotionalPrice ?? updated.price } : i),
+  // Perf (F2): atualiza preco local via productEvents (re-emitido pelo unico
+  // assinante WS, o useProductSync) em vez de manter uma 2a subscription
+  // PRODUCT_UPDATED concorrente. O updater com functional setState dispensa
+  // depender de `items` (sem re-registrar o listener a cada mudanca do carrinho).
+  useEffect(() => {
+    const unsubscribe = onProductUpdated((updated) => {
+      if (!updated?.id || updated.price === undefined) return;
+      updateItems((prev) => {
+        if (!prev.some((i) => i.productId === updated.id)) return prev;
+        return prev.map((i) =>
+          i.productId === updated.id ? { ...i, price: updated.promotionalPrice ?? updated.price! } : i,
         );
-      }
-    },
-  });
+      });
+    });
+    return unsubscribe;
+  }, [updateItems]);
 
   // Clear on logout
   useEffect(() => {
@@ -139,7 +140,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // --- Actions: all update local state FIRST, then sync to server ---
 
-  function addItem(info: AddItemInfo, quantity: number, notes?: string, weightGrams?: number) {
+  const addItem = useCallback((info: AddItemInfo, quantity: number, notes?: string, weightGrams?: number) => {
     if (!user) {
       Alert.alert('Erro', 'Faça login para adicionar itens ao carrinho.');
       return;
@@ -235,40 +236,46 @@ export function CartProvider({ children }: { children: ReactNode }) {
       });
       Alert.alert('Erro', 'Não foi possível adicionar ao carrinho.');
     });
-  }
+  }, [user, updateItems, addToCartMutation, refetch, saveLocal]);
 
-  function removeItem(cartItemId: string) {
+  const removeItem = useCallback((cartItemId: string) => {
     updateItems((prev) => prev.filter((i) => i.id !== cartItemId));
     if (user && !cartItemId.startsWith('local-')) {
       removeFromCartMutation({ variables: { cartItemId } }).catch(() => {});
     }
-  }
+  }, [user, updateItems, removeFromCartMutation]);
 
-  function updateQuantity(cartItemId: string, quantity: number) {
+  const updateQuantity = useCallback((cartItemId: string, quantity: number) => {
     if (quantity <= 0) { removeItem(cartItemId); return; }
     updateItems((prev) => prev.map((i) => (i.id === cartItemId ? { ...i, quantity } : i)));
     if (user && !cartItemId.startsWith('local-')) {
       updateCartItemMutation({ variables: { input: { cartItemId, quantity } } }).catch(() => {});
     }
-  }
+  }, [user, updateItems, updateCartItemMutation, removeItem]);
 
-  function updateWeight(cartItemId: string, weightGrams: number) {
+  const updateWeight = useCallback((cartItemId: string, weightGrams: number) => {
     if (weightGrams <= 0) { removeItem(cartItemId); return; }
     updateItems((prev) => prev.map((i) => (i.id === cartItemId ? { ...i, weightGrams } : i)));
     if (user && !cartItemId.startsWith('local-')) {
       updateCartItemMutation({ variables: { input: { cartItemId, weightGrams } } }).catch(() => {});
     }
-  }
+  }, [user, updateItems, updateCartItemMutation, removeItem]);
 
-  function clearCart() {
+  const clearCart = useCallback(() => {
     updateItems(() => []);
     if (user) { clearCartMutation().catch(() => {}); }
-  }
+  }, [user, updateItems, clearCartMutation]);
+
+  // Perf: value memoizado + acoes estaveis. CartProvider e o provider mais interno
+  // e envolve o app todo; antes, cada mutacao do carrinho re-renderizava todo
+  // consumidor de useCart e as identidades novas das acoes quebravam qualquer memo.
+  const value = useMemo<CartContextData>(() => ({
+    items, addItem, removeItem, updateQuantity, updateWeight, clearCart,
+    itemCount, loading: queryLoading && !localLoaded, refetch,
+  }), [items, addItem, removeItem, updateQuantity, updateWeight, clearCart, itemCount, queryLoading, localLoaded, refetch]);
 
   return (
-    <CartContext.Provider
-      value={{ items, addItem, removeItem, updateQuantity, updateWeight, clearCart, itemCount, loading: queryLoading && !localLoaded, refetch }}
-    >
+    <CartContext.Provider value={value}>
       {children}
     </CartContext.Provider>
   );

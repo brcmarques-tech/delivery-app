@@ -14,6 +14,9 @@ import {
   Platform,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+// Perf (F7): g-logo remoto via expo-image (cache em disco) — o <Image> do RN
+// re-baixava o asset estatico a cada render da caixa do Google.
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation } from '@apollo/client';
 import * as Print from 'expo-print';
@@ -429,7 +432,7 @@ export default function RegisterScreen() {
           {isGoogleRegister ? (
             <AnimItem delay={80} fromX={25}>
             <View style={styles.googleInfoBox}>
-              <Image source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }} style={styles.googleInfoIcon} />
+              <ExpoImage source="https://developers.google.com/identity/images/g-logo.png" style={styles.googleInfoIcon} cachePolicy="disk" />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.googleInfoName, { color: colors.text }]}>{name}</Text>
                 <Text style={[styles.googleInfoEmail, { color: colors.textLight }]}>{email}</Text>
@@ -563,9 +566,10 @@ export default function RegisterScreen() {
                   <ActivityIndicator size="small" color={colors.text} />
                 ) : (
                   <>
-                    <Image
-                      source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
+                    <ExpoImage
+                      source="https://developers.google.com/identity/images/g-logo.png"
                       style={styles.googleIconBtn}
+                      cachePolicy="disk"
                     />
                     <Text style={[styles.googleButtonText, { color: colors.text }]}>Cadastrar com Google</Text>
                   </>

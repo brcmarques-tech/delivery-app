@@ -29,6 +29,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CREATE_ADDRESS } from '../src/lib/graphql/mutations';
+import { devLog } from '../src/lib/devLog';
 import { useAlert } from '../src/contexts/AlertContext';
 import { fonts } from '../src/theme';
 import { useTheme } from '../src/contexts/ThemeContext';
@@ -107,7 +108,9 @@ export default function OnboardingAddressScreen() {
       const results = await Location.reverseGeocodeAsync({ latitude, longitude });
       if (results.length > 0) {
         const r = results[0];
-        console.log('Reverse geocode result:', JSON.stringify(r, null, 2));
+        // Perf/PII (F7): era console.log cru — rodava em producao serializando o
+        // endereco completo do usuario. devLog e no-op fora de dev (KAN-223).
+        devLog('Reverse geocode result:', JSON.stringify(r, null, 2));
 
         // Android/iOS retornam campos diferentes:
         // city pode vir em r.city, r.subregion ou r.region

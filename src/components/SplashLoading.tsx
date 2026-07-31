@@ -27,50 +27,34 @@ export function SplashLoading({ onReady, onAnimationDone }: SplashProps = {}) {
   useEffect(() => {
     onReady?.();
 
-    // Full cart animation
+    // Perf (F7): a coreografia completa levava ~3,7s BLOQUEANDO a entrada do
+    // usuario deslogado (index.tsx espera onAnimationDone). Encurtada pra ~1,2s:
+    // carrinho atravessa (sem bounce), logo aparece, footer surge e libera na
+    // hora (sem o setTimeout final de 800ms). Mesma identidade visual.
     Animated.sequence([
       Animated.parallel([
         Animated.timing(cartOpacity, {
           toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(cartTranslateX, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ]),
-      // Pause in center with a subtle bounce
-      Animated.sequence([
-        Animated.timing(cartTranslateX, {
-          toValue: -15,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(cartTranslateX, {
-          toValue: 10,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(cartTranslateX, {
-          toValue: 0,
           duration: 150,
           useNativeDriver: true,
         }),
-        Animated.delay(200),
+        Animated.timing(cartTranslateX, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
       ]),
       // Cart slides out to right
       Animated.parallel([
         Animated.timing(cartTranslateX, {
           toValue: width,
-          duration: 600,
+          duration: 350,
           useNativeDriver: true,
         }),
         Animated.timing(cartOpacity, {
           toValue: 0,
-          duration: 400,
-          delay: 300,
+          duration: 250,
+          delay: 150,
           useNativeDriver: true,
         }),
       ]),
@@ -79,7 +63,7 @@ export function SplashLoading({ onReady, onAnimationDone }: SplashProps = {}) {
       Animated.parallel([
         Animated.timing(fadeIn, {
           toValue: 1,
-          duration: 500,
+          duration: 300,
           useNativeDriver: true,
         }),
         Animated.spring(scaleLogo, {
@@ -93,11 +77,11 @@ export function SplashLoading({ onReady, onAnimationDone }: SplashProps = {}) {
       // Footer fade in, then notify animation is done
       Animated.timing(fadeFooter, {
         toValue: 1,
-        duration: 400,
-        delay: 300,
+        duration: 250,
+        delay: 100,
         useNativeDriver: true,
       }).start(() => {
-        setTimeout(() => onAnimationDone?.(), 800);
+        onAnimationDone?.();
       });
     });
   }, []);

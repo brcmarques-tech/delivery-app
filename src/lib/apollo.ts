@@ -51,7 +51,9 @@ try {
         return { authorization: token ? `Bearer ${token}` : '' };
       },
       on: {
-        error: (err: any) => console.log('[WS] Error:', err?.message || err),
+        // Perf (F7): devLog — em rede instavel este handler dispara em loop de
+        // retry; console.log cru custava em producao.
+        error: (err: any) => devLog('[WS] Error:', err?.message || err),
       },
     }),
   );

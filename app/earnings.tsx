@@ -112,7 +112,9 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
   // L4: Use useAlert instead of Alert.alert where available
   const { alert: showAlert } = useAlert();
   const { data: balanceData, loading, error: balanceError, refetch: refetchBalance } = useQuery(MY_BALANCE, { fetchPolicy: 'network-only' });
-  const { data: simData, loading: loadingSim } = useQuery(SIMULATE_ANTICIPATION, { fetchPolicy: 'network-only' });
+  // Perf (F7): simulacao tolera cache (mostra o valor anterior na hora e
+  // revalida por tras); so o saldo real continua network-only.
+  const { data: simData, loading: loadingSim } = useQuery(SIMULATE_ANTICIPATION, { fetchPolicy: 'cache-and-network' });
   const [requestAnticipation, { loading: requesting }] = useMutation(REQUEST_ANTICIPATION);
   const [disconnectPayment] = useMutation(DISCONNECT_PAYMENT);
   // M4: Auto-anticipation toggle

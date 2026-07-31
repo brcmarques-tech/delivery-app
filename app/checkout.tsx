@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { devLog } from '../src/lib/devLog'; // KAN-223
 import { fetchWithTimeout } from '../src/lib/fetchWithTimeout'; // KAN-240
 import {
@@ -113,19 +113,23 @@ export default function CheckoutScreen() {
   const storeName = params.storeName;
   // L1: Checkout items are passed via URL params. For very large carts this could hit URL length limits.
   // Consider moving to a shared state/context if carts grow significantly.
-  let checkoutItems: CheckoutItem[] = [];
-  try {
-    checkoutItems = params.selectedItems ? JSON.parse(params.selectedItems) : [];
-  } catch {
-    checkoutItems = [];
-  }
+  // Perf (F3): memoizado — o JSON.parse rodava a CADA render (e esta tela tem
+  // muitos estados: endereco, notas, cartao, modais), produzindo um array novo
+  // que impedia o FlatList de dar bail-out. Idem para o reduce do subtotal.
+  const checkoutItems: CheckoutItem[] = useMemo(() => {
+    try {
+      return params.selectedItems ? JSON.parse(params.selectedItems) : [];
+    } catch {
+      return [];
+    }
+  }, [params.selectedItems]);
 
-  const subtotal = checkoutItems.reduce((sum, item) => {
+  const subtotal = useMemo(() => checkoutItems.reduce((sum, item) => {
     if (item.isVariableWeight) {
       return sum + (item.price * (item.weightGrams || 0)) / 1000;
     }
     return sum + item.price * item.quantity;
-  }, 0);
+  }, 0), [checkoutItems]);
 
   // C1: Double-tap prevention ref
   const submittingRef = useRef(false);

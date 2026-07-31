@@ -39,6 +39,17 @@ const denyReasonOptions = [
   'Outro',
 ];
 
+// Perf (F3): module scope — era recriado a cada render do componente (que
+// re-renderiza 1x/segundo durante countdowns), como o denyReasonOptions acima.
+const disputeReasonOptions = [
+  'Pedido não chegou',
+  'Pedido incompleto',
+  'Pedido errado',
+  'Produto danificado',
+  'Produto com defeito',
+  'Outro',
+];
+
 export default function OrderDetailScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
@@ -121,8 +132,11 @@ export default function OrderDetailScreen() {
   }, [order?.status, order?.paymentMethod, order?.pixQrCode]);
 
   // PIX countdown timer (10 min)
+  // Perf (F3): deps eram [pixModalVisible, pixTimeLeft] — como pixTimeLeft muda a
+  // cada segundo, o interval era DESTRUIDO e RECRIADO a cada tick. Com o updater
+  // funcional cuidando do valor, basta depender da visibilidade do modal.
   useEffect(() => {
-    if (!pixModalVisible || pixTimeLeft <= 0) return;
+    if (!pixModalVisible) return;
     const timer = setInterval(() => {
       setPixTimeLeft((prev) => {
         if (prev <= 1) {
@@ -134,7 +148,7 @@ export default function OrderDetailScreen() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [pixModalVisible, pixTimeLeft]);
+  }, [pixModalVisible]);
 
   const handleCopyPixCode = async () => {
     if (!order?.pixQrCode) return;
@@ -256,15 +270,6 @@ export default function OrderDetailScreen() {
       ],
     );
   };
-
-  const disputeReasonOptions = [
-    'Pedido não chegou',
-    'Pedido incompleto',
-    'Pedido errado',
-    'Produto danificado',
-    'Produto com defeito',
-    'Outro',
-  ];
 
   const handleDisputeCompleted = async () => {
     const reason = selectedDisputeReason === 'Outro' ? customDisputeReason.trim() : selectedDisputeReason;

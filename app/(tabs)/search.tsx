@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { GET_STORES, SEARCH_PRODUCTS, SEARCH_SERVICES, GET_ACTIVE_PROMOTIONS } f
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../src/theme';
+import { listPerfProps, imageCachePolicy } from '../../src/lib/deviceTier'; // Perf (F0)
 import { AnimatedListItem } from '../../src/components/AnimatedListItem';
 import { AnimatedPressable } from '../../src/components/AnimatedPressable';
 import { AnimatedItem } from '../../src/components/AnimatedItem';
@@ -176,17 +177,29 @@ export default function SearchScreen() {
 
   }
 
+  // Perf (F3): TODOS os pipelines filter/sort abaixo eram recalculados no corpo
+  // do render — a cada tecla digitada, ate ~100 itens eram re-filtrados e
+  // re-ordenados com localeCompare (caro) na thread JS, causando input lag.
+  // Agora cada derivado so recalcula quando seus inputs reais mudam, e os sorts
+  // operam sobre copia dentro do useMemo (nada de mutacao durante o render).
+
   // Stores split by type
-  const allStores = storesData?.stores || [];
-  const productStores = allStores
-    .filter((s: any) => !s.storeType || s.storeType === 'PRODUCTS')
-    .sort((a: any, b: any) => a.name.localeCompare(b.name));
-  const serviceStores = allStores
-    .filter((s: any) => s.storeType === 'SERVICES')
-    .sort((a: any, b: any) => a.name.localeCompare(b.name));
+  const allStores = useMemo(() => storesData?.stores || [], [storesData?.stores]);
+  const productStores = useMemo(
+    () => allStores
+      .filter((s: any) => !s.storeType || s.storeType === 'PRODUCTS')
+      .sort((a: any, b: any) => a.name.localeCompare(b.name)),
+    [allStores],
+  );
+  const serviceStores = useMemo(
+    () => allStores
+      .filter((s: any) => s.storeType === 'SERVICES')
+      .sort((a: any, b: any) => a.name.localeCompare(b.name)),
+    [allStores],
+  );
 
   // Filter stores for search (by active tab context)
-  const filteredStores = allStores.filter((s: any) => {
+  const filteredStores = useMemo(() => allStores.filter((s: any) => {
     if (!debouncedQuery) return false;
     const storeType = s.storeType || 'PRODUCTS';
     if (activeTab === 'products' && storeType !== 'PRODUCTS') return false;
@@ -197,49 +210,61 @@ export default function SearchScreen() {
     if (activeFilter === 'open') return s.isOpen;
     if (activeFilter === 'free_delivery') return s.freeDelivery;
     return true;
-  });
+  }).sort((a: any, b: any) => a.name.localeCompare(b.name)), [allStores, debouncedQuery, activeTab, activeFilter]);
 
-  // Filter products
-  const allProducts = productsData?.searchProducts || [];
-  const filteredProducts = activeCategory
-    ? allProducts
+  // Filter products (ordenado aqui — o .sort() que existia no JSX foi removido)
+  const allProducts = useMemo(() => productsData?.searchProducts || [], [productsData?.searchProducts]);
+  const filteredProducts = useMemo(() => {
+    if (activeCategory) {
+      return allProducts
         .filter((p: any) => {
           const catName = (p.category?.name || '').toLowerCase();
           const keywords = activeCategory.query.toLowerCase().split(',');
           return keywords.some((kw: string) => catName.includes(kw.trim())) || catName.includes(activeCategory.label.toLowerCase());
         })
         .filter((p: any) => !query.trim() || p.name.toLowerCase().includes(query.trim().toLowerCase()))
-        .sort((a: any, b: any) => a.name.localeCompare(b.name))
-    : allProducts.filter((p: any) => {
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+    }
+    return allProducts
+      .filter((p: any) => {
         if (activeFilter === 'open') return p.store?.isOpen;
         if (activeFilter === 'free_delivery') return false;
         if (activeFilter === 'promo') return p.promotionalPrice && p.promotionalPrice < p.price;
         return true;
-      });
+      })
+      .slice()
+      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+  }, [allProducts, activeCategory, query, activeFilter]);
 
-  // Filter services
-  const allServices = servicesData?.searchServices || [];
-  const filteredServices = activeCategory
-    ? allServices
+  // Filter services (idem)
+  const allServices = useMemo(() => servicesData?.searchServices || [], [servicesData?.searchServices]);
+  const filteredServices = useMemo(() => {
+    if (activeCategory) {
+      return allServices
         .filter((s: any) => {
           const catName = (s.category?.name || '').toLowerCase();
           const keywords = activeCategory.query.toLowerCase().split(',');
           return keywords.some((kw: string) => catName.includes(kw.trim())) || catName.includes(activeCategory.label.toLowerCase());
         })
         .filter((s: any) => !query.trim() || s.name.toLowerCase().includes(query.trim().toLowerCase()))
-        .sort((a: any, b: any) => a.name.localeCompare(b.name))
-    : allServices.filter((s: any) => {
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+    }
+    return allServices
+      .filter((s: any) => {
         if (activeFilter === 'open') return s.store?.isOpen;
         return true;
-      });
+      })
+      .slice()
+      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+  }, [allServices, activeCategory, query, activeFilter]);
 
   // Promotions matching search
   const promotions = promosData?.activePromotions || [];
-  const matchingPromos = debouncedQuery ? promotions.filter((p: any) =>
+  const matchingPromos = useMemo(() => (debouncedQuery ? promotions.filter((p: any) =>
     p.title.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
     (p.product?.name || '').toLowerCase().includes(debouncedQuery.toLowerCase()) ||
     (p.store?.name || '').toLowerCase().includes(debouncedQuery.toLowerCase()),
-  ) : [];
+  ) : []), [promotions, debouncedQuery]);
 
   const isSearching = debouncedQuery.length >= 2;
   const isCategoryMode = activeCategory !== null;
@@ -263,7 +288,7 @@ export default function SearchScreen() {
         onPress={() => router.push(`/store/${store.id}`)}
       >
         {store.logoUrl ? (
-          <Image source={store.logoUrl} style={styles.storeLogo} cachePolicy="memory-disk" />
+          <Image source={store.logoUrl} style={styles.storeLogo} cachePolicy={imageCachePolicy} />
         ) : (
           <View style={[styles.storeLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
             <Ionicons name="storefront-outline" size={18} color={colors.gray} />
@@ -355,7 +380,7 @@ export default function SearchScreen() {
           onPress={() => router.push(`/store/${item.store?.id}`)}
         >
           {item.imageUrl ? (
-            <Image source={item.imageUrl} style={styles.acLogo} cachePolicy="memory-disk" />
+            <Image source={item.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
           ) : (
             <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
               <Ionicons name={isProduct ? 'cube-outline' : 'construct-outline'} size={16} color={colors.gray} />
@@ -554,7 +579,7 @@ export default function SearchScreen() {
                           onPress={() => router.push(`/promotion/${promo.id}`)}
                         >
                           {(promo.product?.imageUrl || promo.imageUrl) ? (
-                            <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy="memory-disk" />
+                            <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy={imageCachePolicy} />
                           ) : (
                             <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
                               <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
@@ -592,15 +617,15 @@ export default function SearchScreen() {
                     </View>
                   )}
 
-                  {/* Stores first */}
-                  {filteredStores.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((store: any, index: number) => (
+                  {/* Stores first (ja ordenadas no useMemo — sort no JSX mutava o array memoizado) */}
+                  {filteredStores.map((store: any, index: number) => (
                     <AnimatedListItem key={`store-${store.id}`} index={index}>
                     <AnimatedPressable
                       style={[styles.acItem, { backgroundColor: colors.card }]}
                       onPress={() => { setQuery(''); router.push(`/store/${store.id}`); }}
                     >
                       {store.logoUrl ? (
-                        <Image source={store.logoUrl} style={styles.acLogo} cachePolicy="memory-disk" />
+                        <Image source={store.logoUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
                       ) : (
                         <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                           <Ionicons name="storefront-outline" size={16} color={colors.gray} />
@@ -619,9 +644,8 @@ export default function SearchScreen() {
                     </AnimatedListItem>
                   ))}
 
-                  {/* Products (products tab) — sorted alphabetically */}
+                  {/* Products (products tab) — ja ordenados no useMemo */}
                   {activeTab === 'products' && filteredProducts
-                    .sort((a: any, b: any) => a.name.localeCompare(b.name))
                     .map((product: any, index: number) => {
                       const hasPromo = product.promotionalPrice && product.promotionalPrice < product.price;
                       return (
@@ -631,7 +655,7 @@ export default function SearchScreen() {
                           onPress={() => { setQuery(''); router.push(`/store/${product.store?.id}`); }}
                         >
                           {product.imageUrl ? (
-                            <Image source={product.imageUrl} style={styles.acLogo} cachePolicy="memory-disk" />
+                            <Image source={product.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
                           ) : (
                             <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                               <Ionicons name="cube-outline" size={16} color={colors.gray} />
@@ -649,9 +673,8 @@ export default function SearchScreen() {
                       );
                     })}
 
-                  {/* Services (services tab) — sorted alphabetically */}
+                  {/* Services (services tab) — ja ordenados no useMemo */}
                   {activeTab === 'services' && filteredServices
-                    .sort((a: any, b: any) => a.name.localeCompare(b.name))
                     .map((service: any, index: number) => (
                       <AnimatedListItem key={`svc-${service.id}`} index={filteredStores.length + index}>
                       <AnimatedPressable
@@ -659,7 +682,7 @@ export default function SearchScreen() {
                         onPress={() => { setQuery(''); router.push(`/store/${service.store?.id}`); }}
                       >
                         {service.imageUrl ? (
-                          <Image source={service.imageUrl} style={styles.acLogo} cachePolicy="memory-disk" />
+                          <Image source={service.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
                         ) : (
                           <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                             <Ionicons name="construct-outline" size={16} color={colors.gray} />

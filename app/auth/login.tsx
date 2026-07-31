@@ -318,9 +318,11 @@ export default function LoginScreen() {
                     <ActivityIndicator size="small" color={colors.text} />
                   ) : (
                     <>
-                      <Image
-                        source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
+                      {/* Perf (F7): expo-image cacheia em disco; RN Image re-baixava */}
+                      <ExpoImage
+                        source="https://developers.google.com/identity/images/g-logo.png"
                         style={styles.googleIcon}
+                        cachePolicy="disk"
                       />
                       <Text style={[styles.googleButtonText, { color: colors.text }]}>Continuar com Google</Text>
                     </>

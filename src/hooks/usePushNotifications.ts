@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 import { useMutation } from '@apollo/client';
 import { useAuth } from '../contexts/AuthContext';
 import { REGISTER_PUSH_TOKEN } from '../lib/graphql/mutations';
+import { devLog } from '../lib/devLog';
 import { router } from 'expo-router';
 
 let Notifications: any = null;
@@ -75,7 +76,7 @@ async function registerForPushNotifications(): Promise<string | null> {
 
     return token.data;
   } catch (err) {
-    console.log('Push notification registration failed:', err);
+    devLog('Push notification registration failed:', err); // Perf (F7): no-op em prod
     return null;
   }
 }
