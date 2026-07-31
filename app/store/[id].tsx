@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   SectionList,
@@ -73,13 +74,16 @@ export default function StoreScreen() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
   const [weightGrams, setWeightGrams] = useState(500);
+  // UX: busca dentro da loja — catalogo grande sem busca obrigava a rolar tudo.
+  // Filtro 100% local (o catalogo ja esta carregado), zero rede.
+  const [storeQuery, setStoreQuery] = useState('');
 
   const store = data?.store;
   // Perf (F3): derivados memoizados. Antes products/services/sections eram
   // recalculados (filter/map/Map) a CADA render — inclusive a cada toque de
   // +/- de quantidade no modal, que re-filtrava o catalogo inteiro.
-  const products = useMemo(() => store?.products || [], [store?.products]);
-  const services = useMemo(
+  const allProducts = useMemo(() => store?.products || [], [store?.products]);
+  const allServices = useMemo(
     () => (store?.services || []).filter((s: any) => s.isActive),
     [store?.services],
   );
@@ -93,16 +97,26 @@ export default function StoreScreen() {
 
   // Auto-open product modal when navigating from home screen
   useEffect(() => {
-    if (productId && products.length > 0 && !selectedProduct) {
-      const product = products.find((p: any) => p.id === productId);
+    if (productId && allProducts.length > 0 && !selectedProduct) {
+      const product = allProducts.find((p: any) => p.id === productId);
       if (product) openProductModal(product);
     }
-  }, [productId, products.length]);
+  }, [productId, allProducts.length]);
 
-  // Build sections based on store type (memoizado — so muda quando o catalogo muda)
+  // Build sections based on store type (memoizado — so muda quando o catalogo
+  // ou a busca interna mudam)
   const sections = useMemo(() => {
     const built: { title: string; data: any[] }[] = [];
     const categories = store?.categories || [];
+
+    // Busca interna: filtra por nome/descricao antes de agrupar
+    const q = storeQuery.trim().toLowerCase();
+    const matches = (i: any) =>
+      !q ||
+      (i.name || '').toLowerCase().includes(q) ||
+      (i.description || '').toLowerCase().includes(q);
+    const products = allProducts.filter(matches);
+    const services = allServices.filter(matches);
 
     if (isServiceStore) {
       // Service store: group services by category
@@ -144,7 +158,7 @@ export default function StoreScreen() {
       }
     }
     return built;
-  }, [store?.categories, products, services, isServiceStore]);
+  }, [store?.categories, allProducts, allServices, isServiceStore, storeQuery]);
 
   if (loading || !store) {
     return (
@@ -230,10 +244,43 @@ export default function StoreScreen() {
         </View>
       )}
 
+      {/* UX: busca dentro da loja (filtro local, zero rede) */}
+      <View style={[styles.storeSearchWrap, { backgroundColor: colors.card, borderBottomColor: colors.grayLight }]}>
+        <View style={[styles.storeSearchBox, { backgroundColor: colors.grayLight }]}>
+          <Ionicons name="search" size={16} color={colors.gray} />
+          <TextInput
+            style={[styles.storeSearchInput, { color: colors.text }]}
+            placeholder={isServiceStore ? 'Buscar servico nesta loja...' : 'Buscar produto nesta loja...'}
+            placeholderTextColor={colors.gray}
+            value={storeQuery}
+            onChangeText={setStoreQuery}
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {storeQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setStoreQuery('')}>
+              <Ionicons name="close-circle" size={16} color={colors.gray} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
+        keyboardShouldPersistTaps="handled"
+        ListEmptyComponent={storeQuery.trim() ? (
+          <View style={{ alignItems: 'center', paddingTop: 48, gap: 8 }}>
+            <Ionicons name="search-outline" size={44} color={colors.grayLight} />
+            <Text style={{ fontSize: fonts.regular, color: colors.textLight, textAlign: 'center' }}>
+              Nada encontrado para "{storeQuery.trim()}"
+            </Text>
+            <TouchableOpacity onPress={() => setStoreQuery('')}>
+              <Text style={{ fontSize: fonts.small, color: colors.primary, fontWeight: '600' }}>Limpar busca</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         renderSectionHeader={({ section }) => (
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
         )}
@@ -504,6 +551,24 @@ const styles = StyleSheet.create({
   storeDetails: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   detailText: { fontSize: fonts.small },
   detailDot: {},
+  storeSearchWrap: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  storeSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 40,
+  },
+  storeSearchInput: {
+    flex: 1,
+    fontSize: fonts.regular,
+    paddingVertical: 0,
+  },
   closedBanner: {
     flexDirection: 'row',
     alignItems: 'center',
