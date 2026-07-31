@@ -446,6 +446,11 @@ export default function SearchScreen() {
                   onPress={() => { setActiveCategory(null); setQuery(''); }}
                 >
                   <Ionicons name={activeCategory.icon as any} size={20} color="#FFF" />
+                  {/* UX: badge de X — sem ele o usuario nao sabia que tocar aqui
+                      desfaz a categoria e volta pra busca normal. */}
+                  <View style={styles.activeCategoryClose}>
+                    <Ionicons name="close" size={12} color={colors.primary} />
+                  </View>
                 </TouchableOpacity>
               </ReAnimated.View>
             )}
@@ -762,6 +767,23 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  activeCategoryClose: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    // sombra leve pra destacar do chip
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
   },
 
   // Recent dropdown (floats below searchBox)
