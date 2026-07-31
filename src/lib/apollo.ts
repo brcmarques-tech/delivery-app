@@ -124,6 +124,8 @@ const cache = new InMemoryCache({
         myOrders: { keyArgs: false, merge: offsetMerge },
         myDeliveries: { keyArgs: false, merge: offsetMerge },
         myAppointments: { keyArgs: false, merge: offsetMerge },
+        // Perf (F5/F6): uma lista por (loja, busca); paginas encaixam por offset.
+        storeProducts: { keyArgs: ['storeId', 'search', 'categoryId'], merge: offsetMerge },
         availableDeliveries: { merge: (_existing, incoming) => incoming },
         storeOrders: { merge: (_existing, incoming) => incoming },
         popularProducts: { merge: (_existing, incoming) => incoming },

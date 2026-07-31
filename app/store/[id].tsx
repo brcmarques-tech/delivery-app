@@ -5,6 +5,7 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  ScrollView,
   SectionList,
   Modal,
   Pressable,
@@ -14,7 +15,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery, useSubscription, useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
-import { GET_STORE, IS_FOLLOWING_STORE, GET_FOLLOWER_COUNT } from '../../src/lib/graphql/queries';
+import { GET_STORE, GET_STORE_PRODUCTS, IS_FOLLOWING_STORE, GET_FOLLOWER_COUNT } from '../../src/lib/graphql/queries';
 import { FOLLOW_STORE, UNFOLLOW_STORE } from '../../src/lib/graphql/mutations';
 import { STORE_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useCart } from '../../src/contexts/CartContext';
@@ -74,15 +75,36 @@ export default function StoreScreen() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
   const [weightGrams, setWeightGrams] = useState(500);
-  // UX: busca dentro da loja — catalogo grande sem busca obrigava a rolar tudo.
-  // Filtro 100% local (o catalogo ja esta carregado), zero rede.
+  // UX + Perf (F5/F6): busca dentro da loja. Produtos agora sao paginados
+  // (100 por vez) e a busca roda NO SERVIDOR (debounced) — encontra qualquer
+  // item do catalogo, mesmo o que ainda nao desceu pro app.
   const [storeQuery, setStoreQuery] = useState('');
+  const [debouncedStoreQuery, setDebouncedStoreQuery] = useState('');
+  // UX: chip de categoria ativo (null = todas). Filtro roda no SQL.
+  const [activeCatId, setActiveCatId] = useState<string | null>(null);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedStoreQuery(storeQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [storeQuery]);
 
   const store = data?.store;
+  const isServiceStoreEarly = store?.storeType === 'SERVICES';
+
+  // Perf (F5/F6): catalogo paginado — 100 por pagina, proxima pagina no scroll
+  // (onEndReached + offsetMerge no cache). Busca vai como arg pro servidor.
+  const {
+    data: productsData,
+    fetchMore: fetchMoreProducts,
+  } = useQuery(GET_STORE_PRODUCTS, {
+    variables: { storeId: id, limit: 100, offset: 0, search: debouncedStoreQuery || null, categoryId: activeCatId },
+    skip: !store || isServiceStoreEarly,
+    fetchPolicy: 'cache-and-network',
+  });
+
   // Perf (F3): derivados memoizados. Antes products/services/sections eram
   // recalculados (filter/map/Map) a CADA render — inclusive a cada toque de
   // +/- de quantidade no modal, que re-filtrava o catalogo inteiro.
-  const allProducts = useMemo(() => store?.products || [], [store?.products]);
+  const allProducts = useMemo(() => productsData?.storeProducts || [], [productsData?.storeProducts]);
   const allServices = useMemo(
     () => (store?.services || []).filter((s: any) => s.isActive),
     [store?.services],
@@ -109,13 +131,14 @@ export default function StoreScreen() {
     const built: { title: string; data: any[] }[] = [];
     const categories = store?.categories || [];
 
-    // Busca interna: filtra por nome/descricao antes de agrupar
-    const q = storeQuery.trim().toLowerCase();
+    // Produtos ja chegam filtrados do SERVIDOR (arg search). Servicos seguem
+    // com filtro local (lista pequena, ja carregada no GET_STORE).
+    const q = debouncedStoreQuery.toLowerCase();
     const matches = (i: any) =>
       !q ||
       (i.name || '').toLowerCase().includes(q) ||
       (i.description || '').toLowerCase().includes(q);
-    const products = allProducts.filter(matches);
+    const products = allProducts;
     const services = allServices.filter(matches);
 
     if (isServiceStore) {
@@ -158,7 +181,15 @@ export default function StoreScreen() {
       }
     }
     return built;
-  }, [store?.categories, allProducts, allServices, isServiceStore, storeQuery]);
+  }, [store?.categories, allProducts, allServices, isServiceStore, debouncedStoreQuery]);
+
+  // Perf (F5/F6): proxima pagina de 100 quando o scroll chega perto do fim.
+  const loadMoreProducts = useCallback(() => {
+    if (allProducts.length === 0 || allProducts.length % 100 !== 0) return;
+    fetchMoreProducts({
+      variables: { storeId: id, limit: 100, offset: allProducts.length, search: debouncedStoreQuery || null, categoryId: activeCatId },
+    }).catch(() => {});
+  }, [allProducts.length, fetchMoreProducts, id, debouncedStoreQuery, activeCatId]);
 
   if (loading || !store) {
     return (
@@ -263,6 +294,29 @@ export default function StoreScreen() {
             </TouchableOpacity>
           )}
         </View>
+        {/* UX: chips de categoria da loja — filtro server-side (funciona com
+            catalogo paginado de qualquer tamanho) */}
+        {!isServiceStore && (store.categories || []).length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} keyboardShouldPersistTaps="handled">
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <TouchableOpacity
+                style={[styles.catChip, { backgroundColor: !activeCatId ? colors.primary : colors.grayLight }]}
+                onPress={() => setActiveCatId(null)}
+              >
+                <Text style={[styles.catChipText, { color: !activeCatId ? '#FFF' : colors.textLight }]}>Todas</Text>
+              </TouchableOpacity>
+              {(store.categories || []).map((cat: any) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[styles.catChip, { backgroundColor: activeCatId === cat.id ? colors.primary : colors.grayLight }]}
+                  onPress={() => setActiveCatId(activeCatId === cat.id ? null : cat.id)}
+                >
+                  <Text style={[styles.catChipText, { color: activeCatId === cat.id ? '#FFF' : colors.textLight }]}>{cat.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        )}
       </View>
 
       <SectionList
@@ -270,6 +324,8 @@ export default function StoreScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
         keyboardShouldPersistTaps="handled"
+        onEndReached={loadMoreProducts}
+        onEndReachedThreshold={0.5}
         ListEmptyComponent={storeQuery.trim() ? (
           <View style={{ alignItems: 'center', paddingTop: 48, gap: 8 }}>
             <Ionicons name="search-outline" size={44} color={colors.grayLight} />
@@ -563,6 +619,16 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 40,
+  },
+  catChip: {
+    paddingHorizontal: 14,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+  },
+  catChipText: {
+    fontSize: fonts.small,
+    fontWeight: '600',
   },
   storeSearchInput: {
     flex: 1,
