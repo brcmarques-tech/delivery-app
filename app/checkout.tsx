@@ -539,7 +539,12 @@ export default function CheckoutScreen() {
                 }),
             notes,
             paymentMethod,
-            ...(ageVerified ? { ageVerified: true } : {}),
+            // BUGFIX: lia so `ageVerified` — que, quando o modal chama
+            // handleCheckout({skipAgeCheck:true}), ainda e FALSE nesta closure.
+            // O pedido era reenviado SEM a confirmacao, o backend recusava de
+            // novo e o catch reabria o mesmo modal: o cliente tinha que
+            // confirmar os 18 anos DUAS vezes, sem nenhuma explicacao no meio.
+            ...(ageVerified || skipAgeCheck ? { ageVerified: true } : {}),
             ...(paymentMethod === 'CREDIT_CARD' && selectedCardId ? { cardId: selectedCardId } : {}),
           },
         },
@@ -688,10 +693,25 @@ export default function CheckoutScreen() {
                             parts.push(addr.neighborhood);
                             parts.push(`${addr.city}/${addr.state}`);
                             setAddress(parts.join(', '));
-                            setCoords({ latitude: addr.latitude, longitude: addr.longitude });
-                            if (storeId) {
-                              calcFee({ variables: { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude } });
-                              calcTime({ variables: { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude } });
+                            // BUGFIX: endereco salvo pode ter (0,0) — a tela de
+                            // enderecos grava zero quando o geocode nao acha nada.
+                            // Sem esta guarda o `coords` virava um objeto truthy,
+                            // o botao habilitava, o frete era calculado para 0N/0E
+                            // (golfo da Guine) e o pedido saia com essa coordenada
+                            // para o entregador. O efeito do endereco padrao ja
+                            // fazia essa checagem; o seletor manual nao.
+                            const temCoordValida =
+                              Math.abs(Number(addr.latitude) || 0) > 0.01 &&
+                              Math.abs(Number(addr.longitude) || 0) > 0.01;
+                            if (temCoordValida) {
+                              setCoords({ latitude: addr.latitude, longitude: addr.longitude });
+                              if (storeId) {
+                                calcFee({ variables: { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude } });
+                                calcTime({ variables: { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude } });
+                              }
+                            } else {
+                              // Deixa o efeito de geocodificacao resolver pelo texto.
+                              setCoords(null);
                             }
                             setShowAddressPicker(false);
                           }}
@@ -868,13 +888,25 @@ export default function CheckoutScreen() {
         }
       />
 
+      {/* BUGFIX: o botao NAO esperava o calculo do frete. Quando um endereco
+          salvo carrega, `coords` e setado no mesmo tick em que a query dispara,
+          entao o botao ficava ativo enquanto o resumo ainda dizia "Calculando..."
+          e o CTA mostrava o total SEM frete (deliveryFee cai para 0 nesse meio).
+          O cliente confirmava um valor e o pedido era criado por outro — a
+          conferencia so acontecia DEPOIS de o pedido ja existir. */}
       <TouchableOpacity
-        style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: colors.primary }, (loading || belowMinimum || (!isPickup && !coords)) && styles.checkoutDisabled]}
+        style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: colors.primary }, (loading || belowMinimum || (!isPickup && !coords) || (!isPickup && (feeLoading || !feeCalculated))) && styles.checkoutDisabled]}
         onPress={() => handleCheckout()}
-        disabled={loading || belowMinimum || (!isPickup && !coords)}
+        disabled={loading || belowMinimum || (!isPickup && !coords) || (!isPickup && (feeLoading || !feeCalculated))}
       >
         <Text style={styles.checkoutText}>
-          {loading ? 'Finalizando...' : belowMinimum ? `Pedido minimo: R$ ${effectiveMinimum.toFixed(2)}` : `Finalizar pedido - R$ ${finalTotal.toFixed(2)}`}
+          {loading
+            ? 'Finalizando...'
+            : belowMinimum
+            ? `Pedido minimo: R$ ${effectiveMinimum.toFixed(2)}`
+            : !isPickup && (feeLoading || !feeCalculated)
+            ? 'Calculando entrega...'
+            : `Finalizar pedido - R$ ${finalTotal.toFixed(2)}`}
         </Text>
       </TouchableOpacity>
 

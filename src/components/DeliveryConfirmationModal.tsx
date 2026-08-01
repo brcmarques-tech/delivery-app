@@ -15,6 +15,7 @@ import { CONFIRM_RECEIPT } from '../lib/graphql/mutations';
 import { ORDER_UPDATED } from '../lib/graphql/subscriptions';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlert } from '../contexts/AlertContext';
+import { router } from 'expo-router';
 import { colors, fonts } from '../theme';
 
 interface PendingOrder {
@@ -112,21 +113,34 @@ export function DeliveryConfirmationModal() {
     }
   };
 
+  // BUGFIX: este modal e global (montado no _layout) e nao tinha NENHUMA saida —
+  // sem onRequestClose, sem botao de fechar, e "Nao recebi" so mostrava um texto
+  // e MANTINHA o modal aberto de proposito. Se a confirmacao falhasse (offline,
+  // sessao expirada, pedido ja auto-confirmado no servidor), o cliente ficava
+  // TRANCADO no app inteiro: nao navegava, nao conseguia abrir o pedido para
+  // contestar, e o botao voltar do Android era no-op (sem onRequestClose).
+  // Agora ha saida — SEM afrouxar a regra: o servidor continua auto-confirmando
+  // e o card de confirmacao segue aparecendo na tela do pedido.
+  const adiar = () => {
+    if (pendingOrder) setDismissed((prev) => new Set(prev).add(pendingOrder.id));
+  };
+
   const handleNotReceived = () => {
-    showAlert({
-      title: 'Nao recebeu o pedido?',
-      message:
-        'Entre em contato conosco pelo WhatsApp para resolver:\n\nA confirmacao automatica acontecera em alguns minutos caso nao haja contato.',
-      type: 'warning',
-      buttons: [
-        { text: 'Entendi', style: 'default' },
-      ],
-    });
-    // Don't dismiss - keep showing the modal so they still need to confirm or wait for auto-confirm
+    // Leva ao fluxo REAL de contestacao, que vive na tela do pedido — antes so
+    // exibia um texto mandando procurar o WhatsApp, sem link e sem rota.
+    const id = pendingOrder?.id;
+    adiar();
+    if (id) router.push(`/order/${id}`);
   };
 
   return (
-    <Modal visible transparent animationType="slide" {...(Platform.OS !== 'web' && { statusBarTranslucent: true })}>
+    <Modal
+      visible
+      transparent
+      animationType="slide"
+      onRequestClose={adiar}
+      {...(Platform.OS !== 'web' && { statusBarTranslucent: true })}
+    >
       <View style={styles.overlay}>
         <View style={styles.card}>
           <View style={styles.iconWrapper}>
@@ -175,6 +189,12 @@ export function DeliveryConfirmationModal() {
           >
             <Ionicons name="alert-circle-outline" size={20} color={colors.danger} />
             <Text style={styles.reportButtonText}>Nao recebi meu pedido</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={adiar} disabled={confirming} style={{ paddingVertical: 12 }}>
+            <Text style={{ textAlign: 'center', color: colors.textLight, fontSize: fonts.small }}>
+              Agora nao
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

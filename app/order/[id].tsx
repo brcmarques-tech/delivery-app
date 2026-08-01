@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking, ActivityIndicator, Alert, Modal, TextInput, Share } from 'react-native';
 import { Image } from 'expo-image';
 import * as Clipboard from 'expo-clipboard';
@@ -31,6 +31,14 @@ const statusSteps = [
 
 const terminalStatuses = ['REJECTED', 'DISPUTED', 'CANCELLED', 'EXPIRED'];
 
+// BUGFIX: `DELIVERED` e um status valido e ate tratado em outros pontos da tela,
+// mas nao existia em statusSteps nem em terminalStatuses — o indice do passo
+// atual dava -1 e TODO o rastreador aparecia cinza, como se nada tivesse
+// acontecido. Mapeamos para o mesmo passo de "Entregue".
+const STATUS_EQUIVALENTE: Record<string, string> = {
+  DELIVERED: 'DELIVERER_CONFIRMED_DELIVERY',
+};
+
 const denyReasonOptions = [
   'Pedido não chegou',
   'Pedido incompleto',
@@ -55,7 +63,7 @@ export default function OrderDetailScreen() {
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data, loading, refetch } = useQuery(GET_ORDER, {
+  const { data, loading, error, refetch } = useQuery(GET_ORDER, {
     variables: { id },
     fetchPolicy: 'cache-and-network',
   });
@@ -121,15 +129,26 @@ export default function OrderDetailScreen() {
 
   // Auto-open PIX modal when arriving at order with pending PIX payment
   // H5: Calculate PIX expiry from order creation time (30 min from creation, matching API's 30-minute expiry)
+  // Segundos restantes do PIX, sempre calculados a partir da criacao do pedido.
+  const segundosRestantesPix = useCallback((): number => {
+    if (!order?.createdAt) return 0;
+    const passados = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 1000);
+    return Math.max(0, 1800 - passados);
+  }, [order?.createdAt]);
+
+  // BUGFIX: o tempo restante so era calculado NESTE efeito, que depende de
+  // status/metodo/qrCode. Reabrir o modal reutilizava o valor velho — se ja
+  // tivesse zerado uma vez, cada toque em "Pagar com PIX" abria e fechava na
+  // hora com "gere um novo PIX", uma acao que o app NAO TEM (nao existe mutation
+  // de regerar). O pedido ficava impagavel. Agora o tempo e recalculado sempre e
+  // o modal so abre se ainda houver prazo.
   useEffect(() => {
     if (order?.status === 'AWAITING_PAYMENT' && order?.paymentMethod === 'PIX' && order?.pixQrCode) {
-      const pixExpiry = order.createdAt
-        ? Math.max(0, 1800 - Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 1000))
-        : 600;
-      setPixTimeLeft(pixExpiry);
-      setPixModalVisible(true);
+      const restante = segundosRestantesPix();
+      setPixTimeLeft(restante);
+      if (restante > 0) setPixModalVisible(true);
     }
-  }, [order?.status, order?.paymentMethod, order?.pixQrCode]);
+  }, [order?.status, order?.paymentMethod, order?.pixQrCode, segundosRestantesPix]);
 
   // PIX countdown timer (10 min)
   // Perf (F3): deps eram [pixModalVisible, pixTimeLeft] — como pixTimeLeft muda a
@@ -138,17 +157,24 @@ export default function OrderDetailScreen() {
   useEffect(() => {
     if (!pixModalVisible) return;
     const timer = setInterval(() => {
-      setPixTimeLeft((prev) => {
-        if (prev <= 1) {
-          setPixModalVisible(false);
-          Alert.alert('PIX expirado', 'O tempo para pagamento expirou. Gere um novo PIX.');
-          return 0;
-        }
-        return prev - 1;
-      });
+      // BUGFIX: os efeitos colaterais (fechar modal + Alert) estavam DENTRO do
+      // updater do setState — em StrictMode/concorrencia o updater pode rodar
+      // duas vezes e o alerta aparecia em dobro. Agora o updater so calcula.
+      setPixTimeLeft((prev) => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
     return () => clearInterval(timer);
   }, [pixModalVisible]);
+
+  // Fecha o modal quando o contador zera (o efeito colateral saiu do updater).
+  useEffect(() => {
+    if (pixModalVisible && pixTimeLeft === 0) {
+      setPixModalVisible(false);
+      Alert.alert(
+        'PIX expirado',
+        'O prazo deste PIX terminou. Faça o pedido novamente para gerar um novo código.',
+      );
+    }
+  }, [pixModalVisible, pixTimeLeft]);
 
   const handleCopyPixCode = async () => {
     if (!order?.pixQrCode) return;
@@ -293,6 +319,36 @@ export default function OrderDetailScreen() {
   const canDisputeCompleted = order?.status === 'COMPLETED' && order?.completedAt && !isDeliverer &&
     (Date.now() - new Date(order.completedAt).getTime()) < 48 * 60 * 60 * 1000;
 
+  // BUGFIX: `error` nunca era lido. Numa falha do GET_ORDER (offline, token
+  // expirado, id invalido) `loading` vira false com `order` undefined e a tela
+  // ficava presa em "Carregando..." PARA SEMPRE — sem mensagem, sem retry e sem
+  // botao de voltar (o header e global com headerShown:false). E e exatamente
+  // para ca que o checkout navega logo apos criar o pedido.
+  if (!loading && (error || !order)) {
+    return (
+      <View style={[styles.loading, { backgroundColor: colors.background }]}>
+        <Ionicons name="receipt-outline" size={48} color={colors.grayLight} />
+        <Text style={{ color: colors.text, marginTop: 12, textAlign: 'center' }}>
+          Nao foi possivel carregar este pedido
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+          <TouchableOpacity
+            style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary }}
+            onPress={() => refetch()}
+          >
+            <Text style={{ color: '#FFF', fontWeight: '600' }}>Tentar de novo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.grayLight }}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/orders'))}
+          >
+            <Text style={{ color: colors.text, fontWeight: '600' }}>Voltar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   if (loading || !order) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
@@ -303,7 +359,8 @@ export default function OrderDetailScreen() {
 
   const isAwaitingPayment = order.status === 'AWAITING_PAYMENT';
   const isTerminal = terminalStatuses.includes(order.status);
-  const currentStepIndex = statusSteps.findIndex((s) => s.key === order.status);
+  const statusParaPasso = STATUS_EQUIVALENTE[order.status] ?? order.status;
+  const currentStepIndex = statusSteps.findIndex((s) => s.key === statusParaPasso);
 
   // ETA calculation
   const etaMinutes = order.estimatedDeliveryEta
@@ -340,7 +397,19 @@ export default function OrderDetailScreen() {
       {isAwaitingPayment && order.paymentMethod === 'PIX' && order.pixQrCode && (
         <TouchableOpacity
           style={[styles.payButton, { backgroundColor: '#00B4D8' }]}
-          onPress={() => setPixModalVisible(true)}
+          onPress={() => {
+            // Recalcula na hora do toque (ver BUGFIX acima).
+            const restante = segundosRestantesPix();
+            setPixTimeLeft(restante);
+            if (restante <= 0) {
+              Alert.alert(
+                'PIX expirado',
+                'O prazo deste PIX terminou. Faça o pedido novamente para gerar um novo código.',
+              );
+              return;
+            }
+            setPixModalVisible(true);
+          }}
         >
           <Ionicons name="qr-code-outline" size={18} color="#FFFFFF" />
           <Text style={[styles.payButtonText, { color: '#FFFFFF' }]}>Pagar com PIX</Text>
