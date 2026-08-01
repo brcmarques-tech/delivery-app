@@ -153,6 +153,7 @@ export default function RegisterScreen() {
   const [cpf, setCpf] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const registerSubmittingRef = useRef(false);
   const [showPassword, setShowPassword] = useState(false);
   const [scrolledToEnd, setScrolledToEnd] = useState(false);
   const [checked, setChecked] = useState(false);
@@ -380,6 +381,13 @@ export default function RegisterScreen() {
   }
 
   async function handleAcceptAndRegister() {
+    // BUGFIX: a unica protecao era `disabled={loading}`, que so chega ao DOM um
+    // render depois — um duplo-toque rapido disparava `register` DUAS vezes,
+    // resultando em erro de CPF duplicado por cima de uma conta possivelmente ja
+    // criada. O resto do app ja usa ref para isto (checkout, order, book,
+    // earnings); esta tela ficou de fora.
+    if (registerSubmittingRef.current) return;
+    registerSubmittingRef.current = true;
     const cpfDigits = cpf.replace(/\D/g, '');
     setLoading(true);
     try {
@@ -394,6 +402,7 @@ export default function RegisterScreen() {
       alert('Erro', msg);
     } finally {
       setLoading(false);
+      registerSubmittingRef.current = false;
     }
   }
 

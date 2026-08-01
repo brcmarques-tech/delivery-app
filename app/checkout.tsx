@@ -45,8 +45,12 @@ function luhnCheck(number: string): boolean {
 }
 
 function isExpired(month: number, year: number): boolean {
+  // BUGFIX: `new Date(year, month, 0)` e o ULTIMO DIA do mes de validade as
+  // 00:00 — a partir desse dia um cartao AINDA VALIDO era recusado como
+  // "Cartao vencido". O cartao vale ate o fim do mes: comparar com o primeiro
+  // instante do mes SEGUINTE.
   const now = new Date();
-  return new Date(year, month, 0) < now;
+  return new Date(year, month, 1) <= now;
 }
 
 function detectBrand(number: string): string {
