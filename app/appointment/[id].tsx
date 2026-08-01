@@ -131,7 +131,7 @@ export default function AppointmentDetailScreen() {
     );
   }
 
-  const canCancel = ['PENDING', 'CONFIRMED', 'QUOTE_REQUESTED'].includes(apt.status);
+  const canCancel = ['PENDING', 'CONFIRMED', 'QUOTE_REQUESTED', 'QUOTE_ACCEPTED'].includes(apt.status);
   const isQuoted = apt.status === 'QUOTED';
   const canRate = apt.status === 'COMPLETED' && !existingRating;
 

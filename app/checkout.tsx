@@ -307,7 +307,7 @@ export default function CheckoutScreen() {
 
   const storeHasOwnDelivery = storeData?.store?.hasOwnDelivery || false;
   const ownerPaymentConnected = storeData?.store?.ownerPaymentConnected ?? true;
-  const platformMinimum = minOrderData?.minimumOrderPlatform ?? 10;
+  const platformMinimum = minOrderData?.minimumOrderPlatform ?? 1 /* BUGFIX: padrao do servidor e 1, nao 10 — com a query lenta o checkout bloqueava carrinho que o servidor aceitaria */;
   const rawStoreMinimum = storeData?.store?.minimumOrder ? Number(storeData.store.minimumOrder) : 0;
   const effectiveMinimum = !storeHasOwnDelivery
     ? Math.max(platformMinimum, rawStoreMinimum)

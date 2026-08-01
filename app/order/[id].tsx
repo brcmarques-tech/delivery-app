@@ -733,7 +733,7 @@ export default function OrderDetailScreen() {
       </View>
 
       {/* Cancel button - PENDING or ACCEPTED (before PREPARING) */}
-      {(order.status === 'PENDING' || order.status === 'ACCEPTED') && !isDeliverer && (
+      {(order.status === 'AWAITING_PAYMENT' || order.status === 'PENDING' || order.status === 'ACCEPTED') && !isDeliverer && (
         <TouchableOpacity
           style={[styles.cancelButton, { borderColor: colors.danger }]}
           onPress={handleCancelOrder}

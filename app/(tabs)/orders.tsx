@@ -185,7 +185,12 @@ export default function OrdersScreen() {
     const statusEntry = appointmentStatusLabels[item.status];
     const statusLabel = statusEntry?.label || item.status;
     const statusColor = getAppointmentStatusColor(item.status);
-    const canCancel = ['PENDING', 'CONFIRMED', 'QUOTE_REQUESTED', 'QUOTED'].includes(item.status);
+    // BUGFIX: incluia QUOTED, que o servidor NAO deixa cancelar (a transicao valida
+    // e QUOTED -> QUOTE_ACCEPTED/QUOTE_REJECTED), e omitia QUOTE_ACCEPTED, que ele
+    // DEIXA. O cliente tocava Cancelar num orcamento e levava o erro cru
+    // "Transicao de QUOTED para CANCELLED nao permitida"; e quem tinha aceitado um
+    // orcamento nao conseguia cancelar por tela nenhuma. Alinhado ao servidor.
+    const canCancel = ['PENDING', 'CONFIRMED', 'QUOTE_REQUESTED', 'QUOTE_ACCEPTED'].includes(item.status);
 
     return (
       <AnimatedListItem index={index}>
