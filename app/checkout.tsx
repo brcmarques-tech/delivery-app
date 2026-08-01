@@ -363,7 +363,21 @@ export default function CheckoutScreen() {
   }, [savedAddresses, addressLoaded, storeId]);
 
   const isPickup = deliveryType === 'PICKUP';
-  const deliveryFee = isPickup ? 0 : (feeData?.calculateDeliveryFee ?? 0);
+  // BUGFIX: a regra de FRETE GRATIS da loja nao era aplicada na exibicao. O
+  // `calculateDeliveryFee` do servidor devolve sempre distancia x preco (nunca
+  // aplica freeDelivery/freeDeliveryAbove) — quem zera e o createOrder. Entao
+  // numa loja anunciada como "Frete gratis" no card, o checkout mostrava
+  // "Taxa de entrega: R$ 8,50" e um total inflado, e o pedido era criado com
+  // frete 0: o cliente via um valor e pagava outro, com a promessa da vitrine
+  // quebrada bem na hora da compra. O storefront ja fazia certo (KAN-218) e o
+  // proprio app ja usava freeDeliveryAbove no aviso "faltam R$ X para frete
+  // gratis" — so o calculo do total ficou de fora.
+  const lojaFreteGratis = !!storeData?.store?.freeDelivery;
+  const limiteFreteGratis = Number(storeData?.store?.freeDeliveryAbove) || 0;
+  const freteGratis =
+    lojaFreteGratis || (limiteFreteGratis > 0 && subtotal >= limiteFreteGratis);
+  const deliveryFee =
+    isPickup || freteGratis ? 0 : (feeData?.calculateDeliveryFee ?? 0);
   const finalTotal = subtotal + deliveryFee;
 
   const pickupOnly = !ownerPaymentConnected && !storeHasOwnDelivery;
