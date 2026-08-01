@@ -251,6 +251,15 @@ export const UPDATE_APP_PROFILE = gql`
   }
 `;
 
+// Chamada no logout: solta o token deste APARELHO. Sem isso, a linha do usuario
+// que saiu continuava com o token e os pushes dele seguiam chegando no celular,
+// agora nas maos de quem logou depois.
+export const UNREGISTER_PUSH_TOKEN = gql`
+  mutation UnregisterAppPushToken {
+    unregisterAppPushToken
+  }
+`;
+
 export const REGISTER_PUSH_TOKEN = gql`
   mutation RegisterAppPushToken($token: String!) {
     registerAppPushToken(token: $token)

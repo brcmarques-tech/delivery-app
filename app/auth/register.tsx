@@ -309,7 +309,18 @@ export default function RegisterScreen() {
     setOtpSending(true);
     try {
       await sendVerificationCode({
-        variables: { input: { value: phone.replace(/\D/g, ''), channel: 'whatsapp' } },
+        variables: {
+          input: {
+            value: phone.replace(/\D/g, ''),
+            channel: 'whatsapp',
+            // O servidor ja sabe cair para e-mail quando o WhatsApp falha, mas so
+            // se receber para onde enviar — e o app nunca mandava. Com o WAHA fora
+            // do ar (ou WAHA_API_KEY vazia, que faz o envio retornar false sem nem
+            // tentar), sendPhoneCode lancava e NENHUM cadastro novo era possivel,
+            // mesmo com o e-mail funcionando. O endereco ja foi digitado no passo 1.
+            fallbackEmail: email.trim() || undefined,
+          },
+        },
       });
       setStep(2);
       setResendTimer(60);

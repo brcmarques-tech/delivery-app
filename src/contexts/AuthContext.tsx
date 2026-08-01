@@ -4,7 +4,7 @@ import { getSecureItem, setSecureItem, deleteSecureItem } from '../lib/secureSto
 import { useApolloClient, useSubscription } from '@apollo/client';
 import { Alert, AppState } from 'react-native';
 import { router } from 'expo-router';
-import { LOGIN, REGISTER, GOOGLE_AUTH_APP, REGISTER_APP_WITH_GOOGLE, LOGOUT } from '../lib/graphql/mutations';
+import { LOGIN, REGISTER, GOOGLE_AUTH_APP, REGISTER_APP_WITH_GOOGLE, LOGOUT, UNREGISTER_PUSH_TOKEN } from '../lib/graphql/mutations';
 import { GET_ME } from '../lib/graphql/queries';
 import { SESSION_KICKED } from '../lib/graphql/subscriptions';
 
@@ -227,6 +227,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [markJustLoggedIn]);
 
   const logout = useCallback(async () => {
+    try {
+      // Antes de derrubar a sessao: soltar o push token deste aparelho, senao os
+      // pushes deste usuario continuam chegando para quem logar aqui depois.
+      await apolloClient.mutate({ mutation: UNREGISTER_PUSH_TOKEN });
+    } catch {
+      // ignore — melhor sair mesmo sem conseguir desregistrar
+    }
     try {
       await apolloClient.mutate({ mutation: LOGOUT });
     } catch {

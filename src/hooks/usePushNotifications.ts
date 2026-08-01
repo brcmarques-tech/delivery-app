@@ -84,22 +84,29 @@ async function registerForPushNotifications(): Promise<string | null> {
 export function usePushNotifications() {
   const { user, token } = useAuth();
   const [registerToken] = useMutation(REGISTER_PUSH_TOKEN);
-  const registeredRef = useRef(false);
+  // Guarda QUAL usuario ja registrou, nao um booleano. Este hook vive no
+  // _layout e nunca desmonta entre logout e login: com `useRef(false)` virando
+  // `true` no primeiro registro, o segundo usuario do mesmo aparelho batia no
+  // early-return e NUNCA registrava — a linha do primeiro continuava com o
+  // token, entao todo push dele (pedido, pagamento, disputa) chegava no
+  // aparelho agora usado por outra pessoa.
+  const registeredForRef = useRef<string | null>(null);
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
 
-  // Register push token (once)
+  // Register push token (uma vez por usuario)
   useEffect(() => {
-    if (!user || !token || registeredRef.current || !Notifications) return;
+    if (!user || !token || !Notifications) return;
+    if (registeredForRef.current === user.id) return;
 
     registerForPushNotifications().then((pushToken) => {
       if (pushToken) {
         registerToken({ variables: { token: pushToken } })
-          .then(() => { registeredRef.current = true; })
+          .then(() => { registeredForRef.current = user.id; })
           .catch(() => {});
       }
     });
-  }, [user, token]);
+  }, [user?.id, token]);
 
   // Notification listeners (always active when logged in)
   useEffect(() => {
