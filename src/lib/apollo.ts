@@ -109,7 +109,13 @@ const link = wsLink
 // Perf (F6): merge offset-based compartilhado (equivalente ao offsetLimitPagination).
 function offsetMerge(existing: any[] = [], incoming: any[], { args }: any) {
   const offset = args?.offset ?? 0;
-  const merged = existing.slice(0);
+  // BUGFIX: antes era `existing.slice(0)` — a lista NUNCA encolhia. Um refetch
+  // (que sempre volta em offset 0) sobrescrevia so as primeiras N posicoes e
+  // deixava a cauda antiga congelada: pedido novo empurrava a lista e o item da
+  // fronteira sumia pra sempre, ou aparecia duplicado quando um item era
+  // removido no servidor. Agora offset 0 = pagina inicial e trunca a cauda;
+  // paginas seguintes preservam so o que vem ANTES do seu offset.
+  const merged = offset === 0 ? [] : existing.slice(0, offset);
   for (let i = 0; i < incoming.length; i++) merged[offset + i] = incoming[i];
   return merged;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -95,7 +95,7 @@ export default function StoreScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const { id, productId } = useLocalSearchParams<{ id: string; productId?: string }>();
-  const { data, loading, refetch } = useQuery(GET_STORE, { variables: { id } });
+  const { data, loading, error, refetch } = useQuery(GET_STORE, { variables: { id } });
 
   // Follow system
   const { data: followData, refetch: refetchFollow } = useQuery(IS_FOLLOWING_STORE, {
@@ -146,6 +146,13 @@ export default function StoreScreen() {
   const [debouncedStoreQuery, setDebouncedStoreQuery] = useState('');
   // UX: chip de categoria ativo (null = todas). Filtro roda no SQL.
   const [activeCatId, setActiveCatId] = useState<string | null>(null);
+  // BUGFIX: a paginacao inferia "tem mais" de `length % 100 === 0`. Isso quebrava
+  // de dois jeitos: (a) se um produto fosse removido do cache (PRODUCT_DELETED),
+  // a lista virava 99 e o carregamento parava PARA SEMPRE; (b) num catalogo com
+  // multiplo exato de 100, cada scroll no fim disparava uma requisicao que nunca
+  // encerrava o laco. Agora a decisao vem do tamanho da ultima pagina recebida.
+  const [hasMoreProducts, setHasMoreProducts] = useState(true);
+  const autoOpenedRef = useRef(false);
   useEffect(() => {
     const t = setTimeout(() => setDebouncedStoreQuery(storeQuery.trim()), 300);
     return () => clearTimeout(t);
@@ -182,12 +189,17 @@ export default function StoreScreen() {
   }, []);
 
   // Auto-open product modal when navigating from home screen
+  // BUGFIX: sem o ref, este efeito reabria o modal sozinho toda vez que
+  // `allProducts.length` mudava (ou seja, a cada pagina carregada no scroll)
+  // mesmo depois de o usuario fechar. Agora abre no maximo uma vez.
   useEffect(() => {
-    if (productId && allProducts.length > 0 && !selectedProduct) {
-      const product = allProducts.find((p: any) => p.id === productId);
-      if (product) openProductModal(product);
+    if (autoOpenedRef.current || !productId || allProducts.length === 0) return;
+    const product = allProducts.find((p: any) => p.id === productId);
+    if (product) {
+      autoOpenedRef.current = true;
+      openProductModal(product);
     }
-  }, [productId, allProducts.length]);
+  }, [productId, allProducts.length, openProductModal]);
 
   // Build sections based on store type (memoizado — so muda quando o catalogo
   // ou a busca interna mudam)
@@ -249,11 +261,50 @@ export default function StoreScreen() {
 
   // Perf (F5/F6): proxima pagina de 100 quando o scroll chega perto do fim.
   const loadMoreProducts = useCallback(() => {
-    if (allProducts.length === 0 || allProducts.length % 100 !== 0) return;
+    if (!hasMoreProducts || allProducts.length === 0) return;
     fetchMoreProducts({
       variables: { storeId: id, limit: 100, offset: allProducts.length, search: debouncedStoreQuery || null, categoryId: activeCatId },
-    }).catch(() => {});
-  }, [allProducts.length, fetchMoreProducts, id, debouncedStoreQuery, activeCatId]);
+    })
+      .then((res: any) => {
+        const recebidos = res?.data?.storeProducts?.length ?? 0;
+        if (recebidos < 100) setHasMoreProducts(false);
+      })
+      .catch(() => {});
+  }, [hasMoreProducts, allProducts.length, fetchMoreProducts, id, debouncedStoreQuery, activeCatId]);
+
+  // Busca/categoria mudou => nova lista, volta a permitir paginar.
+  useEffect(() => {
+    setHasMoreProducts(true);
+  }, [debouncedStoreQuery, activeCatId]);
+
+  // BUGFIX: era `if (loading || !store)` — numa falha de rede, link quebrado ou
+  // loja removida, `loading` vira false e `store` fica undefined, entao a tela
+  // ficava PRESA em "Carregando..." pra sempre, sem retry e sem botao de voltar
+  // (o header fica abaixo deste return) — o usuario tinha que matar o app.
+  if (!loading && (error || !store)) {
+    return (
+      <View style={[styles.loading, { backgroundColor: colors.background }]}>
+        <Ionicons name="storefront-outline" size={48} color={colors.grayLight} />
+        <Text style={[styles.loadingText, { color: colors.text, marginTop: 12 }]}>
+          Nao foi possivel carregar esta loja
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+          <TouchableOpacity
+            style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary }}
+            onPress={() => refetch()}
+          >
+            <Text style={{ color: '#FFF', fontWeight: '600' }}>Tentar de novo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.grayLight }}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/home'))}
+          >
+            <Text style={{ color: colors.text, fontWeight: '600' }}>Voltar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   if (loading || !store) {
     return (

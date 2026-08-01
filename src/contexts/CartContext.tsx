@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMutation, useQuery } from '@apollo/client';
 import { ADD_TO_CART, UPDATE_CART_ITEM, REMOVE_FROM_CART, CLEAR_CART } from '../lib/graphql/mutations';
 import { GET_MY_CART } from '../lib/graphql/queries';
-import { onProductUpdated } from '../lib/productEvents';
+import { onProductUpdated, onProductDeleted } from '../lib/productEvents';
 import { useAuth } from './AuthContext';
 
 const CART_STORAGE_KEY = '@cart_items';
@@ -123,6 +123,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
           i.productId === updated.id ? { ...i, price: updated.promotionalPrice ?? updated.price! } : i,
         );
       });
+    });
+    return unsubscribe;
+  }, [updateItems]);
+
+  // BUGFIX: `emitProductDeleted` era disparado pelo useProductSync mas NINGUEM
+  // escutava — produto excluido pelo vendedor continuava no carrinho, com preco
+  // e selecionavel, e so estourava no checkout com erro cru do servidor. Agora
+  // sai do carrinho na hora.
+  useEffect(() => {
+    const unsubscribe = onProductDeleted((deletedId) => {
+      updateItems((prev) =>
+        prev.some((i) => i.productId === deletedId)
+          ? prev.filter((i) => i.productId !== deletedId)
+          : prev,
+      );
     });
     return unsubscribe;
   }, [updateItems]);

@@ -210,6 +210,7 @@ export default function DeliveriesScreen() {
   const [isOnline, setIsOnline] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [acceptedStore, setAcceptedStore] = useState<AcceptedStore | null>(null);
+  const [hasMoreMy, setHasMoreMy] = useState(true);
   const [clientLocation, setClientLocation] = useState<{ latitude: number; longitude: number; address: string } | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
@@ -492,6 +493,7 @@ export default function DeliveriesScreen() {
   }, []);
 
   useSubscription(ORDER_UPDATED, {
+    skip: !user, // KAN-238: sem guard o WS ficava aberto apos logout
     onData: ({ data: subData }) => {
       const o = subData?.data?.orderUpdated;
       devLog(`[APP-SUB] orderUpdated: #${o?.orderNumber || '?'}, status=${o?.status || '?'}`);
@@ -499,6 +501,7 @@ export default function DeliveriesScreen() {
     },
   });
   useSubscription(DELIVERY_UPDATED, {
+    skip: !user, // KAN-238
     onData: ({ data: subData }) => {
       const d = subData?.data?.deliveryUpdated;
       devLog(`[APP-SUB] deliveryUpdated: deliveryId=${d?.id || '?'}`);
@@ -576,10 +579,15 @@ export default function DeliveriesScreen() {
   );
 
   // Perf (F6): paginacao por scroll do historico de entregas.
+  // BUGFIX: idem orders — fim de lista explicito em vez de `length % 20`.
   const loadMoreMy = useCallback(() => {
-    if (myDeliveries.length === 0 || myDeliveries.length % 20 !== 0) return;
-    fetchMoreMy({ variables: { limit: 20, offset: myDeliveries.length } }).catch(() => {});
-  }, [myDeliveries.length, fetchMoreMy]);
+    if (!hasMoreMy || myDeliveries.length === 0) return;
+    fetchMoreMy({ variables: { limit: 20, offset: myDeliveries.length } })
+      .then((res: any) => {
+        if ((res?.data?.myDeliveries?.length ?? 0) < 20) setHasMoreMy(false);
+      })
+      .catch(() => {});
+  }, [hasMoreMy, myDeliveries.length, fetchMoreMy]);
 
   // Background location tracking for active delivery
   const activeDeliveryForTracking = useMemo(() => {
@@ -734,7 +742,7 @@ export default function DeliveriesScreen() {
         <View style={styles.itemsList}>
           {item.items.map((oi: any) => (
             <Text key={oi.id} style={[styles.itemText, { color: colors.textLight }]}>
-              {oi.quantity}x {oi.product.name}
+              {oi.quantity}x {oi.product?.name || 'Produto removido'}
             </Text>
           ))}
         </View>
@@ -821,7 +829,7 @@ export default function DeliveriesScreen() {
             <View style={styles.itemsList}>
               {order.items.map((oi: any) => (
                 <Text key={oi.id} style={[styles.itemText, { color: colors.textLight }]}>
-                  {oi.quantity}x {oi.product.name}
+                  {oi.quantity}x {oi.product?.name || 'Produto removido'}
                 </Text>
               ))}
             </View>

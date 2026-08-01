@@ -79,15 +79,30 @@ export default function OrdersScreen() {
   // Perf (F6): paginacao por scroll. So busca a proxima pagina quando a ultima
   // veio cheia (lista multipla do tamanho da pagina); o offsetMerge do Apollo
   // encaixa cada pagina na posicao certa.
+  // BUGFIX: inferir "tem mais" de `length % 20 === 0` quebrava quando a lista
+  // encolhia (cache evict / pedido removido) — parava de paginar pra sempre — e
+  // fazia requisicao infinita quando o total era multiplo exato de 20. Agora o
+  // fim da lista vem do tamanho da ultima pagina recebida.
+  const [hasMoreOrders, setHasMoreOrders] = useState(true);
+  const [hasMoreAppts, setHasMoreAppts] = useState(true);
+
   const loadMoreOrders = useCallback(() => {
-    if (orders.length === 0 || orders.length % 20 !== 0) return;
-    fetchMore({ variables: { limit: 20, offset: orders.length } }).catch(() => {});
-  }, [orders.length, fetchMore]);
+    if (!hasMoreOrders || orders.length === 0) return;
+    fetchMore({ variables: { limit: 20, offset: orders.length } })
+      .then((res: any) => {
+        if ((res?.data?.myOrders?.length ?? 0) < 20) setHasMoreOrders(false);
+      })
+      .catch(() => {});
+  }, [hasMoreOrders, orders.length, fetchMore]);
 
   const loadMoreAppointments = useCallback(() => {
-    if (appointments.length === 0 || appointments.length % 20 !== 0) return;
-    fetchMoreAppointments({ variables: { limit: 20, offset: appointments.length } }).catch(() => {});
-  }, [appointments.length, fetchMoreAppointments]);
+    if (!hasMoreAppts || appointments.length === 0) return;
+    fetchMoreAppointments({ variables: { limit: 20, offset: appointments.length } })
+      .then((res: any) => {
+        if ((res?.data?.myAppointments?.length ?? 0) < 20) setHasMoreAppts(false);
+      })
+      .catch(() => {});
+  }, [hasMoreAppts, appointments.length, fetchMoreAppointments]);
   const [cancelAppointment] = useMutation(CANCEL_APPOINTMENT);
 
   // Perf (F3): memoizado por tema. Antes era um objeto novo por render e estava

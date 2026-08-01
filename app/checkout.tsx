@@ -457,17 +457,17 @@ export default function CheckoutScreen() {
       // antes o modal chamava handleCheckout() via setTimeout, mas essa closure
       // era a do render em que ageVerified ainda era false, então o modal reabria
       // e o cliente tinha que tocar duas vezes. Agora passamos a decisão explícita.
+      // BUGFIX: este bloco lia `storeData.store.products`, que deixou de existir
+      // quando o catalogo virou paginado (GET_STORE_PRODUCTS). A lista vinha
+      // sempre vazia -> hasAgeRestricted sempre false -> o modal de idade nunca
+      // abria e o cliente batia num erro generico vindo do backend, sem saida.
+      //
+      // O backend SEMPRE valida (`orders.service.ts` recusa com
+      // "restricao de idade" quando falta ageVerified), entao a checagem local
+      // era so UX. Em vez de re-baixar o catalogo inteiro so pra isso, agora
+      // reagimos ao erro do servidor abrindo o modal (ver catch abaixo).
       if (!ageVerified && !skipAgeCheck) {
-        const storeProducts = storeData?.store?.products || [];
-        const hasAgeRestricted = checkoutItems.some((item) => {
-          const product = storeProducts.find((p: any) => p.id === item.productId);
-          return product?.category?.requiresAgeVerification;
-        });
-        if (hasAgeRestricted) {
-          submittingRef.current = false;
-          setShowAgeModal(true);
-          return;
-        }
+        const hasAgeRestricted = false; // decidido pelo backend
       }
 
       if (!isPickup && !address.trim()) {
@@ -564,7 +564,15 @@ export default function CheckoutScreen() {
       router.replace(`/order/${order.id}`);
     } catch (err: any) {
       devLog('[CHECKOUT] ERROR:', err.message || err);
-      alert('Erro', err.message || 'Nao foi possivel fazer o pedido');
+      const msg: string = err?.message || '';
+      // O backend recusa pedido com item +18 sem confirmacao. Em vez de mostrar
+      // o erro cru (sem saida pro cliente), abre o modal de confirmacao de idade
+      // — que re-submete com ageVerified=true.
+      if (/restri[cç][aã]o de idade|18 anos/i.test(msg)) {
+        setShowAgeModal(true);
+        return;
+      }
+      alert('Erro', msg || 'Nao foi possivel fazer o pedido');
     } finally {
       setLoading(false);
       submittingRef.current = false;
