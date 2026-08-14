@@ -160,10 +160,17 @@ export default function OrderDetailScreen() {
       // BUGFIX: os efeitos colaterais (fechar modal + Alert) estavam DENTRO do
       // updater do setState — em StrictMode/concorrencia o updater pode rodar
       // duas vezes e o alerta aparecia em dobro. Agora o updater so calcula.
-      setPixTimeLeft((prev) => (prev <= 1 ? 0 : prev - 1));
+      // BUGFIX: o contador decrementava 1 por TICK, em vez de recalcular pelo
+      // relogio. Timers JS nao disparam com o app em background — exatamente o
+      // que acontece quando o cliente vai ao app do banco pagar. Ele voltava 20
+      // minutos depois e o modal ainda mostrava ~24 min restantes de um PIX ja
+      // expirado; e como o fechamento depende de pixTimeLeft chegar a 0, o modal
+      // nunca fechava e ele colava um QR morto. A funcao correta ja existia e so
+      // era usada ao ABRIR o modal.
+      setPixTimeLeft(segundosRestantesPix());
     }, 1000);
     return () => clearInterval(timer);
-  }, [pixModalVisible]);
+  }, [pixModalVisible, segundosRestantesPix]);
 
   // Fecha o modal quando o contador zera (o efeito colateral saiu do updater).
   useEffect(() => {
@@ -494,6 +501,24 @@ export default function OrderDetailScreen() {
             <Text style={[styles.terminalBannerTitle, { color: isDark ? '#FCA5A5' : '#721C24' }]}>Pedido não foi aceito</Text>
             <Text style={[styles.terminalBannerSub, { color: isDark ? '#FCA5A5' : '#721C24' }]}>
               A loja não respondeu a tempo. Seu pagamento será estornado automaticamente.
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* CANCELLED era o UNICO status terminal sem banner — REJECTED, DISPUTED e
+          EXPIRED tinham. Como o tracker fica oculto em terminais, o cliente
+          abria um pedido cancelado e via so itens, endereco e total, sem
+          nenhuma indicacao de estado nem do estorno. */}
+      {order.status === 'CANCELLED' && (
+        <View style={[styles.terminalBanner, { backgroundColor: isDark ? '#3A1A1A' : '#F8D7DA' }]}>
+          <Ionicons name="close-circle-outline" size={18} color={colors.danger} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.terminalBannerTitle, { color: isDark ? '#FCA5A5' : '#721C24' }]}>Pedido cancelado</Text>
+            <Text style={[styles.terminalBannerSub, { color: isDark ? '#FCA5A5' : '#721C24' }]}>
+              {order.paymentMethod === 'ON_DELIVERY'
+                ? 'Nenhuma cobrança foi feita.'
+                : 'O estorno será processado no seu meio de pagamento em até 7 dias úteis.'}
             </Text>
           </View>
         </View>
