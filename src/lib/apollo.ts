@@ -62,6 +62,26 @@ try {
 }
 
 let sessionExpiredHandled = false;
+
+/**
+ * O AuthContext registra aqui o seu `forceLogout`.
+ *
+ * Motivo: este e o caminho de logout MAIS COMUM (token expirado no servidor), e
+ * ele so apagava o token e o `user` do storage. Nao chamava clearStore(), nao
+ * zerava o `user` do contexto e nao removia o carrinho. Como o CartContext so
+ * limpa quando `user` vira null — e aqui ele ia DIRETO do usuario A para o B via
+ * login() —, o proximo usuario do aparelho herdava o carrinho de A. Pior: o
+ * cache Apollo inteiro sobrevivia, e como o checkout le enderecos e cartoes com
+ * cache-first, o usuario B via os ENDERECOS SALVOS E OS CARTOES (bandeira,
+ * ultimos 4 digitos, titular) do usuario A, com o endereco de A pre-preenchido
+ * no pedido dele.
+ */
+type LimpezaDeSessao = () => Promise<void> | void;
+let limpezaDeSessao: LimpezaDeSessao | null = null;
+export function registrarLimpezaDeSessao(fn: LimpezaDeSessao) {
+  limpezaDeSessao = fn;
+}
+export const CART_STORAGE_KEY = '@cart_items';
 const AUTH_OPERATIONS = ['LoginApp', 'RegisterApp', 'GoogleAuthApp', 'RegisterAppWithGoogle'];
 const errorLink = onError(({ graphQLErrors, networkError, operation }) => {
   // Ignore UNAUTHENTICATED from login/register mutations — those are expected credential errors
@@ -83,11 +103,24 @@ const errorLink = onError(({ graphQLErrors, networkError, operation }) => {
   );
   if (sessionExpired && !sessionExpiredHandled) {
     sessionExpiredHandled = true;
-    // Silent logout — the subscription handles the user-facing alert
-    Promise.all([deleteSecureItem('token'), AsyncStorage.removeItem('user')]).then(() => {
-      sessionExpiredHandled = false;
-      router.replace('/auth/login');
-    });
+    // Silent logout — the subscription handles the user-facing alert.
+    // A limpeza completa passa pelo AuthContext (que tambem zera o estado em
+    // memoria e o cache do Apollo). O fallback cobre o caso de o errorLink
+    // disparar antes de o provider ter montado.
+    const limpar = limpezaDeSessao
+      ? Promise.resolve(limpezaDeSessao())
+      : Promise.all([
+          deleteSecureItem('token'),
+          AsyncStorage.removeItem('user'),
+          AsyncStorage.removeItem(CART_STORAGE_KEY),
+        ]).then(() => undefined);
+
+    limpar
+      .catch(() => {})
+      .then(() => {
+        sessionExpiredHandled = false;
+        router.replace('/auth/login');
+      });
   }
 });
 

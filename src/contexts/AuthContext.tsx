@@ -1,3 +1,4 @@
+import { registrarLimpezaDeSessao, CART_STORAGE_KEY } from '../lib/apollo';
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSecureItem, setSecureItem, deleteSecureItem } from '../lib/secureStorage';
@@ -63,10 +64,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // C2: Token in SecureStore (sensitive), user in AsyncStorage (non-sensitive)
     await deleteSecureItem('token');
     await AsyncStorage.removeItem('user');
+    // O carrinho tambem precisa sair: a chave nao tem escopo por usuario, e o
+    // CartContext so limpa quando `user` vira null — o que nao acontece quando a
+    // sessao expira e outra pessoa loga em seguida.
+    await AsyncStorage.removeItem(CART_STORAGE_KEY);
     setToken(null);
     setUser(null);
     await apolloClient.clearStore();
   }, [apolloClient]);
+
+  // A expiracao de sessao e detectada no errorLink do Apollo, que nao tem acesso
+  // a este contexto. Sem isto, aquele caminho apagava so o token e o `user` do
+  // storage, deixando o estado em memoria, o cache do Apollo (com enderecos e
+  // cartoes) e o carrinho intactos para o proximo usuario do aparelho.
+  useEffect(() => {
+    registrarLimpezaDeSessao(forceLogout);
+  }, [forceLogout]);
 
   // Perf: so troca o objeto `user` quando ele realmente mudou. Antes, o refresh
   // periodico (5 min) e o de foreground faziam setUser(freshUser) com um objeto

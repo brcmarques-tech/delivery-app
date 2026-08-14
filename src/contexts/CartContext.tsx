@@ -6,8 +6,11 @@ import { ADD_TO_CART, UPDATE_CART_ITEM, REMOVE_FROM_CART, CLEAR_CART } from '../
 import { GET_MY_CART } from '../lib/graphql/queries';
 import { onProductUpdated, onProductDeleted } from '../lib/productEvents';
 import { useAuth } from './AuthContext';
-
-const CART_STORAGE_KEY = '@cart_items';
+// Chave unica, declarada em lib/apollo. Tres lugares apagam o carrinho (aqui, o
+// forceLogout do AuthContext e o errorLink do Apollo); com uma copia local em
+// cada um, bastava alguem renomear num deles para o carrinho de um usuario
+// sobreviver ao login do proximo — exatamente o bug que este conjunto corrige.
+import { CART_STORAGE_KEY } from '../lib/apollo';
 
 export interface CartItem {
   id: string;
@@ -83,6 +86,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
     onError: () => {},
   });
 
+  /**
+   * O efeito de sync abaixo so aplica o resultado quando `!syncedRef.current`,
+   * que vira true no primeiro sync e nunca mais volta. Ou seja: QUALQUER refetch
+   * do carrinho depois disso era descartado em silencio — inclusive o que roda
+   * apos finalizar o pedido, deixando o item comprado no carrinho. Este wrapper
+   * reabre a janela antes de buscar.
+   */
+  const refetchCarrinho = useCallback(() => {
+    syncedRef.current = false;
+    return refetch();
+  }, [refetch]);
+
   useEffect(() => {
     if (cartData?.myCart && !syncedRef.current) {
       syncedRef.current = true;
@@ -142,14 +157,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, [updateItems]);
 
-  // Clear on logout
+  // Limpa na TROCA de usuario, nao so no logout.
+  //
+  // Dois bugs no efeito anterior (`if (!user) ...` com dependencia [user]):
+  //
+  // 1. Quando a sessao expirava e outra pessoa logava em seguida, o `user` ia
+  //    DIRETO de A para B sem passar por null — o carrinho de A sobrevivia para
+  //    B (a chave de storage nao tem escopo por usuario).
+  // 2. No cold start o `user` ainda e null (AuthContext em loading), entao o
+  //    efeito rodava e apagava a chave em TODA inicializacao. O carrinho so
+  //    reaparecia por corrida do getItem e pelo sync — com o app offline, abrir
+  //    duas vezes seguidas deixava o carrinho vazio.
+  //
+  // Agora comparamos o ID: so limpa quando havia um usuario e ele mudou (ou
+  // saiu). O primeiro render, com o ref ainda indefinido, nao dispara nada.
+  const usuarioAnteriorRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (!user) {
-      setItems([]);
-      syncedRef.current = false;
-      AsyncStorage.removeItem(CART_STORAGE_KEY).catch(() => {});
-    }
-  }, [user]);
+    const atual = user?.id ?? null;
+    const anterior = usuarioAnteriorRef.current;
+    usuarioAnteriorRef.current = atual;
+    if (anterior === undefined) return; // primeiro render: nada a fazer
+    if (anterior === atual) return;
+    setItems([]);
+    syncedRef.current = false;
+    AsyncStorage.removeItem(CART_STORAGE_KEY).catch(() => {});
+  }, [user?.id]);
 
   const itemCount = items.length;
 
@@ -286,8 +318,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // consumidor de useCart e as identidades novas das acoes quebravam qualquer memo.
   const value = useMemo<CartContextData>(() => ({
     items, addItem, removeItem, updateQuantity, updateWeight, clearCart,
-    itemCount, loading: queryLoading && !localLoaded, refetch,
-  }), [items, addItem, removeItem, updateQuantity, updateWeight, clearCart, itemCount, queryLoading, localLoaded, refetch]);
+    itemCount, loading: queryLoading && !localLoaded, refetch: refetchCarrinho,
+  }), [items, addItem, removeItem, updateQuantity, updateWeight, clearCart, itemCount, queryLoading, localLoaded, refetchCarrinho]);
 
   return (
     <CartContext.Provider value={value}>
