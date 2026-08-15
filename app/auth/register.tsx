@@ -211,6 +211,10 @@ export default function RegisterScreen() {
   const [otpSending, setOtpSending] = useState(false);
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+  // Canal onde o codigo foi REALMENTE entregue. Quando o WhatsApp esta fora, o
+  // servidor cai para o e-mail e o codigo passa a verificar o E-MAIL (nao o
+  // telefone) — entao a verificacao precisa usar o mesmo canal do envio.
+  const [otpMethod, setOtpMethod] = useState<'whatsapp' | 'email'>('whatsapp');
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   const [validateRegistration] = useMutation(VALIDATE_REGISTRATION);
@@ -308,7 +312,7 @@ export default function RegisterScreen() {
   async function sendOtp() {
     setOtpSending(true);
     try {
-      await sendVerificationCode({
+      const { data } = await sendVerificationCode({
         variables: {
           input: {
             value: phone.replace(/\D/g, ''),
@@ -322,6 +326,12 @@ export default function RegisterScreen() {
           },
         },
       });
+      // KAN-280: o servidor devolve o canal onde o codigo foi REALMENTE entregue
+      // ('whatsapp' ou 'email'). Quando cai no e-mail, a verificacao valida o
+      // E-MAIL, nao o telefone — guardamos para o handleVerifyOtp usar o canal
+      // certo.
+      const metodo = data?.sendVerificationCode === 'email' ? 'email' : 'whatsapp';
+      setOtpMethod(metodo);
       setStep(2);
       setResendTimer(60);
       setOtpDigits(['', '', '', '', '', '']);
@@ -361,8 +371,14 @@ export default function RegisterScreen() {
     }
     setOtpVerifying(true);
     try {
+      // KAN-280: verifica no MESMO canal em que o codigo foi entregue. Se caiu no
+      // e-mail (WhatsApp fora), valida o e-mail; senao, o telefone.
+      const alvo =
+        otpMethod === 'email'
+          ? { value: email.trim(), channel: 'email' }
+          : { value: phone.replace(/\D/g, ''), channel: 'whatsapp' };
       await verifyCode({
-        variables: { input: { value: phone.replace(/\D/g, ''), code, channel: 'whatsapp' } },
+        variables: { input: { ...alvo, code } },
       });
       setStep(3);
     } catch (err: any) {
@@ -631,12 +647,21 @@ export default function RegisterScreen() {
 
           <AnimItem delay={0} fromY={-20}>
           <View style={styles.otpIconContainer}>
-            <Ionicons name="logo-whatsapp" size={36} color="#25D366" />
+            {/* KAN-280: reflete o canal real do envio (WhatsApp fora -> e-mail) */}
+            <Ionicons
+              name={otpMethod === 'email' ? 'mail-outline' : 'logo-whatsapp'}
+              size={36}
+              color={otpMethod === 'email' ? colors.primary : '#25D366'}
+            />
           </View>
-          <Text style={[styles.otpTitle, { color: colors.text }]}>Verifique seu WhatsApp</Text>
+          <Text style={[styles.otpTitle, { color: colors.text }]}>
+            {otpMethod === 'email' ? 'Verifique seu e-mail' : 'Verifique seu WhatsApp'}
+          </Text>
           <Text style={[styles.otpSubtitle, { color: colors.textLight }]}>
             Enviamos um codigo de 6 digitos para{'\n'}
-            <Text style={[styles.otpPhone, { color: colors.text }]}>{formatPhoneDisplay(phone.replace(/\D/g, ''))}</Text>
+            <Text style={[styles.otpPhone, { color: colors.text }]}>
+              {otpMethod === 'email' ? email.trim() : formatPhoneDisplay(phone.replace(/\D/g, ''))}
+            </Text>
           </Text>
           </AnimItem>
 
