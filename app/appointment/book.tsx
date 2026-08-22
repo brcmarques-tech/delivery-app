@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -58,7 +58,7 @@ export default function BookAppointmentScreen() {
     for (let i = 0; i < 30; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() + i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const dayOfWeek = d.getDay();
       result.push({
         date: dateStr,
@@ -80,9 +80,15 @@ export default function BookAppointmentScreen() {
   const slots: string[] = slotsData?.availableSlots || [];
 
   const [createAppointment, { loading: creating }] = useMutation(CREATE_APPOINTMENT);
+  // Trava SÍNCRONA contra double-tap: `disabled={creating}` só vira true no
+  // próximo render, tarde demais para um toque duplo rápido, que gerava dois
+  // agendamentos (e dois QR Codes/cobranças PIX). O ref muda no mesmo tick.
+  const submittingRef = useRef(false);
 
   async function handleConfirm() {
     if (!selectedDate || !selectedTime) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     try {
       const result = await createAppointment({
         variables: {
@@ -109,6 +115,8 @@ export default function BookAppointmentScreen() {
       }
     } catch (err: any) {
       alert('Erro', err?.message || 'Nao foi possivel agendar. Tente novamente.');
+    } finally {
+      submittingRef.current = false;
     }
   }
 

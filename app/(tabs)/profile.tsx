@@ -72,13 +72,16 @@ export default function ProfileScreen() {
     const rejectedTime = new Date(user.rejectedAt).getTime();
     const unlockTime = rejectedTime + RETRY_DELAY_MS;
 
-    const tick = () => {
+    // Perf (F3): quando o countdown zera, para o interval — antes ele ficava
+    // ticando 1x/segundo para sempre (bateria) mesmo com a janela ja liberada.
+    const interval = setInterval(() => {
       const remaining = unlockTime - Date.now();
       setRetryCountdown(remaining > 0 ? remaining : 0);
-    };
-
-    tick();
-    const interval = setInterval(tick, 1000);
+      if (remaining <= 0) clearInterval(interval);
+    }, 1000);
+    const remainingNow = unlockTime - Date.now();
+    setRetryCountdown(remainingNow > 0 ? remainingNow : 0);
+    if (remainingNow <= 0) clearInterval(interval);
     return () => clearInterval(interval);
   }, [user?.rejectedAt]);
 

@@ -437,6 +437,7 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
   const { alert } = useAlert();
   const insets = useSafeAreaInsets();
   const [scrolledToEnd, setScrolledToEnd] = useState(false);
+  const [alturaVisivel, setAlturaVisivel] = useState(0);
   const [checked, setChecked] = useState(false);
   const [acceptTerms, { loading }] = useMutation(ACCEPT_TERMS);
 
@@ -529,11 +530,21 @@ export default function AcceptTermsScreen({ readOnly, onClose }: AcceptTermsScre
       </View>
 
       {/* Contract body */}
+      {/* BUGFIX: `scrolledToEnd` so era setado pelo onScroll. Se o contrato couber
+          na tela, nenhum evento de rolagem dispara — o checkbox fica desabilitado
+          para sempre e "Aceitar e Continuar" nunca habilita. O texto vem do
+          SERVIDOR, entao o tamanho nao esta sob controle do app, e esta tela e o
+          portao de entrada. A regra de "ler ate o fim" continua: nada para rolar
+          significa que ja esta tudo visivel. */}
       <ScrollView
         style={styles.contractScroll}
         contentContainerStyle={[styles.contractContent, { paddingBottom: insets.bottom + 16 }]}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        onLayout={(e) => setAlturaVisivel(e.nativeEvent.layout.height)}
+        onContentSizeChange={(_w, h) => {
+          if (alturaVisivel > 0 && h <= alturaVisivel) setScrolledToEnd(true);
+        }}
       >
         {/* Signee info */}
         {(user?.name || user?.cpf) && (

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  Image,
   ScrollView,
   useWindowDimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+// Perf (F7): logos de loja via expo-image (cache memory-disk) — o <Image> do RN
+// re-baixava/re-decodificava o logo a cada passada da lista.
+import { Image } from 'expo-image';
 import { AnimatedListItem } from '../../src/components/AnimatedListItem';
 import { AnimatedPressable } from '../../src/components/AnimatedPressable';
 import { AnimatedItem } from '../../src/components/AnimatedItem';
@@ -21,6 +23,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { GET_MY_ORDERS, MY_APPOINTMENTS } from '../../src/lib/graphql/queries';
 import { CANCEL_APPOINTMENT } from '../../src/lib/graphql/mutations';
 import { ORDER_UPDATED } from '../../src/lib/graphql/subscriptions';
+import { useAuth } from '../../src/contexts/AuthContext'; // KAN-238
+import { listPerfProps } from '../../src/lib/deviceTier'; // Perf (F0)
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,27 +44,70 @@ const appointmentStatusLabels: Record<string, { label: string; colorKey: string 
   QUOTE_REJECTED: { label: 'Orcamento recusado', colorKey: 'gray' },
 };
 
+// Perf (F3): module scope — antes era recriada a cada render dentro do componente.
+function formatAppointmentDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
 export default function OrdersScreen() {
+  const { user } = useAuth(); // KAN-238: guard das subscriptions
   const { colors } = useTheme();
   const { showAlert } = useAlert();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<ActiveTab>('orders');
 
   // Orders
-  const { data, loading, refetch } = useQuery(GET_MY_ORDERS);
-  const orders = data?.myOrders || [];
-  const refetchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const { data, loading, refetch, fetchMore } = useQuery(GET_MY_ORDERS, {
+    variables: { limit: 20, offset: 0 },
+  });
+  // Perf (F3): memoizado — antes era array novo por render alimentando o FlatList.
+  const orders = useMemo(() => data?.myOrders || [], [data?.myOrders]);
+  // KAN-255: useRef exige valor inicial (ou `undefined` no tipo).
+  const refetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const debouncedRefetch = useCallback(() => {
     clearTimeout(refetchTimeoutRef.current);
     refetchTimeoutRef.current = setTimeout(() => refetch(), 1000);
   }, [refetch]);
 
   // Appointments
-  const { data: appointmentsData, loading: appointmentsLoading, refetch: refetchAppointments } = useQuery(MY_APPOINTMENTS);
-  const appointments = appointmentsData?.myAppointments || [];
+  const { data: appointmentsData, loading: appointmentsLoading, refetch: refetchAppointments, fetchMore: fetchMoreAppointments } = useQuery(MY_APPOINTMENTS, {
+    variables: { limit: 20, offset: 0 },
+  });
+  const appointments = useMemo(() => appointmentsData?.myAppointments || [], [appointmentsData?.myAppointments]);
+
+  // Perf (F6): paginacao por scroll. So busca a proxima pagina quando a ultima
+  // veio cheia (lista multipla do tamanho da pagina); o offsetMerge do Apollo
+  // encaixa cada pagina na posicao certa.
+  // BUGFIX: inferir "tem mais" de `length % 20 === 0` quebrava quando a lista
+  // encolhia (cache evict / pedido removido) — parava de paginar pra sempre — e
+  // fazia requisicao infinita quando o total era multiplo exato de 20. Agora o
+  // fim da lista vem do tamanho da ultima pagina recebida.
+  const [hasMoreOrders, setHasMoreOrders] = useState(true);
+  const [hasMoreAppts, setHasMoreAppts] = useState(true);
+
+  const loadMoreOrders = useCallback(() => {
+    if (!hasMoreOrders || orders.length === 0) return;
+    fetchMore({ variables: { limit: 20, offset: orders.length } })
+      .then((res: any) => {
+        if ((res?.data?.myOrders?.length ?? 0) < 20) setHasMoreOrders(false);
+      })
+      .catch(() => {});
+  }, [hasMoreOrders, orders.length, fetchMore]);
+
+  const loadMoreAppointments = useCallback(() => {
+    if (!hasMoreAppts || appointments.length === 0) return;
+    fetchMoreAppointments({ variables: { limit: 20, offset: appointments.length } })
+      .then((res: any) => {
+        if ((res?.data?.myAppointments?.length ?? 0) < 20) setHasMoreAppts(false);
+      })
+      .catch(() => {});
+  }, [hasMoreAppts, appointments.length, fetchMoreAppointments]);
   const [cancelAppointment] = useMutation(CANCEL_APPOINTMENT);
 
-  const statusLabels: Record<string, { label: string; color: string }> = {
+  // Perf (F3): memoizado por tema. Antes era um objeto novo por render e estava
+  // nas deps do renderOrderItem — todo card re-renderizava a cada render da tela.
+  const statusLabels: Record<string, { label: string; color: string }> = useMemo(() => ({
     AWAITING_PAYMENT: { label: 'Aguardando pagamento', color: colors.warning },
     PAYMENT_REVIEW: { label: 'Em analise', color: colors.warning },
     PENDING: { label: 'Pendente', color: colors.warning },
@@ -77,14 +124,29 @@ export default function OrdersScreen() {
     VENDOR_CONFIRMED_PICKUP: { label: 'Retirado', color: colors.primary },
     DELIVERER_CONFIRMED_DELIVERY: { label: 'Entrega confirmada', color: colors.success },
     EXPIRED: { label: 'Nao aceito', color: colors.danger },
-  };
+  }), [colors]);
 
-  // Real-time order updates (debounced to prevent excessive refetches)
+  // Real-time order updates.
+  // KAN-238: `skip: !user` — sem isso a subscription continuava ativa mesmo
+  // deslogado, abrindo WS e gerando erro de auth no servidor.
+  // Perf (F2): o payload do orderUpdated e normalizado no cache (id + status),
+  // entao pedido JA LISTADO atualiza o card sem rede. So refetch (debounced)
+  // quando chega pedido que nao esta na lista.
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    knownOrderIdsRef.current = new Set(orders.map((o: any) => o.id));
+  }, [orders]);
   useSubscription(ORDER_UPDATED, {
-    onData: () => { debouncedRefetch(); },
+    skip: !user,
+    onData: ({ data: subData }) => {
+      const updated = subData?.data?.orderUpdated;
+      if (updated?.id && !knownOrderIdsRef.current.has(updated.id)) {
+        debouncedRefetch();
+      }
+    },
   });
 
-  function getAppointmentStatusColor(status: string): string {
+  const getAppointmentStatusColor = useCallback((status: string): string => {
     const entry = appointmentStatusLabels[status];
     if (!entry) return colors.gray;
     const map: Record<string, string> = {
@@ -95,9 +157,9 @@ export default function OrdersScreen() {
       danger: colors.danger,
     };
     return map[entry.colorKey] || colors.gray;
-  }
+  }, [colors]);
 
-  async function handleCancelAppointment(id: string) {
+  const handleCancelAppointment = useCallback(async (id: string) => {
     showAlert({
       title: 'Cancelar agendamento',
       message: 'Tem certeza que deseja cancelar este agendamento?',
@@ -117,18 +179,18 @@ export default function OrdersScreen() {
         },
       ],
     });
-  }
-
-  function formatAppointmentDate(dateStr: string): string {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-  }
+  }, [showAlert, cancelAppointment, refetchAppointments]);
 
   const renderAppointmentCard = useCallback(({ item, index }: { item: any; index: number }) => {
     const statusEntry = appointmentStatusLabels[item.status];
     const statusLabel = statusEntry?.label || item.status;
     const statusColor = getAppointmentStatusColor(item.status);
-    const canCancel = ['PENDING', 'CONFIRMED', 'QUOTE_REQUESTED', 'QUOTED'].includes(item.status);
+    // BUGFIX: incluia QUOTED, que o servidor NAO deixa cancelar (a transicao valida
+    // e QUOTED -> QUOTE_ACCEPTED/QUOTE_REJECTED), e omitia QUOTE_ACCEPTED, que ele
+    // DEIXA. O cliente tocava Cancelar num orcamento e levava o erro cru
+    // "Transicao de QUOTED para CANCELLED nao permitida"; e quem tinha aceitado um
+    // orcamento nao conseguia cancelar por tela nenhuma. Alinhado ao servidor.
+    const canCancel = ['PENDING', 'CONFIRMED', 'QUOTE_REQUESTED', 'QUOTE_ACCEPTED'].includes(item.status);
 
     return (
       <AnimatedListItem index={index}>
@@ -140,7 +202,7 @@ export default function OrdersScreen() {
             <View style={styles.cardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
                 {item.store?.logoUrl ? (
-                  <Image source={{ uri: item.store.logoUrl }} style={{ width: 32, height: 32, borderRadius: 16 }} />
+                  <Image source={item.store.logoUrl} style={{ width: 32, height: 32, borderRadius: 16 }} cachePolicy="memory-disk" recyclingKey={item.id} />
                 ) : null}
                 <Text style={[styles.storeName, { color: colors.text, flex: 1 }]} numberOfLines={1}>
                   {item.store?.name}
@@ -190,7 +252,7 @@ export default function OrdersScreen() {
         </AnimatedPressable>
       </AnimatedListItem>
     );
-  }, [colors, handleCancelAppointment]);
+  }, [colors, handleCancelAppointment, getAppointmentStatusColor]);
 
   const renderOrderItem = useCallback(({ item, index }: { item: any; index: number }) => {
     const status = statusLabels[item.status] || { label: item.status, color: colors.gray };
@@ -295,11 +357,10 @@ export default function OrdersScreen() {
           <FlatList
             data={orders}
             keyExtractor={(item) => item.id}
+            onEndReached={loadMoreOrders}
+            onEndReachedThreshold={0.4}
             contentContainerStyle={[styles.list, orders.length === 0 && { flexGrow: 1, justifyContent: 'center' }]}
-            removeClippedSubviews
-            maxToRenderPerBatch={8}
-            windowSize={5}
-            initialNumToRender={6}
+            {...listPerfProps}
             refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} />}
             renderItem={renderOrderItem}
             ListEmptyComponent={
@@ -326,11 +387,10 @@ export default function OrdersScreen() {
           <FlatList
             data={appointments}
             keyExtractor={(item) => item.id}
+            onEndReached={loadMoreAppointments}
+            onEndReachedThreshold={0.4}
             contentContainerStyle={[styles.list, appointments.length === 0 && { flexGrow: 1, justifyContent: 'center' }]}
-            removeClippedSubviews
-            maxToRenderPerBatch={8}
-            windowSize={5}
-            initialNumToRender={6}
+            {...listPerfProps}
             refreshControl={<RefreshControl refreshing={appointmentsLoading} onRefresh={refetchAppointments} />}
             renderItem={renderAppointmentCard}
             ListEmptyComponent={

@@ -6,25 +6,24 @@ import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient } from 'graphql-ws';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSecureItem, deleteSecureItem } from './secureStorage';
+import { devLog } from './devLog';
+import { fetchWithTimeout, DEFAULT_TIMEOUT_MS } from './fetchWithTimeout';
+import { httpBaseUrl, wsBaseUrl } from './apiHost';
 import { Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 
-// IP da maquina de dev na LAN. Configuravel via EXPO_PUBLIC_API_HOST no .env
-// (que e gitignored), para nao commitar IP especifico de maquina — ver regra
-// "Nunca commitar overrides de URL" no CLAUDE.md. O fallback mantem o
-// comportamento anterior para quem nao definir a variavel.
-const LAN_HOST = process.env.EXPO_PUBLIC_API_HOST || '192.168.0.143';
-const DEV_HOST = Platform.OS === 'web' ? 'localhost' : LAN_HOST;
-const PROD_URL = 'https://api.bcmtech.com.br';
+// KAN-255: montagem da URL centralizada em src/lib/apiHost.ts (era duplicada em
+// tres arquivos, dois deles com IP de LAN hardcoded e desatualizado).
+const API_URL = `${httpBaseUrl()}/graphql`;
+const WS_URL = `${wsBaseUrl()}/graphql`;
 
-const USE_LOCAL = __DEV__;
-
-const BASE_URL = USE_LOCAL ? `http://${DEV_HOST}:3000` : PROD_URL;
-const API_URL = `${BASE_URL}/graphql`;
-const WS_URL = `${USE_LOCAL ? `ws://${DEV_HOST}:3000` : 'wss://api.bcmtech.com.br'}/graphql`;
+// KAN-240: sem timeout, uma rede ruim deixa a promise pendente indefinidamente.
+// Helper compartilhado em src/lib/fetchWithTimeout.ts.
+const HTTP_TIMEOUT_MS = DEFAULT_TIMEOUT_MS;
 
 const httpLink = createHttpLink({
   uri: API_URL,
+  fetch: ((input: any, init?: any) => fetchWithTimeout(input, init)) as any,
 });
 
 const authLink = setContext(async (_, { headers }) => {
@@ -52,7 +51,9 @@ try {
         return { authorization: token ? `Bearer ${token}` : '' };
       },
       on: {
-        error: (err: any) => console.log('[WS] Error:', err?.message || err),
+        // Perf (F7): devLog — em rede instavel este handler dispara em loop de
+        // retry; console.log cru custava em producao.
+        error: (err: any) => devLog('[WS] Error:', err?.message || err),
       },
     }),
   );
@@ -61,21 +62,65 @@ try {
 }
 
 let sessionExpiredHandled = false;
+
+/**
+ * O AuthContext registra aqui o seu `forceLogout`.
+ *
+ * Motivo: este e o caminho de logout MAIS COMUM (token expirado no servidor), e
+ * ele so apagava o token e o `user` do storage. Nao chamava clearStore(), nao
+ * zerava o `user` do contexto e nao removia o carrinho. Como o CartContext so
+ * limpa quando `user` vira null — e aqui ele ia DIRETO do usuario A para o B via
+ * login() —, o proximo usuario do aparelho herdava o carrinho de A. Pior: o
+ * cache Apollo inteiro sobrevivia, e como o checkout le enderecos e cartoes com
+ * cache-first, o usuario B via os ENDERECOS SALVOS E OS CARTOES (bandeira,
+ * ultimos 4 digitos, titular) do usuario A, com o endereco de A pre-preenchido
+ * no pedido dele.
+ */
+type LimpezaDeSessao = () => Promise<void> | void;
+let limpezaDeSessao: LimpezaDeSessao | null = null;
+export function registrarLimpezaDeSessao(fn: LimpezaDeSessao) {
+  limpezaDeSessao = fn;
+}
+export const CART_STORAGE_KEY = '@cart_items';
 const AUTH_OPERATIONS = ['LoginApp', 'RegisterApp', 'GoogleAuthApp', 'RegisterAppWithGoogle'];
-const errorLink = onError(({ graphQLErrors, operation }) => {
+const errorLink = onError(({ graphQLErrors, networkError, operation }) => {
   // Ignore UNAUTHENTICATED from login/register mutations — those are expected credential errors
   if (AUTH_OPERATIONS.includes(operation.operationName)) return;
+
+  // KAN-240: networkError era completamente ignorado — ficar offline no meio de
+  // uma operacao nao sinalizava nada. Agora fica registrado (so em dev, via
+  // devLog, para nao vazar em producao — ver KAN-223), distinguindo timeout.
+  if (networkError) {
+    const isTimeout = (networkError as any)?.name === 'AbortError';
+    devLog(
+      `[APOLLO] networkError em ${operation.operationName}:`,
+      isTimeout ? `timeout apos ${HTTP_TIMEOUT_MS}ms` : networkError.message,
+    );
+  }
 
   const sessionExpired = graphQLErrors?.some(
     (e) => e.message?.includes('SESSION_EXPIRED') || e.extensions?.code === 'UNAUTHENTICATED'
   );
   if (sessionExpired && !sessionExpiredHandled) {
     sessionExpiredHandled = true;
-    // Silent logout — the subscription handles the user-facing alert
-    Promise.all([deleteSecureItem('token'), AsyncStorage.removeItem('user')]).then(() => {
-      sessionExpiredHandled = false;
-      router.replace('/auth/login');
-    });
+    // Silent logout — the subscription handles the user-facing alert.
+    // A limpeza completa passa pelo AuthContext (que tambem zera o estado em
+    // memoria e o cache do Apollo). O fallback cobre o caso de o errorLink
+    // disparar antes de o provider ter montado.
+    const limpar = limpezaDeSessao
+      ? Promise.resolve(limpezaDeSessao())
+      : Promise.all([
+          deleteSecureItem('token'),
+          AsyncStorage.removeItem('user'),
+          AsyncStorage.removeItem(CART_STORAGE_KEY),
+        ]).then(() => undefined);
+
+    limpar
+      .catch(() => {})
+      .then(() => {
+        sessionExpiredHandled = false;
+        router.replace('/auth/login');
+      });
   }
 });
 
@@ -93,12 +138,33 @@ const link = wsLink
     )
   : authLink.concat(httpLink);
 
+
+// Perf (F6): merge offset-based compartilhado (equivalente ao offsetLimitPagination).
+function offsetMerge(existing: any[] = [], incoming: any[], { args }: any) {
+  const offset = args?.offset ?? 0;
+  // BUGFIX: antes era `existing.slice(0)` — a lista NUNCA encolhia. Um refetch
+  // (que sempre volta em offset 0) sobrescrevia so as primeiras N posicoes e
+  // deixava a cauda antiga congelada: pedido novo empurrava a lista e o item da
+  // fronteira sumia pra sempre, ou aparecia duplicado quando um item era
+  // removido no servidor. Agora offset 0 = pagina inicial e trunca a cauda;
+  // paginas seguintes preservam so o que vem ANTES do seu offset.
+  const merged = offset === 0 ? [] : existing.slice(0, offset);
+  for (let i = 0; i < incoming.length; i++) merged[offset + i] = incoming[i];
+  return merged;
+}
+
 const cache = new InMemoryCache({
   typePolicies: {
     Query: {
       fields: {
-        myOrders: { merge: (_existing, incoming) => incoming },
-        myDeliveries: { merge: (_existing, incoming) => incoming },
+        // Perf (F6): merge de paginacao por offset. keyArgs:false = uma lista
+        // unica por campo; cada pagina entra na posicao do seu offset (refetch
+        // com offset 0 sobrescreve o inicio e preserva o resto ja carregado).
+        myOrders: { keyArgs: false, merge: offsetMerge },
+        myDeliveries: { keyArgs: false, merge: offsetMerge },
+        myAppointments: { keyArgs: false, merge: offsetMerge },
+        // Perf (F5/F6): uma lista por (loja, busca); paginas encaixam por offset.
+        storeProducts: { keyArgs: ['storeId', 'search', 'categoryId'], merge: offsetMerge },
         availableDeliveries: { merge: (_existing, incoming) => incoming },
         storeOrders: { merge: (_existing, incoming) => incoming },
         popularProducts: { merge: (_existing, incoming) => incoming },

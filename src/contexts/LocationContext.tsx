@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { useAuth } from './AuthContext';
@@ -29,7 +29,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const requestedRef = useRef(false);
 
-  async function getLocation() {
+  const getLocation = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -55,7 +55,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   // Only request location after user is logged in
   useEffect(() => {
@@ -67,10 +67,17 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
       requestedRef.current = false;
       setLocation(null);
     }
-  }, [user]);
+  }, [user, getLocation]);
+
+  // Perf: value memoizado + refresh estavel — consumidores de useLocation so
+  // re-renderizam quando location/loading/error realmente mudam.
+  const value = useMemo<LocationContextType>(
+    () => ({ location, loading, error, refresh: getLocation }),
+    [location, loading, error, getLocation],
+  );
 
   return (
-    <LocationContext.Provider value={{ location, loading, error, refresh: getLocation }}>
+    <LocationContext.Provider value={value}>
       {children}
     </LocationContext.Provider>
   );

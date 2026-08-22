@@ -13,9 +13,13 @@ export default function Index() {
   const [splashHidden, setSplashHidden] = useState(false);
   const [animDone, setAnimDone] = useState(false);
 
+  // Perf (F7): era network-only — a decisao de rota da PRIMEIRA tela esperava um
+  // round-trip forcado mesmo com enderecos em cache. cache-first decide na hora
+  // em visitas repetidas; a lista de enderecos raramente muda e a tela de
+  // enderecos faz o proprio refetch quando aberta.
   const { data: addrData, loading: addrLoading, error: addrError } = useQuery(GET_MY_ADDRESSES, {
     skip: !user,
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'cache-first',
   });
 
   useEffect(() => {

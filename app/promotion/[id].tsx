@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ActivityIndicator,
   View,
   Text,
   StyleSheet,
@@ -24,9 +25,42 @@ export default function PromotionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
   const { addItem, itemCount } = useCart();
-  const { data } = useQuery(GET_ACTIVE_PROMOTIONS);
+  const { data, loading } = useQuery(GET_ACTIVE_PROMOTIONS);
 
   const promo = (data?.activePromotions || []).find((p: any) => p.id === id);
+
+  // BUGFIX: `loading` nao era lido — no primeiro render `data` e undefined,
+
+
+  // entao a tela mostrava "Promocao nao encontrada" enquanto a query ainda
+
+
+  // estava carregando. Quem chega por push/deep-link numa rede lenta via
+
+
+  // "nao encontrada" durante toda a requisicao.
+
+
+  if (loading && !promo) {
+
+
+    return (
+
+
+      <View style={[styles.emptyCenter, { backgroundColor: colors.background, flex: 1, justifyContent: 'center', alignItems: 'center' }]}>
+
+
+        <ActivityIndicator size="large" color={colors.primary} />
+
+
+      </View>
+
+
+    );
+
+
+  }
+
 
   if (!promo) {
     return (

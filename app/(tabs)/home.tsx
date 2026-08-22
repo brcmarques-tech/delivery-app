@@ -27,6 +27,7 @@ import { useLocation } from '../../src/contexts/LocationContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { fonts } from '../../src/theme';
+import { imageCachePolicy } from '../../src/lib/deviceTier'; // Perf (F0)
 import { AnimatedListItem } from '../../src/components/AnimatedListItem';
 import { AnimatedPressable } from '../../src/components/AnimatedPressable';
 import { AnimatedItem } from '../../src/components/AnimatedItem';
@@ -43,22 +44,29 @@ export default function HomeScreen() {
   const { data: popularData, refetch: refetchPopular } = useQuery(GET_POPULAR_PRODUCTS, {
     variables: { limit: 12 },
   });
+  // Perf (F7): queries personalizadas gated por user — sem login elas iam pra
+  // rede so pra voltar vazias/erro (3 requests desperdicados no primeiro paint).
   const { data: reorderData, refetch: refetchReorder } = useQuery(GET_REORDER_SUGGESTIONS, {
     variables: { limit: 10 },
+    skip: !user,
   });
   const { data: frequentData, refetch: refetchFrequent } = useQuery(GET_FREQUENT_STORES, {
     variables: { limit: 6 },
+    skip: !user,
   });
   const { data: topData, refetch: refetchTop } = useQuery(GET_TOP_STORES_WEEKLY, {
     variables: { limit: 5 },
   });
-  const { data: followedData, refetch: refetchFollowed } = useQuery(GET_FOLLOWED_STORES);
-  const { data: pricingData } = useQuery(GET_DELIVERY_PRICING);
+  const { data: followedData, refetch: refetchFollowed } = useQuery(GET_FOLLOWED_STORES, { skip: !user });
+  // Perf (F7): preco de entrega raramente muda — cache-first evita re-fetch a
+  // cada visita a home.
+  const { data: pricingData } = useQuery(GET_DELIVERY_PRICING, { fetchPolicy: 'cache-first' });
 
   const basePrice = pricingData?.deliveryBasePrice ?? 3;
   const pricePerKm = pricingData?.deliveryPricePerKm ?? 1.5;
 
   useSubscription(PROMOTION_UPDATED, {
+    skip: !user, // Perf (F7): sem WS aberto deslogado (padrao KAN-238)
     onData: () => { refetchPromos(); },
   });
 
@@ -107,7 +115,7 @@ export default function HomeScreen() {
         onPress={() => router.push(`/store/${product.storeId}?productId=${product.id}`)}
       >
         {product.imageUrl ? (
-          <Image source={product.imageUrl} style={isSmall ? styles.productImageSmall : styles.productImage} cachePolicy="memory-disk" recyclingKey={product.id} />
+          <Image source={product.imageUrl} style={isSmall ? styles.productImageSmall : styles.productImage} cachePolicy={imageCachePolicy} recyclingKey={product.id} />
         ) : (
           <View style={[isSmall ? styles.productImageSmall : styles.productImage, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
             <Ionicons name="cube-outline" size={isSmall ? 20 : 28} color={colors.gray} />
@@ -219,7 +227,7 @@ export default function HomeScreen() {
                   >
                     <View>
                       {(promo.product?.imageUrl || promo.imageUrl) ? (
-                        <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy="memory-disk" />
+                        <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy={imageCachePolicy} />
                       ) : (
                         <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
                           <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
@@ -316,7 +324,7 @@ export default function HomeScreen() {
                   onPress={() => router.push(`/store/${store.id}`)}
                 >
                   {store.logoUrl ? (
-                    <Image source={store.logoUrl} style={styles.frequentStoreLogo} cachePolicy="memory-disk" />
+                    <Image source={store.logoUrl} style={styles.frequentStoreLogo} cachePolicy={imageCachePolicy} />
                   ) : (
                     <View style={[styles.frequentStoreLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                       <Ionicons name="storefront-outline" size={18} color={colors.gray} />
@@ -365,7 +373,7 @@ export default function HomeScreen() {
                   onPress={() => router.push(`/store/${store.id}`)}
                 >
                   {store.logoUrl ? (
-                    <Image source={store.logoUrl} style={styles.frequentStoreLogo} cachePolicy="memory-disk" />
+                    <Image source={store.logoUrl} style={styles.frequentStoreLogo} cachePolicy={imageCachePolicy} />
                   ) : (
                     <View style={[styles.frequentStoreLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                       <Ionicons name="storefront-outline" size={18} color={colors.gray} />
@@ -409,7 +417,7 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                   {store.logoUrl ? (
-                    <Image source={store.logoUrl} style={styles.topStoreLogo} cachePolicy="memory-disk" />
+                    <Image source={store.logoUrl} style={styles.topStoreLogo} cachePolicy={imageCachePolicy} />
                   ) : (
                     <View style={[styles.topStoreLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                       <Ionicons name="storefront-outline" size={18} color={colors.gray} />

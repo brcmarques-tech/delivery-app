@@ -77,22 +77,6 @@ export const GET_STORE = gql`
       verificationLevel
       verificationScore
       storeType
-      products {
-        id
-        name
-        description
-        price
-        promotionalPrice
-        imageUrl
-        isAvailable
-        isVariableWeight
-        unit
-        category {
-          id
-          name
-          requiresAgeVerification
-        }
-      }
       services {
         id
         name
@@ -109,6 +93,29 @@ export const GET_STORE = gql`
         }
       }
       categories {
+        id
+        name
+        requiresAgeVerification
+      }
+    }
+  }
+`;
+
+// Perf (F5/F6): catalogo paginado com busca server-side. Antes o GET_STORE
+// descia TODOS os produtos da loja de uma vez (PREMIUM sem teto = milhares).
+export const GET_STORE_PRODUCTS = gql`
+  query StoreProducts($storeId: String!, $limit: Int, $offset: Int, $search: String, $categoryId: String) {
+    storeProducts(storeId: $storeId, limit: $limit, offset: $offset, search: $search, categoryId: $categoryId) {
+      id
+      name
+      description
+      price
+      promotionalPrice
+      imageUrl
+      isAvailable
+      isVariableWeight
+      unit
+      category {
         id
         name
         requiresAgeVerification
@@ -168,8 +175,8 @@ export const GET_MY_CART_BY_STORE = gql`
 `;
 
 export const GET_MY_ORDERS = gql`
-  query MyOrders {
-    myOrders {
+  query MyOrders($limit: Int, $offset: Int) {
+    myOrders(limit: $limit, offset: $offset) {
       id
       orderNumber
       status
@@ -551,8 +558,8 @@ export const GET_AVAILABLE_DELIVERIES = gql`
 `;
 
 export const GET_MY_DELIVERIES = gql`
-  query MyDeliveries {
-    myDeliveries {
+  query MyDeliveries($limit: Int, $offset: Int) {
+    myDeliveries(limit: $limit, offset: $offset) {
       id
       pickedUpAt
       deliveredAt
@@ -573,6 +580,7 @@ export const GET_MY_DELIVERIES = gql`
         disputedAt
         disputeReason
         store {
+          id
           name
           street
           number
@@ -583,6 +591,7 @@ export const GET_MY_DELIVERIES = gql`
           longitude
         }
         customer {
+          id
           name
           phone
         }
@@ -590,6 +599,7 @@ export const GET_MY_DELIVERIES = gql`
           id
           quantity
           product {
+            id
             name
           }
         }
@@ -606,6 +616,7 @@ export const MY_BALANCE = gql`
       availableAmount
       waitingFundsAmount
       transferredAmount
+      autoAnticipationEnabled
     }
   }
 `;
@@ -630,8 +641,8 @@ export const AVAILABLE_SLOTS = gql`
 `;
 
 export const MY_APPOINTMENTS = gql`
-  query MyAppointments {
-    myAppointments {
+  query MyAppointments($limit: Int, $offset: Int) {
+    myAppointments(limit: $limit, offset: $offset) {
       id
       appointmentNumber
       scheduledDate

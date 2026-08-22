@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 import { useMutation } from '@apollo/client';
 import { useAuth } from '../contexts/AuthContext';
 import { REGISTER_PUSH_TOKEN } from '../lib/graphql/mutations';
+import { devLog } from '../lib/devLog';
 import { router } from 'expo-router';
 
 let Notifications: any = null;
@@ -17,25 +18,20 @@ try {
 
 if (Notifications) {
   Notifications.setNotificationHandler({
-    handleNotification: async (notification: any) => {
-      const title = notification?.request?.content?.title;
-      const body = notification?.request?.content?.body;
-      setTimeout(() => {
-        Alert.alert(
-          title || 'Notificação',
-          body || 'Você recebeu uma notificação.',
-          [{ text: 'OK' }],
-        );
-      }, 300);
-
-      return {
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      };
-    },
+    // KAN-239: antes este handler disparava um Alert.alert E retornava
+    // shouldShowAlert/shouldShowBanner: true — o usuario via DOIS popups por
+    // notificacao com o app aberto, e o Alert generico ainda atropelava
+    // notificacoes que ja tem tratamento proprio por tipo (ex.:
+    // REQUEST_CANCEL_DISPUTE no addNotificationReceivedListener), empilhando
+    // dialogos. Escolhido um unico caminho: o banner nativo. A UI especifica
+    // por tipo continua a cargo dos listeners.
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
   });
 }
 
@@ -80,7 +76,7 @@ async function registerForPushNotifications(): Promise<string | null> {
 
     return token.data;
   } catch (err) {
-    console.log('Push notification registration failed:', err);
+    devLog('Push notification registration failed:', err); // Perf (F7): no-op em prod
     return null;
   }
 }
@@ -88,22 +84,29 @@ async function registerForPushNotifications(): Promise<string | null> {
 export function usePushNotifications() {
   const { user, token } = useAuth();
   const [registerToken] = useMutation(REGISTER_PUSH_TOKEN);
-  const registeredRef = useRef(false);
+  // Guarda QUAL usuario ja registrou, nao um booleano. Este hook vive no
+  // _layout e nunca desmonta entre logout e login: com `useRef(false)` virando
+  // `true` no primeiro registro, o segundo usuario do mesmo aparelho batia no
+  // early-return e NUNCA registrava — a linha do primeiro continuava com o
+  // token, entao todo push dele (pedido, pagamento, disputa) chegava no
+  // aparelho agora usado por outra pessoa.
+  const registeredForRef = useRef<string | null>(null);
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
 
-  // Register push token (once)
+  // Register push token (uma vez por usuario)
   useEffect(() => {
-    if (!user || !token || registeredRef.current || !Notifications) return;
+    if (!user || !token || !Notifications) return;
+    if (registeredForRef.current === user.id) return;
 
     registerForPushNotifications().then((pushToken) => {
       if (pushToken) {
         registerToken({ variables: { token: pushToken } })
-          .then(() => { registeredRef.current = true; })
+          .then(() => { registeredForRef.current = user.id; })
           .catch(() => {});
       }
     });
-  }, [user, token]);
+  }, [user?.id, token]);
 
   // Notification listeners (always active when logged in)
   useEffect(() => {

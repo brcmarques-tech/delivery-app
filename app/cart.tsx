@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,86 @@ function formatWeight(grams: number) {
   }
   return `${grams}g`;
 }
+
+// Perf (F3): linha do carrinho memoizada. Antes o renderItem inline fazia TODAS
+// as linhas re-renderizarem a cada toggle de selecao; agora so a linha cujo
+// `isSelected` mudou re-renderiza (as demais dao bail-out pelo React.memo).
+const CartRow = React.memo(function CartRow({
+  item,
+  index,
+  isSelected,
+  colors,
+  onToggle,
+  onRemove,
+  onEdit,
+}: {
+  item: CartItem;
+  index: number;
+  isSelected: boolean;
+  colors: any;
+  onToggle: (id: string) => void;
+  onRemove: (id: string) => void;
+  onEdit: (item: CartItem) => void;
+}) {
+  const itemTotal = item.isVariableWeight
+    ? (item.price * (item.weightGrams || 0)) / 1000
+    : item.price * item.quantity;
+
+  const qtyLabel = item.isVariableWeight
+    ? formatWeight(item.weightGrams || 0)
+    : `${item.quantity}`;
+
+  return (
+    <AnimatedListItem index={index}>
+      <AnimatedPressable
+        activeOpacity={0.7}
+        onPress={() => onToggle(item.id)}
+        style={[
+          styles.itemCard,
+          { backgroundColor: colors.white },
+          isSelected && {
+            borderWidth: 1.5,
+            borderColor: colors.primary + '40',
+            backgroundColor: colors.primary + '05',
+          },
+        ]}
+      >
+        <View style={styles.checkboxArea}>
+          <Ionicons
+            name={isSelected ? 'checkbox' : 'square-outline'}
+            size={18}
+            color={isSelected ? colors.primary : colors.gray}
+          />
+        </View>
+
+        <View style={styles.itemInfo}>
+          <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={2}>{item.name}</Text>
+          <Text style={[styles.itemPrice, { color: colors.primary }]}>R$ {itemTotal.toFixed(2)}</Text>
+          {item.notes ? (
+            <Text style={[styles.itemNotes, { color: colors.textLight }]} numberOfLines={1}>{item.notes}</Text>
+          ) : null}
+        </View>
+
+        {/* Delete button */}
+        <TouchableOpacity
+          style={[styles.deleteButton, { backgroundColor: colors.danger + '15' }]}
+          onPress={() => onRemove(item.id)}
+        >
+          <Ionicons name="trash-outline" size={16} color={colors.danger} />
+        </TouchableOpacity>
+
+        {/* Quantity/weight badge - tap to edit */}
+        <TouchableOpacity
+          style={[styles.qtyBadge, { backgroundColor: colors.primary + '15' }]}
+          onPress={() => onEdit(item)}
+        >
+          <Text style={[styles.qtyBadgeText, { color: colors.primary }]}>{qtyLabel}</Text>
+          <Ionicons name="pencil-outline" size={12} color={colors.primary} />
+        </TouchableOpacity>
+      </AnimatedPressable>
+    </AnimatedListItem>
+  );
+});
 
 export default function CartScreen() {
   const insets = useSafeAreaInsets();
@@ -93,14 +173,19 @@ export default function CartScreen() {
     return null;
   }, [items, selectedIds]);
 
-  function toggleItem(id: string) {
+  const toggleItem = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  }
+  }, []);
+
+  const openEditorStable = useCallback((item: CartItem) => {
+    setEditingItem(item);
+    setEditValue(item.isVariableWeight ? (item.weightGrams || 100) : item.quantity);
+  }, []);
 
   function toggleStore(storeId: string) {
     const storeItems = items.filter((i) => i.storeId === storeId);
@@ -237,67 +322,17 @@ export default function CartScreen() {
             </TouchableOpacity>
           );
         }}
-        renderItem={({ item, index }) => {
-          const isSelected = selectedIds.has(item.id);
-          const itemTotal = item.isVariableWeight
-            ? (item.price * (item.weightGrams || 0)) / 1000
-            : item.price * item.quantity;
-
-          const qtyLabel = item.isVariableWeight
-            ? formatWeight(item.weightGrams || 0)
-            : `${item.quantity}`;
-
-          return (
-            <AnimatedListItem index={index}>
-              <AnimatedPressable
-                activeOpacity={0.7}
-                onPress={() => toggleItem(item.id)}
-                style={[
-                  styles.itemCard,
-                  { backgroundColor: colors.white },
-                  isSelected && {
-                    borderWidth: 1.5,
-                    borderColor: colors.primary + '40',
-                    backgroundColor: colors.primary + '05',
-                  },
-                ]}
-              >
-                <View style={styles.checkboxArea}>
-                  <Ionicons
-                    name={isSelected ? 'checkbox' : 'square-outline'}
-                    size={18}
-                    color={isSelected ? colors.primary : colors.gray}
-                  />
-                </View>
-
-                <View style={styles.itemInfo}>
-                  <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={2}>{item.name}</Text>
-                  <Text style={[styles.itemPrice, { color: colors.primary }]}>R$ {itemTotal.toFixed(2)}</Text>
-                  {item.notes ? (
-                    <Text style={[styles.itemNotes, { color: colors.textLight }]} numberOfLines={1}>{item.notes}</Text>
-                  ) : null}
-                </View>
-
-                {/* Delete button */}
-                <TouchableOpacity
-                  style={[styles.deleteButton, { backgroundColor: colors.danger + '15' }]}
-                  onPress={() => removeItem(item.id)}
-                >
-                  <Ionicons name="trash-outline" size={16} color={colors.danger} />
-                </TouchableOpacity>
-
-                {/* Quantity/weight badge - tap to edit */}
-                <TouchableOpacity
-                  style={[styles.qtyBadge, { backgroundColor: colors.primary + '15' }]}
-                  onPress={() => openEditor(item)}
-                >
-                  <Text style={[styles.qtyBadgeText, { color: colors.primary }]}>{qtyLabel}</Text>
-                  <Ionicons name="pencil-outline" size={12} color={colors.primary} />
-                </TouchableOpacity>
-              </AnimatedPressable>
-            </AnimatedListItem>
-          );
-        }}
+        renderItem={({ item, index }) => (
+          <CartRow
+            item={item}
+            index={index}
+            isSelected={selectedIds.has(item.id)}
+            colors={colors}
+            onToggle={toggleItem}
+            onRemove={removeItem}
+            onEdit={openEditorStable}
+          />
+        )}
       />
 
       {/* Footer: checkout button */}

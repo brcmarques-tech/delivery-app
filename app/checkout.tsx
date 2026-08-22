@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { devLog } from '../src/lib/devLog'; // KAN-223
+import { fetchWithTimeout } from '../src/lib/fetchWithTimeout'; // KAN-240
 import {
   View,
   Text,
@@ -44,8 +45,12 @@ function luhnCheck(number: string): boolean {
 }
 
 function isExpired(month: number, year: number): boolean {
+  // BUGFIX: `new Date(year, month, 0)` e o ULTIMO DIA do mes de validade as
+  // 00:00 — a partir desse dia um cartao AINDA VALIDO era recusado como
+  // "Cartao vencido". O cartao vale ate o fim do mes: comparar com o primeiro
+  // instante do mes SEGUINTE.
   const now = new Date();
-  return new Date(year, month, 0) < now;
+  return new Date(year, month, 1) <= now;
 }
 
 function detectBrand(number: string): string {
@@ -112,19 +117,23 @@ export default function CheckoutScreen() {
   const storeName = params.storeName;
   // L1: Checkout items are passed via URL params. For very large carts this could hit URL length limits.
   // Consider moving to a shared state/context if carts grow significantly.
-  let checkoutItems: CheckoutItem[] = [];
-  try {
-    checkoutItems = params.selectedItems ? JSON.parse(params.selectedItems) : [];
-  } catch {
-    checkoutItems = [];
-  }
+  // Perf (F3): memoizado — o JSON.parse rodava a CADA render (e esta tela tem
+  // muitos estados: endereco, notas, cartao, modais), produzindo um array novo
+  // que impedia o FlatList de dar bail-out. Idem para o reduce do subtotal.
+  const checkoutItems: CheckoutItem[] = useMemo(() => {
+    try {
+      return params.selectedItems ? JSON.parse(params.selectedItems) : [];
+    } catch {
+      return [];
+    }
+  }, [params.selectedItems]);
 
-  const subtotal = checkoutItems.reduce((sum, item) => {
+  const subtotal = useMemo(() => checkoutItems.reduce((sum, item) => {
     if (item.isVariableWeight) {
       return sum + (item.price * (item.weightGrams || 0)) / 1000;
     }
     return sum + item.price * item.quantity;
-  }, 0);
+  }, 0), [checkoutItems]);
 
   // C1: Double-tap prevention ref
   const submittingRef = useRef(false);
@@ -135,8 +144,13 @@ export default function CheckoutScreen() {
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('DELIVERY');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ON_DELIVERY');
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
-  // M1: Track whether delivery fee calculation has completed
-  const [feeCalculated, setFeeCalculated] = useState(false);
+  // M1: Track whether delivery fee calculation has completed.
+  // KAN-256: era um `useState` alimentado pelo `onCompleted` do useLazyQuery.
+  // Esse callback nao dispara de forma confiavel (ex.: resposta servida do
+  // cache), e o unico consumidor e a linha "Entrega" do resumo: se ele nao
+  // rodasse, a tela ficava presa em "Calculando..." em vez de mostrar o frete,
+  // no meio do checkout. Agora e derivado do proprio `data` do hook (definido
+  // logo abaixo da declaracao do calcFee).
   // M3: Coupon code state
   const [couponCode, setCouponCode] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
@@ -176,7 +190,7 @@ export default function CheckoutScreen() {
     if (digits.length !== 8) return;
     setLoadingCep(true);
     try {
-      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const res = await fetchWithTimeout(`https://viacep.com.br/ws/${digits}/json/`);
       const data = await res.json();
       if (!data.erro) {
         setStreet(data.logradouro || '');
@@ -224,7 +238,7 @@ export default function CheckoutScreen() {
     }
 
     try {
-      const tokenResponse = await fetch(
+      const tokenResponse = await fetchWithTimeout(
         `https://api.pagar.me/core/v5/tokens?appId=${PAGARME_PUBLIC_KEY}`,
         {
           method: 'POST',
@@ -280,9 +294,11 @@ export default function CheckoutScreen() {
   }
 
   const [createOrder] = useMutation(CREATE_ORDER);
-  const [calcFee, { data: feeData, loading: feeLoading }] = useLazyQuery(CALCULATE_DELIVERY_FEE, {
-    onCompleted: () => setFeeCalculated(true),
-  });
+  const [calcFee, { data: feeData, loading: feeLoading }] = useLazyQuery(CALCULATE_DELIVERY_FEE);
+  // KAN-256: estado derivado (ver comentario na declaracao antiga acima).
+  // Enquanto estiver buscando, volta para "Calculando..." — que e o
+  // comportamento correto ao trocar de endereco.
+  const feeCalculated = !!feeData && !feeLoading;
   const [calcTime, { data: timeData, loading: timeLoading }] = useLazyQuery(ESTIMATE_DELIVERY_TIME);
   const { data: addressesData } = useQuery(GET_MY_ADDRESSES);
   const { data: storeData } = useQuery(GET_STORE, { variables: { id: storeId }, skip: !storeId });
@@ -291,7 +307,7 @@ export default function CheckoutScreen() {
 
   const storeHasOwnDelivery = storeData?.store?.hasOwnDelivery || false;
   const ownerPaymentConnected = storeData?.store?.ownerPaymentConnected ?? true;
-  const platformMinimum = minOrderData?.minimumOrderPlatform ?? 10;
+  const platformMinimum = minOrderData?.minimumOrderPlatform ?? 1 /* BUGFIX: padrao do servidor e 1, nao 10 — com a query lenta o checkout bloqueava carrinho que o servidor aceitaria */;
   const rawStoreMinimum = storeData?.store?.minimumOrder ? Number(storeData.store.minimumOrder) : 0;
   const effectiveMinimum = !storeHasOwnDelivery
     ? Math.max(platformMinimum, rawStoreMinimum)
@@ -306,7 +322,7 @@ export default function CheckoutScreen() {
   async function geocodeNominatim(query: string): Promise<{ latitude: number; longitude: number } | null> {
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=br`;
-      const res = await fetch(url, { headers: { 'User-Agent': 'bcmTech-Shopping/1.0' } });
+      const res = await fetchWithTimeout(url, { headers: { 'User-Agent': 'bcmTech-Shopping/1.0' } });
       const data = await res.json();
       if (data.length > 0) {
         const lat = parseFloat(data[0].lat);
@@ -347,7 +363,21 @@ export default function CheckoutScreen() {
   }, [savedAddresses, addressLoaded, storeId]);
 
   const isPickup = deliveryType === 'PICKUP';
-  const deliveryFee = isPickup ? 0 : (feeData?.calculateDeliveryFee ?? 0);
+  // BUGFIX: a regra de FRETE GRATIS da loja nao era aplicada na exibicao. O
+  // `calculateDeliveryFee` do servidor devolve sempre distancia x preco (nunca
+  // aplica freeDelivery/freeDeliveryAbove) — quem zera e o createOrder. Entao
+  // numa loja anunciada como "Frete gratis" no card, o checkout mostrava
+  // "Taxa de entrega: R$ 8,50" e um total inflado, e o pedido era criado com
+  // frete 0: o cliente via um valor e pagava outro, com a promessa da vitrine
+  // quebrada bem na hora da compra. O storefront ja fazia certo (KAN-218) e o
+  // proprio app ja usava freeDeliveryAbove no aviso "faltam R$ X para frete
+  // gratis" — so o calculo do total ficou de fora.
+  const lojaFreteGratis = !!storeData?.store?.freeDelivery;
+  const limiteFreteGratis = Number(storeData?.store?.freeDeliveryAbove) || 0;
+  const freteGratis =
+    lojaFreteGratis || (limiteFreteGratis > 0 && subtotal >= limiteFreteGratis);
+  const deliveryFee =
+    isPickup || freteGratis ? 0 : (feeData?.calculateDeliveryFee ?? 0);
   const finalTotal = subtotal + deliveryFee;
 
   const pickupOnly = !ownerPaymentConnected && !storeHasOwnDelivery;
@@ -427,10 +457,11 @@ export default function CheckoutScreen() {
     }
   }
 
-  async function handleCheckout() {
+  async function handleCheckout(opts?: { skipAgeCheck?: boolean }) {
     // C1: Double-tap prevention
     if (submittingRef.current) return;
     submittingRef.current = true;
+    const skipAgeCheck = opts?.skipAgeCheck === true;
 
     try {
       // L5: Offline check before checkout
@@ -440,18 +471,21 @@ export default function CheckoutScreen() {
         return;
       }
 
-      // Age verification check
-      if (!ageVerified) {
-        const storeProducts = storeData?.store?.products || [];
-        const hasAgeRestricted = checkoutItems.some((item) => {
-          const product = storeProducts.find((p: any) => p.id === item.productId);
-          return product?.category?.requiresAgeVerification;
-        });
-        if (hasAgeRestricted) {
-          submittingRef.current = false;
-          setShowAgeModal(true);
-          return;
-        }
+      // Age verification check. O override skipAgeCheck vem do botão do modal:
+      // antes o modal chamava handleCheckout() via setTimeout, mas essa closure
+      // era a do render em que ageVerified ainda era false, então o modal reabria
+      // e o cliente tinha que tocar duas vezes. Agora passamos a decisão explícita.
+      // BUGFIX: este bloco lia `storeData.store.products`, que deixou de existir
+      // quando o catalogo virou paginado (GET_STORE_PRODUCTS). A lista vinha
+      // sempre vazia -> hasAgeRestricted sempre false -> o modal de idade nunca
+      // abria e o cliente batia num erro generico vindo do backend, sem saida.
+      //
+      // O backend SEMPRE valida (`orders.service.ts` recusa com
+      // "restricao de idade" quando falta ageVerified), entao a checagem local
+      // era so UX. Em vez de re-baixar o catalogo inteiro so pra isso, agora
+      // reagimos ao erro do servidor abrindo o modal (ver catch abaixo).
+      if (!ageVerified && !skipAgeCheck) {
+        const hasAgeRestricted = false; // decidido pelo backend
       }
 
       if (!isPickup && !address.trim()) {
@@ -523,7 +557,12 @@ export default function CheckoutScreen() {
                 }),
             notes,
             paymentMethod,
-            ...(ageVerified ? { ageVerified: true } : {}),
+            // BUGFIX: lia so `ageVerified` — que, quando o modal chama
+            // handleCheckout({skipAgeCheck:true}), ainda e FALSE nesta closure.
+            // O pedido era reenviado SEM a confirmacao, o backend recusava de
+            // novo e o catch reabria o mesmo modal: o cliente tinha que
+            // confirmar os 18 anos DUAS vezes, sem nenhuma explicacao no meio.
+            ...(ageVerified || skipAgeCheck ? { ageVerified: true } : {}),
             ...(paymentMethod === 'CREDIT_CARD' && selectedCardId ? { cardId: selectedCardId } : {}),
           },
         },
@@ -548,7 +587,15 @@ export default function CheckoutScreen() {
       router.replace(`/order/${order.id}`);
     } catch (err: any) {
       devLog('[CHECKOUT] ERROR:', err.message || err);
-      alert('Erro', err.message || 'Nao foi possivel fazer o pedido');
+      const msg: string = err?.message || '';
+      // O backend recusa pedido com item +18 sem confirmacao. Em vez de mostrar
+      // o erro cru (sem saida pro cliente), abre o modal de confirmacao de idade
+      // — que re-submete com ageVerified=true.
+      if (/restri[cç][aã]o de idade|18 anos/i.test(msg)) {
+        setShowAgeModal(true);
+        return;
+      }
+      alert('Erro', msg || 'Nao foi possivel fazer o pedido');
     } finally {
       setLoading(false);
       submittingRef.current = false;
@@ -664,10 +711,25 @@ export default function CheckoutScreen() {
                             parts.push(addr.neighborhood);
                             parts.push(`${addr.city}/${addr.state}`);
                             setAddress(parts.join(', '));
-                            setCoords({ latitude: addr.latitude, longitude: addr.longitude });
-                            if (storeId) {
-                              calcFee({ variables: { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude } });
-                              calcTime({ variables: { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude } });
+                            // BUGFIX: endereco salvo pode ter (0,0) — a tela de
+                            // enderecos grava zero quando o geocode nao acha nada.
+                            // Sem esta guarda o `coords` virava um objeto truthy,
+                            // o botao habilitava, o frete era calculado para 0N/0E
+                            // (golfo da Guine) e o pedido saia com essa coordenada
+                            // para o entregador. O efeito do endereco padrao ja
+                            // fazia essa checagem; o seletor manual nao.
+                            const temCoordValida =
+                              Math.abs(Number(addr.latitude) || 0) > 0.01 &&
+                              Math.abs(Number(addr.longitude) || 0) > 0.01;
+                            if (temCoordValida) {
+                              setCoords({ latitude: addr.latitude, longitude: addr.longitude });
+                              if (storeId) {
+                                calcFee({ variables: { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude } });
+                                calcTime({ variables: { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude } });
+                              }
+                            } else {
+                              // Deixa o efeito de geocodificacao resolver pelo texto.
+                              setCoords(null);
                             }
                             setShowAddressPicker(false);
                           }}
@@ -844,13 +906,25 @@ export default function CheckoutScreen() {
         }
       />
 
+      {/* BUGFIX: o botao NAO esperava o calculo do frete. Quando um endereco
+          salvo carrega, `coords` e setado no mesmo tick em que a query dispara,
+          entao o botao ficava ativo enquanto o resumo ainda dizia "Calculando..."
+          e o CTA mostrava o total SEM frete (deliveryFee cai para 0 nesse meio).
+          O cliente confirmava um valor e o pedido era criado por outro — a
+          conferencia so acontecia DEPOIS de o pedido ja existir. */}
       <TouchableOpacity
-        style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: colors.primary }, (loading || belowMinimum || (!isPickup && !coords)) && styles.checkoutDisabled]}
-        onPress={handleCheckout}
-        disabled={loading || belowMinimum || (!isPickup && !coords)}
+        style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: colors.primary }, (loading || belowMinimum || (!isPickup && !coords) || (!isPickup && (feeLoading || !feeCalculated))) && styles.checkoutDisabled]}
+        onPress={() => handleCheckout()}
+        disabled={loading || belowMinimum || (!isPickup && !coords) || (!isPickup && (feeLoading || !feeCalculated))}
       >
         <Text style={styles.checkoutText}>
-          {loading ? 'Finalizando...' : belowMinimum ? `Pedido minimo: R$ ${effectiveMinimum.toFixed(2)}` : `Finalizar pedido - R$ ${finalTotal.toFixed(2)}`}
+          {loading
+            ? 'Finalizando...'
+            : belowMinimum
+            ? `Pedido minimo: R$ ${effectiveMinimum.toFixed(2)}`
+            : !isPickup && (feeLoading || !feeCalculated)
+            ? 'Calculando entrega...'
+            : `Finalizar pedido - R$ ${finalTotal.toFixed(2)}`}
         </Text>
       </TouchableOpacity>
 
@@ -882,8 +956,9 @@ export default function CheckoutScreen() {
                 onPress={() => {
                   setAgeVerified(true);
                   setShowAgeModal(false);
-                  // Re-trigger checkout after confirming
-                  setTimeout(() => handleCheckout(), 100);
+                  // Re-trigger checkout com override explícito (não depende do
+                  // estado ageVerified, que ainda não atualizou nesta closure).
+                  setTimeout(() => handleCheckout({ skipAgeCheck: true }), 100);
                 }}
               >
                 <Text style={{ color: '#fff', fontSize: fonts.regular, fontWeight: 'bold' }}>Confirmo que tenho +18</Text>

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Switch,
@@ -112,7 +112,9 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
   // L4: Use useAlert instead of Alert.alert where available
   const { alert: showAlert } = useAlert();
   const { data: balanceData, loading, error: balanceError, refetch: refetchBalance } = useQuery(MY_BALANCE, { fetchPolicy: 'network-only' });
-  const { data: simData, loading: loadingSim } = useQuery(SIMULATE_ANTICIPATION, { fetchPolicy: 'network-only' });
+  // Perf (F7): simulacao tolera cache (mostra o valor anterior na hora e
+  // revalida por tras); so o saldo real continua network-only.
+  const { data: simData, loading: loadingSim } = useQuery(SIMULATE_ANTICIPATION, { fetchPolicy: 'cache-and-network' });
   const [requestAnticipation, { loading: requesting }] = useMutation(REQUEST_ANTICIPATION);
   const [disconnectPayment] = useMutation(DISCONNECT_PAYMENT);
   // M4: Auto-anticipation toggle
@@ -120,7 +122,20 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
   const [autoAnticipationEnabled, setAutoAnticipationEnabled] = useState(false);
 
   const balance = balanceData?.myBalance;
+  // Hidrata o switch com o estado REAL do servidor. Antes ele começava sempre
+  // OFF e nunca lia o backend, então quem tinha antecipação automática ligada
+  // via o toggle desligado (e podia "religar" achando que estava ativando, ou
+  // desligar de verdade achando que estava corrigindo a tela).
+  useEffect(() => {
+    if (balance?.autoAnticipationEnabled != null) {
+      setAutoAnticipationEnabled(balance.autoAnticipationEnabled);
+    }
+  }, [balance?.autoAnticipationEnabled]);
   const sim = simData?.simulateAnticipation;
+  // Guard síncrono contra double-tap: a antecipação é disparada de dentro do
+  // Alert.alert, e `disabled={requesting}` só vira true depois. Dois toques
+  // rápidos gerariam duas solicitações (taxa de antecipação cobrada em dobro).
+  const anticipatingRef = useRef(false);
 
   async function handleAnticipate() {
     if (!sim) return;
@@ -132,6 +147,8 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
         {
           text: 'Confirmar',
           onPress: async () => {
+            if (anticipatingRef.current) return;
+            anticipatingRef.current = true;
             try {
               const { data } = await requestAnticipation();
               const r = data.requestAnticipation;
@@ -140,6 +157,8 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             } catch (err: any) {
               const msg = err.message?.includes('network') ? 'Sem conexao com a internet. Tente novamente.' : err.message || 'Erro ao solicitar antecipacao.';
               Alert.alert('Erro', msg);
+            } finally {
+              anticipatingRef.current = false;
             }
           },
         },

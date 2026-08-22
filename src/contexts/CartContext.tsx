@@ -1,13 +1,16 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useMutation, useQuery, useSubscription } from '@apollo/client';
+import { useMutation, useQuery } from '@apollo/client';
 import { ADD_TO_CART, UPDATE_CART_ITEM, REMOVE_FROM_CART, CLEAR_CART } from '../lib/graphql/mutations';
 import { GET_MY_CART } from '../lib/graphql/queries';
-import { PRODUCT_UPDATED } from '../lib/graphql/subscriptions';
+import { onProductUpdated, onProductDeleted } from '../lib/productEvents';
 import { useAuth } from './AuthContext';
-
-const CART_STORAGE_KEY = '@cart_items';
+// Chave unica, declarada em lib/apollo. Tres lugares apagam o carrinho (aqui, o
+// forceLogout do AuthContext e o errorLink do Apollo); com uma copia local em
+// cada um, bastava alguem renomear num deles para o carrinho de um usuario
+// sobreviver ao login do proximo — exatamente o bug que este conjunto corrige.
+import { CART_STORAGE_KEY } from '../lib/apollo';
 
 export interface CartItem {
   id: string;
@@ -83,6 +86,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
     onError: () => {},
   });
 
+  /**
+   * O efeito de sync abaixo so aplica o resultado quando `!syncedRef.current`,
+   * que vira true no primeiro sync e nunca mais volta. Ou seja: QUALQUER refetch
+   * do carrinho depois disso era descartado em silencio — inclusive o que roda
+   * apos finalizar o pedido, deixando o item comprado no carrinho. Este wrapper
+   * reabre a janela antes de buscar.
+   */
+  const refetchCarrinho = useCallback(() => {
+    syncedRef.current = false;
+    return refetch();
+  }, [refetch]);
+
   useEffect(() => {
     if (cartData?.myCart && !syncedRef.current) {
       syncedRef.current = true;
@@ -110,40 +125,79 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [removeFromCartMutation] = useMutation(REMOVE_FROM_CART);
   const [clearCartMutation] = useMutation(CLEAR_CART);
 
-  // Refetch cart when a product price changes
-  useSubscription(PRODUCT_UPDATED, {
-    skip: !user || items.length === 0,
-    onData: ({ data: subData }) => {
-      const updated = subData?.data?.productUpdated;
-      if (!updated?.id) return;
-      const inCart = items.some((i) => i.productId === updated.id);
-      if (inCart) {
-        // Update price locally
-        updateItems((prev) =>
-          prev.map((i) => i.productId === updated.id ? { ...i, price: updated.promotionalPrice ?? updated.price } : i),
-        );
-      }
-    },
-  });
-
-  // Clear on logout
+  // Perf (F2): atualiza preco local via productEvents (re-emitido pelo unico
+  // assinante WS, o useProductSync) em vez de manter uma 2a subscription
+  // PRODUCT_UPDATED concorrente. O updater com functional setState dispensa
+  // depender de `items` (sem re-registrar o listener a cada mudanca do carrinho).
   useEffect(() => {
-    if (!user) {
-      setItems([]);
-      syncedRef.current = false;
-      AsyncStorage.removeItem(CART_STORAGE_KEY).catch(() => {});
-    }
-  }, [user]);
+    const unsubscribe = onProductUpdated((updated) => {
+      if (!updated?.id || updated.price === undefined) return;
+      updateItems((prev) => {
+        if (!prev.some((i) => i.productId === updated.id)) return prev;
+        return prev.map((i) =>
+          i.productId === updated.id ? { ...i, price: updated.promotionalPrice ?? updated.price! } : i,
+        );
+      });
+    });
+    return unsubscribe;
+  }, [updateItems]);
+
+  // BUGFIX: `emitProductDeleted` era disparado pelo useProductSync mas NINGUEM
+  // escutava — produto excluido pelo vendedor continuava no carrinho, com preco
+  // e selecionavel, e so estourava no checkout com erro cru do servidor. Agora
+  // sai do carrinho na hora.
+  useEffect(() => {
+    const unsubscribe = onProductDeleted((deletedId) => {
+      updateItems((prev) =>
+        prev.some((i) => i.productId === deletedId)
+          ? prev.filter((i) => i.productId !== deletedId)
+          : prev,
+      );
+    });
+    return unsubscribe;
+  }, [updateItems]);
+
+  // Limpa na TROCA de usuario, nao so no logout.
+  //
+  // Dois bugs no efeito anterior (`if (!user) ...` com dependencia [user]):
+  //
+  // 1. Quando a sessao expirava e outra pessoa logava em seguida, o `user` ia
+  //    DIRETO de A para B sem passar por null — o carrinho de A sobrevivia para
+  //    B (a chave de storage nao tem escopo por usuario).
+  // 2. No cold start o `user` ainda e null (AuthContext em loading), entao o
+  //    efeito rodava e apagava a chave em TODA inicializacao. O carrinho so
+  //    reaparecia por corrida do getItem e pelo sync — com o app offline, abrir
+  //    duas vezes seguidas deixava o carrinho vazio.
+  //
+  // Agora comparamos o ID: so limpa quando havia um usuario e ele mudou (ou
+  // saiu). O primeiro render, com o ref ainda indefinido, nao dispara nada.
+  const usuarioAnteriorRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const atual = user?.id ?? null;
+    const anterior = usuarioAnteriorRef.current;
+    usuarioAnteriorRef.current = atual;
+    if (anterior === undefined) return; // primeiro render: nada a fazer
+    if (anterior === atual) return;
+    setItems([]);
+    syncedRef.current = false;
+    AsyncStorage.removeItem(CART_STORAGE_KEY).catch(() => {});
+  }, [user?.id]);
 
   const itemCount = items.length;
 
   // --- Actions: all update local state FIRST, then sync to server ---
 
-  function addItem(info: AddItemInfo, quantity: number, notes?: string, weightGrams?: number) {
+  const addItem = useCallback((info: AddItemInfo, quantity: number, notes?: string, weightGrams?: number) => {
     if (!user) {
       Alert.alert('Erro', 'Faça login para adicionar itens ao carrinho.');
       return;
     }
+
+    // KAN-241: id temporario precisa ser unico de verdade. Antes era
+    // `local-${Date.now()}`, entao dois itens de peso variavel adicionados no
+    // mesmo milissegundo recebiam o MESMO id e a reconciliacao trocava o item
+    // errado (quantidade/peso incorretos ou item duplicado no carrinho).
+    const tempId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     // Update local instantly
     updateItems((prev) => {
@@ -154,7 +208,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         );
       }
       return [...prev, {
-        id: `local-${Date.now()}`,
+        id: tempId,
         productId: info.productId,
         name: info.name,
         price: info.price,
@@ -176,7 +230,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (!ci) return;
       // Replace local temp item with server item (real id)
       updateItems((prev) => {
-        const localIdx = prev.findIndex((i) => i.id.startsWith('local-') && i.productId === info.productId);
+        // KAN-241: casa pelo tempId exato capturado no closure. Antes buscava
+        // por (startsWith('local-') && productId), que podia casar o item
+        // temporario errado quando havia varios do mesmo produto.
+        const localIdx = prev.findIndex((i) => i.id === tempId);
         const serverItem: CartItem = {
           id: ci.id,
           productId: ci.product.id,
@@ -226,40 +283,46 @@ export function CartProvider({ children }: { children: ReactNode }) {
       });
       Alert.alert('Erro', 'Não foi possível adicionar ao carrinho.');
     });
-  }
+  }, [user, updateItems, addToCartMutation, refetch, saveLocal]);
 
-  function removeItem(cartItemId: string) {
+  const removeItem = useCallback((cartItemId: string) => {
     updateItems((prev) => prev.filter((i) => i.id !== cartItemId));
     if (user && !cartItemId.startsWith('local-')) {
       removeFromCartMutation({ variables: { cartItemId } }).catch(() => {});
     }
-  }
+  }, [user, updateItems, removeFromCartMutation]);
 
-  function updateQuantity(cartItemId: string, quantity: number) {
+  const updateQuantity = useCallback((cartItemId: string, quantity: number) => {
     if (quantity <= 0) { removeItem(cartItemId); return; }
     updateItems((prev) => prev.map((i) => (i.id === cartItemId ? { ...i, quantity } : i)));
     if (user && !cartItemId.startsWith('local-')) {
       updateCartItemMutation({ variables: { input: { cartItemId, quantity } } }).catch(() => {});
     }
-  }
+  }, [user, updateItems, updateCartItemMutation, removeItem]);
 
-  function updateWeight(cartItemId: string, weightGrams: number) {
+  const updateWeight = useCallback((cartItemId: string, weightGrams: number) => {
     if (weightGrams <= 0) { removeItem(cartItemId); return; }
     updateItems((prev) => prev.map((i) => (i.id === cartItemId ? { ...i, weightGrams } : i)));
     if (user && !cartItemId.startsWith('local-')) {
       updateCartItemMutation({ variables: { input: { cartItemId, weightGrams } } }).catch(() => {});
     }
-  }
+  }, [user, updateItems, updateCartItemMutation, removeItem]);
 
-  function clearCart() {
+  const clearCart = useCallback(() => {
     updateItems(() => []);
     if (user) { clearCartMutation().catch(() => {}); }
-  }
+  }, [user, updateItems, clearCartMutation]);
+
+  // Perf: value memoizado + acoes estaveis. CartProvider e o provider mais interno
+  // e envolve o app todo; antes, cada mutacao do carrinho re-renderizava todo
+  // consumidor de useCart e as identidades novas das acoes quebravam qualquer memo.
+  const value = useMemo<CartContextData>(() => ({
+    items, addItem, removeItem, updateQuantity, updateWeight, clearCart,
+    itemCount, loading: queryLoading && !localLoaded, refetch: refetchCarrinho,
+  }), [items, addItem, removeItem, updateQuantity, updateWeight, clearCart, itemCount, queryLoading, localLoaded, refetchCarrinho]);
 
   return (
-    <CartContext.Provider
-      value={{ items, addItem, removeItem, updateQuantity, updateWeight, clearCart, itemCount, loading: queryLoading && !localLoaded, refetch }}
-    >
+    <CartContext.Provider value={value}>
       {children}
     </CartContext.Provider>
   );

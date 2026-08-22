@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { GET_STORES, SEARCH_PRODUCTS, SEARCH_SERVICES, GET_ACTIVE_PROMOTIONS } f
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../src/theme';
+import { listPerfProps, imageCachePolicy } from '../../src/lib/deviceTier'; // Perf (F0)
 import { AnimatedListItem } from '../../src/components/AnimatedListItem';
 import { AnimatedPressable } from '../../src/components/AnimatedPressable';
 import { AnimatedItem } from '../../src/components/AnimatedItem';
@@ -27,6 +28,16 @@ import ReAnimated, { FadeIn, FadeOut, FadeInDown, FadeInRight, FadeOutRight } fr
 
 type FilterType = 'all' | 'open' | 'free_delivery' | 'promo';
 type TabType = 'products' | 'services';
+
+// KAN-255: tipo estrutural comum a PRODUCT_CATEGORIES e SERVICE_CATEGORIES.
+// Antes o parametro de renderCategoriesAndStores era `typeof PRODUCT_CATEGORIES`,
+// o que travava os literais de `icon` do primeiro array e impedia passar o
+// segundo (icones diferentes).
+type CategoryItem = {
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  query: string;
+};
 
 const RECENT_PRODUCTS_KEY = 'recentSearches_products';
 const RECENT_SERVICES_KEY = 'recentSearches_services';
@@ -57,7 +68,9 @@ const SERVICE_CATEGORIES = [
   { label: 'Mecanica', icon: 'car-outline' as const, query: 'mecanica' },
 ];
 
-type CategoryType = typeof PRODUCT_CATEGORIES[number];
+// KAN-255: era `typeof PRODUCT_CATEGORIES[number]`, que so aceitava categorias
+// de produto — categorias de servico (outros icones) nao passavam.
+type CategoryType = CategoryItem;
 
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
@@ -164,17 +177,29 @@ export default function SearchScreen() {
 
   }
 
+  // Perf (F3): TODOS os pipelines filter/sort abaixo eram recalculados no corpo
+  // do render — a cada tecla digitada, ate ~100 itens eram re-filtrados e
+  // re-ordenados com localeCompare (caro) na thread JS, causando input lag.
+  // Agora cada derivado so recalcula quando seus inputs reais mudam, e os sorts
+  // operam sobre copia dentro do useMemo (nada de mutacao durante o render).
+
   // Stores split by type
-  const allStores = storesData?.stores || [];
-  const productStores = allStores
-    .filter((s: any) => !s.storeType || s.storeType === 'PRODUCTS')
-    .sort((a: any, b: any) => a.name.localeCompare(b.name));
-  const serviceStores = allStores
-    .filter((s: any) => s.storeType === 'SERVICES')
-    .sort((a: any, b: any) => a.name.localeCompare(b.name));
+  const allStores = useMemo(() => storesData?.stores || [], [storesData?.stores]);
+  const productStores = useMemo(
+    () => allStores
+      .filter((s: any) => !s.storeType || s.storeType === 'PRODUCTS')
+      .sort((a: any, b: any) => a.name.localeCompare(b.name)),
+    [allStores],
+  );
+  const serviceStores = useMemo(
+    () => allStores
+      .filter((s: any) => s.storeType === 'SERVICES')
+      .sort((a: any, b: any) => a.name.localeCompare(b.name)),
+    [allStores],
+  );
 
   // Filter stores for search (by active tab context)
-  const filteredStores = allStores.filter((s: any) => {
+  const filteredStores = useMemo(() => allStores.filter((s: any) => {
     if (!debouncedQuery) return false;
     const storeType = s.storeType || 'PRODUCTS';
     if (activeTab === 'products' && storeType !== 'PRODUCTS') return false;
@@ -185,49 +210,61 @@ export default function SearchScreen() {
     if (activeFilter === 'open') return s.isOpen;
     if (activeFilter === 'free_delivery') return s.freeDelivery;
     return true;
-  });
+  }).sort((a: any, b: any) => a.name.localeCompare(b.name)), [allStores, debouncedQuery, activeTab, activeFilter]);
 
-  // Filter products
-  const allProducts = productsData?.searchProducts || [];
-  const filteredProducts = activeCategory
-    ? allProducts
+  // Filter products (ordenado aqui — o .sort() que existia no JSX foi removido)
+  const allProducts = useMemo(() => productsData?.searchProducts || [], [productsData?.searchProducts]);
+  const filteredProducts = useMemo(() => {
+    if (activeCategory) {
+      return allProducts
         .filter((p: any) => {
           const catName = (p.category?.name || '').toLowerCase();
           const keywords = activeCategory.query.toLowerCase().split(',');
           return keywords.some((kw: string) => catName.includes(kw.trim())) || catName.includes(activeCategory.label.toLowerCase());
         })
         .filter((p: any) => !query.trim() || p.name.toLowerCase().includes(query.trim().toLowerCase()))
-        .sort((a: any, b: any) => a.name.localeCompare(b.name))
-    : allProducts.filter((p: any) => {
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+    }
+    return allProducts
+      .filter((p: any) => {
         if (activeFilter === 'open') return p.store?.isOpen;
         if (activeFilter === 'free_delivery') return false;
         if (activeFilter === 'promo') return p.promotionalPrice && p.promotionalPrice < p.price;
         return true;
-      });
+      })
+      .slice()
+      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+  }, [allProducts, activeCategory, query, activeFilter]);
 
-  // Filter services
-  const allServices = servicesData?.searchServices || [];
-  const filteredServices = activeCategory
-    ? allServices
+  // Filter services (idem)
+  const allServices = useMemo(() => servicesData?.searchServices || [], [servicesData?.searchServices]);
+  const filteredServices = useMemo(() => {
+    if (activeCategory) {
+      return allServices
         .filter((s: any) => {
           const catName = (s.category?.name || '').toLowerCase();
           const keywords = activeCategory.query.toLowerCase().split(',');
           return keywords.some((kw: string) => catName.includes(kw.trim())) || catName.includes(activeCategory.label.toLowerCase());
         })
         .filter((s: any) => !query.trim() || s.name.toLowerCase().includes(query.trim().toLowerCase()))
-        .sort((a: any, b: any) => a.name.localeCompare(b.name))
-    : allServices.filter((s: any) => {
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+    }
+    return allServices
+      .filter((s: any) => {
         if (activeFilter === 'open') return s.store?.isOpen;
         return true;
-      });
+      })
+      .slice()
+      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+  }, [allServices, activeCategory, query, activeFilter]);
 
   // Promotions matching search
   const promotions = promosData?.activePromotions || [];
-  const matchingPromos = debouncedQuery ? promotions.filter((p: any) =>
+  const matchingPromos = useMemo(() => (debouncedQuery ? promotions.filter((p: any) =>
     p.title.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
     (p.product?.name || '').toLowerCase().includes(debouncedQuery.toLowerCase()) ||
     (p.store?.name || '').toLowerCase().includes(debouncedQuery.toLowerCase()),
-  ) : [];
+  ) : []), [promotions, debouncedQuery]);
 
   const isSearching = debouncedQuery.length >= 2;
   const isCategoryMode = activeCategory !== null;
@@ -251,7 +288,7 @@ export default function SearchScreen() {
         onPress={() => router.push(`/store/${store.id}`)}
       >
         {store.logoUrl ? (
-          <Image source={store.logoUrl} style={styles.storeLogo} cachePolicy="memory-disk" />
+          <Image source={store.logoUrl} style={styles.storeLogo} cachePolicy={imageCachePolicy} />
         ) : (
           <View style={[styles.storeLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
             <Ionicons name="storefront-outline" size={18} color={colors.gray} />
@@ -286,7 +323,7 @@ export default function SearchScreen() {
     );
   }
 
-  function renderCategoriesAndStores(categories: typeof PRODUCT_CATEGORIES, stores: any[]) {
+  function renderCategoriesAndStores(categories: CategoryItem[], stores: any[]) {
     return (
       <View>
         {/* Categories grid */}
@@ -343,7 +380,7 @@ export default function SearchScreen() {
           onPress={() => router.push(`/store/${item.store?.id}`)}
         >
           {item.imageUrl ? (
-            <Image source={item.imageUrl} style={styles.acLogo} cachePolicy="memory-disk" />
+            <Image source={item.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
           ) : (
             <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
               <Ionicons name={isProduct ? 'cube-outline' : 'construct-outline'} size={16} color={colors.gray} />
@@ -409,6 +446,11 @@ export default function SearchScreen() {
                   onPress={() => { setActiveCategory(null); setQuery(''); }}
                 >
                   <Ionicons name={activeCategory.icon as any} size={20} color="#FFF" />
+                  {/* UX: badge de X — sem ele o usuario nao sabia que tocar aqui
+                      desfaz a categoria e volta pra busca normal. */}
+                  <View style={styles.activeCategoryClose}>
+                    <Ionicons name="close" size={12} color={colors.primary} />
+                  </View>
                 </TouchableOpacity>
               </ReAnimated.View>
             )}
@@ -490,17 +532,24 @@ export default function SearchScreen() {
         {/* Category results view */}
         {isCategoryMode ? (
           <ReAnimated.View entering={FadeInDown.duration(300)} exiting={FadeOut.duration(200)} style={{ flex: 1 }}>
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 10 }}>
-              {(productsLoading || servicesLoading) && (
+            {/* Perf (F4): era ScrollView + .map — com limit 100, TODOS os
+                resultados (cada um com imagem) montavam na memoria de uma vez.
+                FlatList virtualiza: so a janela visivel existe; RAM cai e a
+                digitacao para de engasgar. Knobs vem do deviceTier (F0). */}
+            <FlatList
+              data={categoryItems}
+              keyExtractor={(item: any) => item.id}
+              renderItem={({ item, index }) => renderCategoryItem(item, index)}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ padding: 10 }}
+              {...listPerfProps}
+              ListHeaderComponent={(productsLoading || servicesLoading) ? (
                 <View style={styles.loadingRow}>
                   <ActivityIndicator size="small" color={colors.primary} />
                   <Text style={[styles.loadingText, { color: colors.textLight }]}>Buscando...</Text>
                 </View>
-              )}
-
-              {categoryItems.map((item: any, index: number) => renderCategoryItem(item, index))}
-
-              {!(productsLoading || servicesLoading) && !hasCategoryResults && (
+              ) : null}
+              ListEmptyComponent={!(productsLoading || servicesLoading) ? (
                 <AnimatedItem delay={100} fromY={20}>
                   <View style={styles.emptyContainer}>
                     <Ionicons name="search-outline" size={56} color={colors.grayLight} />
@@ -514,8 +563,8 @@ export default function SearchScreen() {
                     </Text>
                   </View>
                 </AnimatedItem>
-              )}
-            </ScrollView>
+              ) : null}
+            />
           </ReAnimated.View>
         ) : (
           <>
@@ -542,7 +591,7 @@ export default function SearchScreen() {
                           onPress={() => router.push(`/promotion/${promo.id}`)}
                         >
                           {(promo.product?.imageUrl || promo.imageUrl) ? (
-                            <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy="memory-disk" />
+                            <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy={imageCachePolicy} />
                           ) : (
                             <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
                               <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
@@ -580,15 +629,15 @@ export default function SearchScreen() {
                     </View>
                   )}
 
-                  {/* Stores first */}
-                  {filteredStores.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((store: any, index: number) => (
+                  {/* Stores first (ja ordenadas no useMemo — sort no JSX mutava o array memoizado) */}
+                  {filteredStores.map((store: any, index: number) => (
                     <AnimatedListItem key={`store-${store.id}`} index={index}>
                     <AnimatedPressable
                       style={[styles.acItem, { backgroundColor: colors.card }]}
                       onPress={() => { setQuery(''); router.push(`/store/${store.id}`); }}
                     >
                       {store.logoUrl ? (
-                        <Image source={store.logoUrl} style={styles.acLogo} cachePolicy="memory-disk" />
+                        <Image source={store.logoUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
                       ) : (
                         <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                           <Ionicons name="storefront-outline" size={16} color={colors.gray} />
@@ -607,9 +656,8 @@ export default function SearchScreen() {
                     </AnimatedListItem>
                   ))}
 
-                  {/* Products (products tab) — sorted alphabetically */}
+                  {/* Products (products tab) — ja ordenados no useMemo */}
                   {activeTab === 'products' && filteredProducts
-                    .sort((a: any, b: any) => a.name.localeCompare(b.name))
                     .map((product: any, index: number) => {
                       const hasPromo = product.promotionalPrice && product.promotionalPrice < product.price;
                       return (
@@ -619,7 +667,7 @@ export default function SearchScreen() {
                           onPress={() => { setQuery(''); router.push(`/store/${product.store?.id}`); }}
                         >
                           {product.imageUrl ? (
-                            <Image source={product.imageUrl} style={styles.acLogo} cachePolicy="memory-disk" />
+                            <Image source={product.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
                           ) : (
                             <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                               <Ionicons name="cube-outline" size={16} color={colors.gray} />
@@ -637,9 +685,8 @@ export default function SearchScreen() {
                       );
                     })}
 
-                  {/* Services (services tab) — sorted alphabetically */}
+                  {/* Services (services tab) — ja ordenados no useMemo */}
                   {activeTab === 'services' && filteredServices
-                    .sort((a: any, b: any) => a.name.localeCompare(b.name))
                     .map((service: any, index: number) => (
                       <AnimatedListItem key={`svc-${service.id}`} index={filteredStores.length + index}>
                       <AnimatedPressable
@@ -647,7 +694,7 @@ export default function SearchScreen() {
                         onPress={() => { setQuery(''); router.push(`/store/${service.store?.id}`); }}
                       >
                         {service.imageUrl ? (
-                          <Image source={service.imageUrl} style={styles.acLogo} cachePolicy="memory-disk" />
+                          <Image source={service.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
                         ) : (
                           <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
                             <Ionicons name="construct-outline" size={16} color={colors.gray} />
@@ -720,6 +767,23 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  activeCategoryClose: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    // sombra leve pra destacar do chip
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
   },
 
   // Recent dropdown (floats below searchBox)

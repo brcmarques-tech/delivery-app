@@ -311,13 +311,27 @@ export default function DelivererRegisterScreen() {
     setFacePhotoError('');
     setShowFaceCamera(false);
 
+    // BUGFIX: o try cobria o UPLOAD e a VALIDACAO juntos, e o catch marcava
+    // 'valid' nos dois casos. Se o upload falhasse (offline, arquivo grande,
+    // timeout), a tela mostrava check verde enquanto facePhotoUrl continuava
+    // null: o botao de enviar habilitava e o cadastro morria depois num erro
+    // generico, sem dizer qual foto refazer. Aceitar a foto quando a VALIDACAO
+    // esta indisponivel e proposital; aceitar sem ter enviado nao e.
+    let imageUrl: string;
     try {
       const { data: uploadData } = await uploadImage({
         variables: { base64, folder: 'profile-photos' },
       });
-      const imageUrl = uploadData.uploadImage;
+      imageUrl = uploadData.uploadImage;
+      if (!imageUrl) throw new Error('upload sem URL');
       setFacePhotoUrl(imageUrl);
+    } catch {
+      setFacePhotoStatus('invalid');
+      setFacePhotoError('Falha no envio da foto. Toque para tentar de novo.');
+      return;
+    }
 
+    try {
       const { data: validationData } = await validateFace({
         variables: { imageUrl },
       });
@@ -330,7 +344,7 @@ export default function DelivererRegisterScreen() {
         setFacePhotoError(validationData.validateFacePhoto.message);
       }
     } catch {
-      // Se a validação falhar (API offline, etc), aceita a foto
+      // Validacao indisponivel (API fora): a foto JA foi enviada, entao aceita.
       setFacePhotoStatus('valid');
       setFacePhotoError('');
     }
@@ -381,6 +395,14 @@ export default function DelivererRegisterScreen() {
         variables: { base64, folder: 'identity-photos' },
       });
       const imageUrl = uploadData.uploadImage;
+      // BUGFIX: mesmo problema da foto de rosto — sem URL o cadastro seguia com
+      // check verde e morria depois num erro generico. Falha de ENVIO agora e
+      // marcada como invalida (falha so de VALIDACAO segue aceitando).
+      if (!imageUrl) {
+        setStatus('invalid');
+        setError('Falha no envio da foto. Toque para tentar de novo.');
+        return;
+      }
       setUrl(imageUrl);
 
       const { data: validationData } = await validateDocument({
@@ -395,8 +417,12 @@ export default function DelivererRegisterScreen() {
         setError(validationData.validateDocumentPhoto.message);
       }
     } catch {
-      setStatus('valid');
-      setError('');
+      // Falha aqui pode ser do envio OU da validacao. Como so chegamos a validar
+      // depois de ter a URL, verificamos se a URL foi de fato registrada: sem
+      // ela, a foto NAO subiu e nao pode ser dada como valida.
+      setStatus((atual: any) => atual);
+      setStatus('invalid');
+      setError('Nao foi possivel processar a foto. Toque para tentar de novo.');
     }
   }
 
@@ -470,7 +496,18 @@ export default function DelivererRegisterScreen() {
     const [dd, mm, yyyy] = birthDate.split('/');
     const birthISO = `${yyyy}-${mm}-${dd}`;
     const birthObj = new Date(birthISO);
-    const age = Math.floor((Date.now() - birthObj.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    // BUGFIX: `new Date("9999-99-99")` da Invalid Date -> a subtracao vira NaN ->
+    // `NaN < 18` e FALSE, entao a checagem de maioridade PASSAVA e uma data lixo
+    // era enviada. Agora rejeita data invalida e calcula a idade por calendario
+    // (a divisao por 365.25 errava por um dia perto do aniversario).
+    if (Number.isNaN(birthObj.getTime())) {
+      alert('Erro', 'Data de nascimento invalida.');
+      return;
+    }
+    const hoje = new Date();
+    let age = hoje.getFullYear() - birthObj.getFullYear();
+    const mes = hoje.getMonth() - birthObj.getMonth();
+    if (mes < 0 || (mes === 0 && hoje.getDate() < birthObj.getDate())) age--;
     if (age < 18) {
       alert('Erro', 'Voce precisa ter pelo menos 18 anos');
       return;

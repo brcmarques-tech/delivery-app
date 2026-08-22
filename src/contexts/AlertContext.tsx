@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -83,6 +83,10 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
     showAlert({ title, message, buttons });
   }, [showAlert]);
 
+  // Perf: a API (alert/showAlert) e estavel, mas o value era um objeto novo a cada
+  // abertura/fechamento de alerta — re-renderizava todo consumidor de useAlert.
+  const contextValue = useMemo(() => ({ alert, showAlert }), [alert, showAlert]);
+
   function handlePress(button: AlertButton) {
     setVisible(false);
     // Small delay to let modal close before running callback
@@ -121,7 +125,7 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
   const hasCancel = buttons.some((b) => b.style === 'cancel');
 
   return (
-    <AlertContext.Provider value={{ alert, showAlert }}>
+    <AlertContext.Provider value={contextValue}>
       {children}
       <Modal
         visible={visible}

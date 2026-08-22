@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
+  ScrollView,
   SectionList,
   Modal,
   Pressable,
@@ -13,22 +15,87 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery, useSubscription, useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
-import { GET_STORE, IS_FOLLOWING_STORE, GET_FOLLOWER_COUNT } from '../../src/lib/graphql/queries';
+import { GET_STORE, GET_STORE_PRODUCTS, IS_FOLLOWING_STORE, GET_FOLLOWER_COUNT } from '../../src/lib/graphql/queries';
 import { FOLLOW_STORE, UNFOLLOW_STORE } from '../../src/lib/graphql/mutations';
-import { PRODUCT_UPDATED, STORE_UPDATED } from '../../src/lib/graphql/subscriptions';
+import { STORE_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useCart } from '../../src/contexts/CartContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../src/theme';
+import { imageCachePolicy } from '../../src/lib/deviceTier'; // Perf (F0)
+
+// UX: fileira de chips de categoria com setinhas indicando que ha mais
+// conteudo para os lados. Componente isolado e memoizado de proposito: o
+// onScroll faz setState a cada rolagem — aqui dentro, so a fileira
+// re-renderiza (a tela da loja inteira fica parada; padrao F3).
+const CategoryChips = React.memo(function CategoryChips({
+  categories,
+  activeCatId,
+  onSelect,
+  colors,
+}: {
+  categories: any[];
+  activeCatId: string | null;
+  onSelect: (id: string | null) => void;
+  colors: any;
+}) {
+  const [scrollX, setScrollX] = useState(0);
+  const [contentW, setContentW] = useState(0);
+  const [viewW, setViewW] = useState(0);
+  const showLeft = scrollX > 6;
+  const showRight = contentW > viewW && scrollX + viewW < contentW - 6;
+
+  return (
+    <View style={{ marginTop: 8 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        onScroll={(e) => setScrollX(e.nativeEvent.contentOffset.x)}
+        scrollEventThrottle={32}
+        onContentSizeChange={(w) => setContentW(w)}
+        onLayout={(e) => setViewW(e.nativeEvent.layout.width)}
+      >
+        <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 2 }}>
+          <TouchableOpacity
+            style={[styles.catChip, { backgroundColor: !activeCatId ? colors.primary : colors.grayLight }]}
+            onPress={() => onSelect(null)}
+          >
+            <Text style={[styles.catChipText, { color: !activeCatId ? '#FFF' : colors.textLight }]}>Todas</Text>
+          </TouchableOpacity>
+          {categories.map((cat: any) => (
+            <TouchableOpacity
+              key={cat.id}
+              style={[styles.catChip, { backgroundColor: activeCatId === cat.id ? colors.primary : colors.grayLight }]}
+              onPress={() => onSelect(activeCatId === cat.id ? null : cat.id)}
+            >
+              <Text style={[styles.catChipText, { color: activeCatId === cat.id ? '#FFF' : colors.textLight }]}>{cat.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+      {showLeft && (
+        <View pointerEvents="none" style={[styles.catArrow, { left: 0, backgroundColor: colors.card }]}>
+          <Ionicons name="chevron-back" size={14} color={colors.gray} />
+        </View>
+      )}
+      {showRight && (
+        <View pointerEvents="none" style={[styles.catArrow, { right: 0, backgroundColor: colors.card }]}>
+          <Ionicons name="chevron-forward" size={14} color={colors.gray} />
+        </View>
+      )}
+    </View>
+  );
+});
 
 export default function StoreScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { user } = useAuth();
   const { id, productId } = useLocalSearchParams<{ id: string; productId?: string }>();
-  const { data, loading, refetch } = useQuery(GET_STORE, { variables: { id } });
+  const { data, loading, error, refetch } = useQuery(GET_STORE, { variables: { id } });
 
   // Follow system
   const { data: followData, refetch: refetchFollow } = useQuery(IS_FOLLOWING_STORE, {
@@ -56,11 +123,12 @@ export default function StoreScreen() {
     } catch {}
   }
 
-  // Real-time: refresh when products or store changes
-  useSubscription(PRODUCT_UPDATED, {
-    variables: { storeId: id },
-    onData: () => { refetch(); },
-  });
+  // Real-time: refresh when the STORE itself changes (name, isOpen, fees...).
+  // Perf (F2): a subscription PRODUCT_UPDATED que existia aqui foi removida — o
+  // useProductSync global ja patcheia price/promotionalPrice/name/imageUrl/
+  // isAvailable/stock direto no cache normalizado, e o Apollo propaga pra esta
+  // tela sozinho. Antes, CADA mudanca de 1 produto re-baixava a loja INTEIRA
+  // (todos os produtos + servicos + categorias).
   useSubscription(STORE_UPDATED, {
     variables: { storeId: id },
     onData: () => { refetch(); },
@@ -71,19 +139,172 @@ export default function StoreScreen() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
   const [weightGrams, setWeightGrams] = useState(500);
+  // UX + Perf (F5/F6): busca dentro da loja. Produtos agora sao paginados
+  // (100 por vez) e a busca roda NO SERVIDOR (debounced) — encontra qualquer
+  // item do catalogo, mesmo o que ainda nao desceu pro app.
+  const [storeQuery, setStoreQuery] = useState('');
+  const [debouncedStoreQuery, setDebouncedStoreQuery] = useState('');
+  // UX: chip de categoria ativo (null = todas). Filtro roda no SQL.
+  const [activeCatId, setActiveCatId] = useState<string | null>(null);
+  // BUGFIX: a paginacao inferia "tem mais" de `length % 100 === 0`. Isso quebrava
+  // de dois jeitos: (a) se um produto fosse removido do cache (PRODUCT_DELETED),
+  // a lista virava 99 e o carregamento parava PARA SEMPRE; (b) num catalogo com
+  // multiplo exato de 100, cada scroll no fim disparava uma requisicao que nunca
+  // encerrava o laco. Agora a decisao vem do tamanho da ultima pagina recebida.
+  const [hasMoreProducts, setHasMoreProducts] = useState(true);
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedStoreQuery(storeQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [storeQuery]);
 
   const store = data?.store;
-  const products = store?.products || [];
-  const services = (store?.services || []).filter((s: any) => s.isActive);
+  const isServiceStoreEarly = store?.storeType === 'SERVICES';
+
+  // Perf (F5/F6): catalogo paginado — 100 por pagina, proxima pagina no scroll
+  // (onEndReached + offsetMerge no cache). Busca vai como arg pro servidor.
+  const {
+    data: productsData,
+    fetchMore: fetchMoreProducts,
+  } = useQuery(GET_STORE_PRODUCTS, {
+    variables: { storeId: id, limit: 100, offset: 0, search: debouncedStoreQuery || null, categoryId: activeCatId },
+    skip: !store || isServiceStoreEarly,
+    fetchPolicy: 'cache-and-network',
+  });
+
+  // Perf (F3): derivados memoizados. Antes products/services/sections eram
+  // recalculados (filter/map/Map) a CADA render — inclusive a cada toque de
+  // +/- de quantidade no modal, que re-filtrava o catalogo inteiro.
+  const allProducts = useMemo(() => productsData?.storeProducts || [], [productsData?.storeProducts]);
+  const allServices = useMemo(
+    () => (store?.services || []).filter((s: any) => s.isActive),
+    [store?.services],
+  );
   const isServiceStore = store?.storeType === 'SERVICES';
 
+  const openProductModal = useCallback((product: any) => {
+    setSelectedProduct(product);
+    setQuantity(1);
+    setWeightGrams(500);
+  }, []);
+
   // Auto-open product modal when navigating from home screen
+  // BUGFIX: sem o ref, este efeito reabria o modal sozinho toda vez que
+  // `allProducts.length` mudava (ou seja, a cada pagina carregada no scroll)
+  // mesmo depois de o usuario fechar. Agora abre no maximo uma vez.
   useEffect(() => {
-    if (productId && products.length > 0 && !selectedProduct) {
-      const product = products.find((p: any) => p.id === productId);
-      if (product) openProductModal(product);
+    if (autoOpenedRef.current || !productId || allProducts.length === 0) return;
+    const product = allProducts.find((p: any) => p.id === productId);
+    if (product) {
+      autoOpenedRef.current = true;
+      openProductModal(product);
     }
-  }, [productId, products.length]);
+  }, [productId, allProducts.length, openProductModal]);
+
+  // Build sections based on store type (memoizado — so muda quando o catalogo
+  // ou a busca interna mudam)
+  const sections = useMemo(() => {
+    const built: { title: string; data: any[] }[] = [];
+    const categories = store?.categories || [];
+
+    // Produtos ja chegam filtrados do SERVIDOR (arg search). Servicos seguem
+    // com filtro local (lista pequena, ja carregada no GET_STORE).
+    const q = debouncedStoreQuery.toLowerCase();
+    const matches = (i: any) =>
+      !q ||
+      (i.name || '').toLowerCase().includes(q) ||
+      (i.description || '').toLowerCase().includes(q);
+    const products = allProducts;
+    const services = allServices.filter(matches);
+
+    if (isServiceStore) {
+      // Service store: group services by category
+      const serviceCategories = [...new Map(
+        services.filter((s: any) => s.category).map((s: any) => [s.category.id, s.category])
+      ).values()];
+
+      serviceCategories.forEach((cat: any) => {
+        built.push({
+          title: cat.name,
+          data: services.filter((s: any) => s.category?.id === cat.id),
+        });
+      });
+
+      const uncategorizedServices = services.filter((s: any) => !s.category);
+      if (uncategorizedServices.length > 0) {
+        built.push({ title: 'Outros', data: uncategorizedServices });
+      }
+
+      if (built.length === 0 && services.length > 0) {
+        built.push({ title: 'Servicos', data: services });
+      }
+    } else {
+      // Product store: group products by category
+      categories.forEach((cat: any) => {
+        const catProducts = products.filter((p: any) => p.category?.id === cat.id);
+        if (catProducts.length > 0) {
+          built.push({ title: cat.name, data: catProducts });
+        }
+      });
+
+      const uncategorized = products.filter((p: any) => !p.category);
+      if (uncategorized.length > 0) {
+        built.push({ title: 'Outros', data: uncategorized });
+      }
+
+      if (built.length === 0 && products.length > 0) {
+        built.push({ title: 'Produtos', data: products });
+      }
+    }
+    return built;
+  }, [store?.categories, allProducts, allServices, isServiceStore, debouncedStoreQuery]);
+
+  // Perf (F5/F6): proxima pagina de 100 quando o scroll chega perto do fim.
+  const loadMoreProducts = useCallback(() => {
+    if (!hasMoreProducts || allProducts.length === 0) return;
+    fetchMoreProducts({
+      variables: { storeId: id, limit: 100, offset: allProducts.length, search: debouncedStoreQuery || null, categoryId: activeCatId },
+    })
+      .then((res: any) => {
+        const recebidos = res?.data?.storeProducts?.length ?? 0;
+        if (recebidos < 100) setHasMoreProducts(false);
+      })
+      .catch(() => {});
+  }, [hasMoreProducts, allProducts.length, fetchMoreProducts, id, debouncedStoreQuery, activeCatId]);
+
+  // Busca/categoria mudou => nova lista, volta a permitir paginar.
+  useEffect(() => {
+    setHasMoreProducts(true);
+  }, [debouncedStoreQuery, activeCatId]);
+
+  // BUGFIX: era `if (loading || !store)` — numa falha de rede, link quebrado ou
+  // loja removida, `loading` vira false e `store` fica undefined, entao a tela
+  // ficava PRESA em "Carregando..." pra sempre, sem retry e sem botao de voltar
+  // (o header fica abaixo deste return) — o usuario tinha que matar o app.
+  if (!loading && (error || !store)) {
+    return (
+      <View style={[styles.loading, { backgroundColor: colors.background }]}>
+        <Ionicons name="storefront-outline" size={48} color={colors.grayLight} />
+        <Text style={[styles.loadingText, { color: colors.text, marginTop: 12 }]}>
+          Nao foi possivel carregar esta loja
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+          <TouchableOpacity
+            style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary }}
+            onPress={() => refetch()}
+          >
+            <Text style={{ color: '#FFF', fontWeight: '600' }}>Tentar de novo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.grayLight }}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/home'))}
+          >
+            <Text style={{ color: colors.text, fontWeight: '600' }}>Voltar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   if (loading || !store) {
     return (
@@ -91,57 +312,6 @@ export default function StoreScreen() {
         <Text style={[styles.loadingText, { color: colors.textLight }]}>Carregando...</Text>
       </View>
     );
-  }
-
-  const categories = store.categories || [];
-
-  // Build sections based on store type
-  const sections: { title: string; data: any[] }[] = [];
-
-  if (isServiceStore) {
-    // Service store: group services by category
-    const serviceCategories = [...new Map(
-      services.filter((s: any) => s.category).map((s: any) => [s.category.id, s.category])
-    ).values()];
-
-    serviceCategories.forEach((cat: any) => {
-      sections.push({
-        title: cat.name,
-        data: services.filter((s: any) => s.category?.id === cat.id),
-      });
-    });
-
-    const uncategorizedServices = services.filter((s: any) => !s.category);
-    if (uncategorizedServices.length > 0) {
-      sections.push({ title: 'Outros', data: uncategorizedServices });
-    }
-
-    if (sections.length === 0 && services.length > 0) {
-      sections.push({ title: 'Servicos', data: services });
-    }
-  } else {
-    // Product store: group products by category
-    categories.forEach((cat: any) => {
-      const catProducts = products.filter((p: any) => p.category?.id === cat.id);
-      if (catProducts.length > 0) {
-        sections.push({ title: cat.name, data: catProducts });
-      }
-    });
-
-    const uncategorized = products.filter((p: any) => !p.category);
-    if (uncategorized.length > 0) {
-      sections.push({ title: 'Outros', data: uncategorized });
-    }
-
-    if (sections.length === 0 && products.length > 0) {
-      sections.push({ title: 'Produtos', data: products });
-    }
-  }
-
-  function openProductModal(product: any) {
-    setSelectedProduct(product);
-    setQuantity(1);
-    setWeightGrams(500);
   }
 
   function confirmAdd() {
@@ -220,10 +390,55 @@ export default function StoreScreen() {
         </View>
       )}
 
+      {/* UX: busca dentro da loja (filtro local, zero rede) */}
+      <View style={[styles.storeSearchWrap, { backgroundColor: colors.card, borderBottomColor: colors.grayLight }]}>
+        <View style={[styles.storeSearchBox, { backgroundColor: colors.grayLight }]}>
+          <Ionicons name="search" size={16} color={colors.gray} />
+          <TextInput
+            style={[styles.storeSearchInput, { color: colors.text }]}
+            placeholder={isServiceStore ? 'Buscar servico nesta loja...' : 'Buscar produto nesta loja...'}
+            placeholderTextColor={colors.gray}
+            value={storeQuery}
+            onChangeText={setStoreQuery}
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {storeQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setStoreQuery('')}>
+              <Ionicons name="close-circle" size={16} color={colors.gray} />
+            </TouchableOpacity>
+          )}
+        </View>
+        {/* UX: chips de categoria da loja — filtro server-side (funciona com
+            catalogo paginado de qualquer tamanho), com setinhas de overflow */}
+        {!isServiceStore && (store.categories || []).length > 0 && (
+          <CategoryChips
+            categories={store.categories || []}
+            activeCatId={activeCatId}
+            onSelect={setActiveCatId}
+            colors={colors}
+          />
+        )}
+      </View>
+
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
+        keyboardShouldPersistTaps="handled"
+        onEndReached={loadMoreProducts}
+        onEndReachedThreshold={0.5}
+        ListEmptyComponent={storeQuery.trim() ? (
+          <View style={{ alignItems: 'center', paddingTop: 48, gap: 8 }}>
+            <Ionicons name="search-outline" size={44} color={colors.grayLight} />
+            <Text style={{ fontSize: fonts.regular, color: colors.textLight, textAlign: 'center' }}>
+              Nada encontrado para "{storeQuery.trim()}"
+            </Text>
+            <TouchableOpacity onPress={() => setStoreQuery('')}>
+              <Text style={{ fontSize: fonts.small, color: colors.primary, fontWeight: '600' }}>Limpar busca</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         renderSectionHeader={({ section }) => (
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
         )}
@@ -268,7 +483,7 @@ export default function StoreScreen() {
                 <View style={styles.productRight}>
                   {item.imageUrl ? (
                     <TouchableOpacity activeOpacity={0.8} onPress={() => setZoomedImage(item.imageUrl)}>
-                      <Image source={item.imageUrl} style={styles.productImage} cachePolicy="memory-disk" recyclingKey={item.id} />
+                      <Image source={item.imageUrl} style={styles.productImage} cachePolicy={imageCachePolicy} recyclingKey={item.id} />
                     </TouchableOpacity>
                   ) : (
                     <View style={[styles.productImage, styles.productImagePlaceholder, { backgroundColor: colors.grayLight }]}>
@@ -318,7 +533,7 @@ export default function StoreScreen() {
             <View style={styles.productRight}>
               {item.imageUrl ? (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setZoomedImage(item.imageUrl)}>
-                  <Image source={item.imageUrl} style={styles.productImage} cachePolicy="memory-disk" recyclingKey={item.id} />
+                  <Image source={item.imageUrl} style={styles.productImage} cachePolicy={imageCachePolicy} recyclingKey={item.id} />
                 </TouchableOpacity>
               ) : (
                 <View style={[styles.productImage, styles.productImagePlaceholder, { backgroundColor: colors.grayLight }]}>
@@ -363,7 +578,7 @@ export default function StoreScreen() {
         <Pressable style={styles.imageModalOverlay} onPress={() => setZoomedImage(null)}>
           <View style={styles.imageModalContainer}>
             {zoomedImage && (
-              <Image source={zoomedImage} style={styles.imageModalImage} contentFit="contain" cachePolicy="memory-disk" />
+              <Image source={zoomedImage} style={styles.imageModalImage} contentFit="contain" cachePolicy={imageCachePolicy} />
             )}
           </View>
           <TouchableOpacity style={[styles.imageModalClose, { top: insets.top + 8 }]} onPress={() => setZoomedImage(null)}>
@@ -381,7 +596,7 @@ export default function StoreScreen() {
                 {/* Imagem */}
                 {selectedProduct.imageUrl && (
                   <TouchableOpacity activeOpacity={0.9} onPress={() => { setSelectedProduct(null); setTimeout(() => setZoomedImage(selectedProduct.imageUrl), 300); }}>
-                    <Image source={selectedProduct.imageUrl} style={styles.addModalImage} cachePolicy="memory-disk" />
+                    <Image source={selectedProduct.imageUrl} style={styles.addModalImage} cachePolicy={imageCachePolicy} />
                   </TouchableOpacity>
                 )}
 
@@ -494,6 +709,50 @@ const styles = StyleSheet.create({
   storeDetails: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   detailText: { fontSize: fonts.small },
   detailDot: {},
+  storeSearchWrap: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  storeSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 40,
+  },
+  catChip: {
+    paddingHorizontal: 14,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+  },
+  catArrow: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 11,
+    opacity: 0.95,
+    // sombra leve pra "flutuar" sobre os chips
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  catChipText: {
+    fontSize: fonts.small,
+    fontWeight: '600',
+  },
+  storeSearchInput: {
+    flex: 1,
+    fontSize: fonts.regular,
+    paddingVertical: 0,
+  },
   closedBanner: {
     flexDirection: 'row',
     alignItems: 'center',

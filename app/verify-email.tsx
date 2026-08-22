@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -24,6 +24,15 @@ export default function VerifyEmailScreen() {
   const [success, setSuccess] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const inputs = useRef<(TextInput | null)[]>([]);
+  // BUGFIX: o interval do cooldown e o timeout de voltar nunca eram limpos —
+  // sair da tela no meio deixava um timer rodando por ate 60s e chamando
+  // setState num componente desmontado.
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const backTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    if (backTimerRef.current) clearTimeout(backTimerRef.current);
+  }, []);
 
   const [sendVerification] = useMutation(SEND_EMAIL_VERIFICATION);
   const [confirmVerification] = useMutation(CONFIRM_EMAIL_VERIFICATION);
@@ -35,12 +44,14 @@ export default function VerifyEmailScreen() {
       await sendVerification({ variables: { userType: 'APP' } });
       setSent(true);
       setCooldown(60);
+      if (cooldownRef.current) clearInterval(cooldownRef.current);
       const interval = setInterval(() => {
         setCooldown((c) => {
           if (c <= 1) { clearInterval(interval); return 0; }
           return c - 1;
         });
       }, 1000);
+      cooldownRef.current = interval;
     } catch (err: any) {
       setError(err.message || 'Erro ao enviar codigo.');
     }
@@ -77,7 +88,9 @@ export default function VerifyEmailScreen() {
       if (updateUser && user) {
         updateUser({ ...user, emailVerified: true });
       }
-      setTimeout(() => router.back(), 1500);
+      // BUGFIX: este timeout nunca era limpo — sair da tela antes dele disparar
+      // chamava router.back() de um componente desmontado.
+      backTimerRef.current = setTimeout(() => router.back(), 1500);
     } catch (err: any) {
       setError(err.message || 'Codigo invalido ou expirado.');
     }

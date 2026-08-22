@@ -14,6 +14,9 @@ import {
   Platform,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+// Perf (F7): g-logo remoto via expo-image (cache em disco) — o <Image> do RN
+// re-baixava o asset estatico a cada render da caixa do Google.
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation } from '@apollo/client';
 import * as Print from 'expo-print';
@@ -150,6 +153,7 @@ export default function RegisterScreen() {
   const [cpf, setCpf] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const registerSubmittingRef = useRef(false);
   const [showPassword, setShowPassword] = useState(false);
   const [scrolledToEnd, setScrolledToEnd] = useState(false);
   const [checked, setChecked] = useState(false);
@@ -207,6 +211,10 @@ export default function RegisterScreen() {
   const [otpSending, setOtpSending] = useState(false);
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+  // Canal onde o codigo foi REALMENTE entregue. Quando o WhatsApp esta fora, o
+  // servidor cai para o e-mail e o codigo passa a verificar o E-MAIL (nao o
+  // telefone) — entao a verificacao precisa usar o mesmo canal do envio.
+  const [otpMethod, setOtpMethod] = useState<'whatsapp' | 'email'>('whatsapp');
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   const [validateRegistration] = useMutation(VALIDATE_REGISTRATION);
@@ -304,9 +312,26 @@ export default function RegisterScreen() {
   async function sendOtp() {
     setOtpSending(true);
     try {
-      await sendVerificationCode({
-        variables: { input: { value: phone.replace(/\D/g, ''), channel: 'whatsapp' } },
+      const { data } = await sendVerificationCode({
+        variables: {
+          input: {
+            value: phone.replace(/\D/g, ''),
+            channel: 'whatsapp',
+            // O servidor ja sabe cair para e-mail quando o WhatsApp falha, mas so
+            // se receber para onde enviar — e o app nunca mandava. Com o WAHA fora
+            // do ar (ou WAHA_API_KEY vazia, que faz o envio retornar false sem nem
+            // tentar), sendPhoneCode lancava e NENHUM cadastro novo era possivel,
+            // mesmo com o e-mail funcionando. O endereco ja foi digitado no passo 1.
+            fallbackEmail: email.trim() || undefined,
+          },
+        },
       });
+      // KAN-280: o servidor devolve o canal onde o codigo foi REALMENTE entregue
+      // ('whatsapp' ou 'email'). Quando cai no e-mail, a verificacao valida o
+      // E-MAIL, nao o telefone — guardamos para o handleVerifyOtp usar o canal
+      // certo.
+      const metodo = data?.sendVerificationCode === 'email' ? 'email' : 'whatsapp';
+      setOtpMethod(metodo);
       setStep(2);
       setResendTimer(60);
       setOtpDigits(['', '', '', '', '', '']);
@@ -346,8 +371,14 @@ export default function RegisterScreen() {
     }
     setOtpVerifying(true);
     try {
+      // KAN-280: verifica no MESMO canal em que o codigo foi entregue. Se caiu no
+      // e-mail (WhatsApp fora), valida o e-mail; senao, o telefone.
+      const alvo =
+        otpMethod === 'email'
+          ? { value: email.trim(), channel: 'email' }
+          : { value: phone.replace(/\D/g, ''), channel: 'whatsapp' };
       await verifyCode({
-        variables: { input: { value: phone.replace(/\D/g, ''), code, channel: 'whatsapp' } },
+        variables: { input: { ...alvo, code } },
       });
       setStep(3);
     } catch (err: any) {
@@ -377,6 +408,13 @@ export default function RegisterScreen() {
   }
 
   async function handleAcceptAndRegister() {
+    // BUGFIX: a unica protecao era `disabled={loading}`, que so chega ao DOM um
+    // render depois — um duplo-toque rapido disparava `register` DUAS vezes,
+    // resultando em erro de CPF duplicado por cima de uma conta possivelmente ja
+    // criada. O resto do app ja usa ref para isto (checkout, order, book,
+    // earnings); esta tela ficou de fora.
+    if (registerSubmittingRef.current) return;
+    registerSubmittingRef.current = true;
     const cpfDigits = cpf.replace(/\D/g, '');
     setLoading(true);
     try {
@@ -391,6 +429,7 @@ export default function RegisterScreen() {
       alert('Erro', msg);
     } finally {
       setLoading(false);
+      registerSubmittingRef.current = false;
     }
   }
 
@@ -429,7 +468,7 @@ export default function RegisterScreen() {
           {isGoogleRegister ? (
             <AnimItem delay={80} fromX={25}>
             <View style={styles.googleInfoBox}>
-              <Image source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }} style={styles.googleInfoIcon} />
+              <ExpoImage source="https://developers.google.com/identity/images/g-logo.png" style={styles.googleInfoIcon} cachePolicy="disk" />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.googleInfoName, { color: colors.text }]}>{name}</Text>
                 <Text style={[styles.googleInfoEmail, { color: colors.textLight }]}>{email}</Text>
@@ -563,9 +602,10 @@ export default function RegisterScreen() {
                   <ActivityIndicator size="small" color={colors.text} />
                 ) : (
                   <>
-                    <Image
-                      source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
+                    <ExpoImage
+                      source="https://developers.google.com/identity/images/g-logo.png"
                       style={styles.googleIconBtn}
+                      cachePolicy="disk"
                     />
                     <Text style={[styles.googleButtonText, { color: colors.text }]}>Cadastrar com Google</Text>
                   </>
@@ -607,12 +647,21 @@ export default function RegisterScreen() {
 
           <AnimItem delay={0} fromY={-20}>
           <View style={styles.otpIconContainer}>
-            <Ionicons name="logo-whatsapp" size={36} color="#25D366" />
+            {/* KAN-280: reflete o canal real do envio (WhatsApp fora -> e-mail) */}
+            <Ionicons
+              name={otpMethod === 'email' ? 'mail-outline' : 'logo-whatsapp'}
+              size={36}
+              color={otpMethod === 'email' ? colors.primary : '#25D366'}
+            />
           </View>
-          <Text style={[styles.otpTitle, { color: colors.text }]}>Verifique seu WhatsApp</Text>
+          <Text style={[styles.otpTitle, { color: colors.text }]}>
+            {otpMethod === 'email' ? 'Verifique seu e-mail' : 'Verifique seu WhatsApp'}
+          </Text>
           <Text style={[styles.otpSubtitle, { color: colors.textLight }]}>
             Enviamos um codigo de 6 digitos para{'\n'}
-            <Text style={[styles.otpPhone, { color: colors.text }]}>{formatPhoneDisplay(phone.replace(/\D/g, ''))}</Text>
+            <Text style={[styles.otpPhone, { color: colors.text }]}>
+              {otpMethod === 'email' ? email.trim() : formatPhoneDisplay(phone.replace(/\D/g, ''))}
+            </Text>
           </Text>
           </AnimItem>
 

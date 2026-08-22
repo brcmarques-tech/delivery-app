@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { devLog } from '../../src/lib/devLog'; // KAN-223
+import { socketBaseUrl } from '../../src/lib/apiHost'; // KAN-255
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -29,6 +30,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../src/theme';
+import { listPerfProps } from '../../src/lib/deviceTier'; // Perf (F0)
 
 let MapView: any = View;
 let Marker: any = View;
@@ -73,11 +75,112 @@ async function openNavigation(lat: number, lng: number, label: string) {
   }
 }
 
-const DEV_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.143';
-const PROD_WS = 'https://api.bcmtech.com.br';
-const WS_URL = __DEV__ ? `http://${DEV_HOST}:3000` : PROD_WS;
+// KAN-255: URL vem do util compartilhado (src/lib/apiHost.ts), que le
+// EXPO_PUBLIC_API_HOST. Antes era o IP fixo `192.168.0.143`, que ignorava o
+// .env e ja nem existia mais nesta rede — o socket do entregador conectava no
+// lugar errado em dev e falhava em silencio.
+const WS_URL = socketBaseUrl();
 
 type Tab = 'available' | 'my';
+
+const CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos
+
+// Perf (F3): barra de countdown auto-ticante. Antes um setInterval no componente
+// pai fazia a TELA INTEIRA (todos os cards) re-renderizar a cada segundo so para
+// esta barrinha andar. Agora o tick de 1s vive aqui dentro — apenas a barra
+// re-renderiza; os cards ficam estaveis.
+const OfferCountdownBar = React.memo(function OfferCountdownBar({
+  startedAt,
+  colors,
+}: {
+  startedAt: number;
+  colors: any;
+}) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const elapsed = Math.min((Date.now() - startedAt) / 1000, 60);
+  const remaining = Math.max(0, 60 - elapsed);
+  const progress = remaining / 60;
+  const barColor = remaining <= 10 ? colors.danger : remaining <= 30 ? colors.warning : colors.primary;
+  return (
+    <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flex: 1, height: 4, backgroundColor: colors.grayLight, borderRadius: 2, overflow: 'hidden' }}>
+          <View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: barColor, borderRadius: 2 }} />
+        </View>
+        <Text style={{ fontSize: fonts.tiny, color: barColor, fontWeight: '600', minWidth: 28 }}>
+          {Math.ceil(remaining)}s
+        </Text>
+      </View>
+    </View>
+  );
+});
+
+// Perf (F3): idem para o countdown de confirmacao do cliente ("Aguardando m:ss").
+// So este badge tica por segundo — e apenas enquanto ha espera de verdade.
+const ReceiptStatusBadge = React.memo(function ReceiptStatusBadge({
+  order,
+  colors,
+  styles: s,
+}: {
+  order: any;
+  colors: any;
+  styles: any;
+}) {
+  const waiting =
+    !order.customerConfirmedAt &&
+    !order.disputedAt &&
+    order.status !== 'COMPLETED' &&
+    order.status !== 'CANCELLED' &&
+    !!order.delivererConfirmedDeliveryAt &&
+    Date.now() - new Date(order.delivererConfirmedDeliveryAt).getTime() < CONFIRMATION_TIMEOUT_MS;
+
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(timer);
+  }, [waiting]);
+
+  let receipt: { label: string; color: string; icon: string; detail?: string };
+  if (order.status === 'CANCELLED') {
+    receipt = { label: 'Cancelado', color: colors.danger, icon: 'close-circle' };
+  } else if (order.disputedAt) {
+    receipt = { label: 'Cliente negou', color: colors.danger, icon: 'close-circle', detail: order.disputeReason || undefined };
+  } else if (order.customerConfirmedAt || order.status === 'COMPLETED') {
+    receipt = { label: 'Cliente confirmou', color: colors.success, icon: 'checkmark-circle' };
+  } else if (order.delivererConfirmedDeliveryAt) {
+    const elapsed = Date.now() - new Date(order.delivererConfirmedDeliveryAt).getTime();
+    const remaining = Math.max(0, CONFIRMATION_TIMEOUT_MS - elapsed);
+    if (remaining <= 0) {
+      receipt = { label: 'Auto-confirmado', color: colors.success, icon: 'timer' };
+    } else {
+      const mins = Math.floor(remaining / 60000);
+      const secs = Math.floor((remaining % 60000) / 1000);
+      receipt = { label: `Aguardando (${mins}:${secs.toString().padStart(2, '0')})`, color: colors.warning, icon: 'time' };
+    }
+  } else {
+    receipt = { label: 'Entregue', color: colors.success, icon: 'checkmark' };
+  }
+
+  return (
+    <>
+      <View style={[s.receiptBadge, { backgroundColor: receipt.color + '15' }]}>
+        <Ionicons name={receipt.icon as any} size={16} color={receipt.color} />
+        <Text style={[s.receiptText, { color: receipt.color }]}>{receipt.label}</Text>
+      </View>
+      {receipt.detail && (
+        <Text style={[s.receiptDetail, { color: colors.textLight }]}>
+          Motivo: {receipt.detail}
+        </Text>
+      )}
+    </>
+  );
+});
 
 interface DeliveryOffer {
   orderId: string;
@@ -101,12 +204,13 @@ interface AcceptedStore {
 export default function DeliveriesScreen() {
   const insets = useSafeAreaInsets();
   const { alert } = useAlert();
-  const { user } = useAuth();
+  const { user, token } = useAuth(); // KAN-224/255: token autentica o socket
   const { colors, isDark } = useTheme();
   const [tab, setTab] = useState<Tab>('available');
   const [isOnline, setIsOnline] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [acceptedStore, setAcceptedStore] = useState<AcceptedStore | null>(null);
+  const [hasMoreMy, setHasMoreMy] = useState(true);
   const [clientLocation, setClientLocation] = useState<{ latitude: number; longitude: number; address: string } | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
@@ -116,50 +220,19 @@ export default function DeliveriesScreen() {
   const lastLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const connectingRef = useRef(false);
 
-  const statusLabels: Record<string, { label: string; color: string }> = {
+  // Perf (F3): memoizado por tema. Antes era um objeto novo a cada render e
+  // entrava nas deps do renderMyDelivery — invalidava a memoizacao da lista.
+  const statusLabels: Record<string, { label: string; color: string }> = useMemo(() => ({
     READY: { label: 'Aguardando coleta', color: colors.warning },
     VENDOR_CONFIRMED_PICKUP: { label: 'Aguardando coleta', color: colors.warning },
     PICKED_UP: { label: 'Coletado', color: colors.warning },
     DELIVERING: { label: 'A caminho', color: colors.primary },
     DELIVERER_CONFIRMED_DELIVERY: { label: 'Aguardando cliente', color: colors.warning },
+    DELIVERED: { label: 'Entregue', color: colors.success },
     COMPLETED: { label: 'Concluido', color: colors.success },
     DISPUTED: { label: 'Disputado', color: colors.danger },
     CANCELLED: { label: 'Cancelado', color: colors.danger },
-  };
-
-  const CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos
-
-  function getReceiptStatus(order: any): { label: string; color: string; icon: string; detail?: string } {
-    if (order.status === 'CANCELLED') {
-      return { label: 'Cancelado', color: colors.danger, icon: 'close-circle' };
-    }
-    if (order.disputedAt) {
-      return {
-        label: 'Cliente negou',
-        color: colors.danger,
-        icon: 'close-circle',
-        detail: order.disputeReason || undefined,
-      };
-    }
-    if (order.customerConfirmedAt || order.status === 'COMPLETED') {
-      return { label: 'Cliente confirmou', color: colors.success, icon: 'checkmark-circle' };
-    }
-    if (order.delivererConfirmedDeliveryAt) {
-      const elapsed = Date.now() - new Date(order.delivererConfirmedDeliveryAt).getTime();
-      const remaining = Math.max(0, CONFIRMATION_TIMEOUT_MS - elapsed);
-      if (remaining <= 0) {
-        return { label: 'Auto-confirmado', color: colors.success, icon: 'timer' };
-      }
-      const mins = Math.floor(remaining / 60000);
-      const secs = Math.floor((remaining % 60000) / 1000);
-      return {
-        label: `Aguardando (${mins}:${secs.toString().padStart(2, '0')})`,
-        color: colors.warning,
-        icon: 'time',
-      };
-    }
-    return { label: 'Entregue', color: colors.success, icon: 'checkmark' };
-  }
+  }), [colors]);
 
   // Check payment connection status
   const paymentConnected = user?.paymentConnected ?? false;
@@ -203,7 +276,14 @@ export default function DeliveriesScreen() {
       longitude = current.coords.longitude;
     }
 
-    const socket = io(WS_URL, { transports: ['websocket'] });
+    // KAN-224/255: envia o token no handshake. Este socket ficava sem
+    // autenticacao nenhuma — qualquer cliente podia emitir `delivererOnline`
+    // se passando por outro entregador. Mesmo buraco ja fechado no
+    // useDeliveryTracking.
+    const socket = io(WS_URL, {
+      transports: ['websocket'],
+      auth: { token },
+    });
     socketRef.current = socket;
 
     socket.on('connect', () => {
@@ -383,28 +463,50 @@ export default function DeliveriesScreen() {
     data: availableData,
     loading: loadingAvailable,
     refetch: refetchAvailable,
-  } = useQuery(GET_AVAILABLE_DELIVERIES);
+    // Perf (F2): mesma policy do badge da tab ((tabs)/_layout usa cache-and-network
+    // para a MESMA query) — antes aqui era cache-first, e a inconsistencia gerava
+    // comportamentos divergentes entre a lista e o badge.
+  } = useQuery(GET_AVAILABLE_DELIVERIES, { fetchPolicy: 'cache-and-network' });
 
   const {
     data: myData,
     loading: loadingMy,
     refetch: refetchMy,
-  } = useQuery(GET_MY_DELIVERIES, { fetchPolicy: 'cache-and-network' });
+    fetchMore: fetchMoreMy,
+  } = useQuery(GET_MY_DELIVERIES, { fetchPolicy: 'cache-and-network', variables: { limit: 20, offset: 0 } });
 
-  // Real-time updates
+  // Real-time updates.
+  // Perf (F2): handler UNICO com debounce trailing. Antes um evento de entrega
+  // (que emite orderUpdated E deliveryUpdated) disparava ate 4 refetches das duas
+  // queries pesadas; cada tick de GPS repetia a dose. Agora N eventos em rajada
+  // viram 1 refetch de cada query apos 800ms de silencio.
+  const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRefetchBoth = useCallback(() => {
+    if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+    refetchTimerRef.current = setTimeout(() => {
+      refetchTimerRef.current = null;
+      refetchAvailable();
+      refetchMy();
+    }, 800);
+  }, [refetchAvailable, refetchMy]);
+  useEffect(() => () => {
+    if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+  }, []);
+
   useSubscription(ORDER_UPDATED, {
+    skip: !user, // KAN-238: sem guard o WS ficava aberto apos logout
     onData: ({ data: subData }) => {
       const o = subData?.data?.orderUpdated;
       devLog(`[APP-SUB] orderUpdated: #${o?.orderNumber || '?'}, status=${o?.status || '?'}`);
-      refetchAvailable();
-      refetchMy();
+      scheduleRefetchBoth();
     },
   });
   useSubscription(DELIVERY_UPDATED, {
+    skip: !user, // KAN-238
     onData: ({ data: subData }) => {
       const d = subData?.data?.deliveryUpdated;
       devLog(`[APP-SUB] deliveryUpdated: deliveryId=${d?.id || '?'}`);
-      refetchMy(); refetchAvailable();
+      scheduleRefetchBoth();
     },
   });
 
@@ -415,7 +517,10 @@ export default function DeliveriesScreen() {
 
   // Track when each available order first appeared (for countdown timer)
   const offerTimersRef = useRef<Record<string, number>>({});
-  const availableOrders = availableData?.availableDeliveries || [];
+  const availableOrders = useMemo(
+    () => availableData?.availableDeliveries || [],
+    [availableData?.availableDeliveries],
+  );
 
   // Initialize timers for new orders, clean up removed ones
   useEffect(() => {
@@ -433,13 +538,13 @@ export default function DeliveriesScreen() {
     });
   }, [availableOrders]);
 
-  // Tick every second when there are available orders (for countdown)
-  const [, setOfferTick] = useState(0);
+  // Perf (F3): o setInterval de 1s que re-renderizava a TELA INTEIRA por segundo
+  // foi removido — o countdown visual agora e o OfferCountdownBar (auto-ticante,
+  // module scope). Sobrou so a checagem de expiracao das ofertas, que nao faz
+  // setState e roda a cada 5s (granularidade suficiente pra repor oferta vencida).
   useEffect(() => {
     if (availableOrders.length === 0 || tab !== 'available') return;
     const timer = setInterval(() => {
-      setOfferTick((t) => t + 1);
-      // Auto-refetch when any timer expires
       const now = Date.now();
       const anyExpired = availableOrders.some((o: any) => {
         const started = offerTimersRef.current[o.id];
@@ -447,7 +552,6 @@ export default function DeliveriesScreen() {
       });
       if (anyExpired) {
         refetchAvailable();
-        // Reset expired timers
         availableOrders.forEach((o: any) => {
           const started = offerTimersRef.current[o.id];
           if (started && now - started >= 60000) {
@@ -455,23 +559,36 @@ export default function DeliveriesScreen() {
           }
         });
       }
-    }, 1000);
+    }, 5000);
     return () => clearInterval(timer);
-  }, [availableOrders.length, tab]);
-  const myDeliveries = myData?.myDeliveries || [];
-  const activeDeliveries = myDeliveries.filter((d: any) => !d.deliveredAt);
-  const completedDeliveries = myDeliveries.filter((d: any) => d.deliveredAt);
+  }, [availableOrders, tab, refetchAvailable]);
 
-  // Timer tick para atualizar countdown de confirmação do cliente
-  const [, setTick] = useState(0);
-  const hasWaitingConfirmation = completedDeliveries.some(
-    (d: any) => d.order.delivererConfirmedDeliveryAt && !d.order.customerConfirmedAt && !d.order.disputedAt && d.order.status !== 'COMPLETED',
+  // Perf (F3): derivados memoizados — antes eram arrays novos a cada render, e o
+  // data do FlatList ([...active, ...completed]) mudava de referencia sempre.
+  const myDeliveries = useMemo(() => myData?.myDeliveries || [], [myData?.myDeliveries]);
+  const activeDeliveries = useMemo(
+    () => myDeliveries.filter((d: any) => !d.deliveredAt),
+    [myDeliveries],
   );
-  useEffect(() => {
-    if (!hasWaitingConfirmation || tab !== 'my') return;
-    const timer = setInterval(() => setTick((t) => t + 1), 1000);
-    return () => clearInterval(timer);
-  }, [hasWaitingConfirmation, tab]);
+  const completedDeliveries = useMemo(
+    () => myDeliveries.filter((d: any) => d.deliveredAt),
+    [myDeliveries],
+  );
+  const myListData = useMemo(
+    () => [...activeDeliveries, ...completedDeliveries],
+    [activeDeliveries, completedDeliveries],
+  );
+
+  // Perf (F6): paginacao por scroll do historico de entregas.
+  // BUGFIX: idem orders — fim de lista explicito em vez de `length % 20`.
+  const loadMoreMy = useCallback(() => {
+    if (!hasMoreMy || myDeliveries.length === 0) return;
+    fetchMoreMy({ variables: { limit: 20, offset: myDeliveries.length } })
+      .then((res: any) => {
+        if ((res?.data?.myDeliveries?.length ?? 0) < 20) setHasMoreMy(false);
+      })
+      .catch(() => {});
+  }, [hasMoreMy, myDeliveries.length, fetchMoreMy]);
 
   // Background location tracking for active delivery
   const activeDeliveryForTracking = useMemo(() => {
@@ -482,7 +599,7 @@ export default function DeliveriesScreen() {
 
   useDeliveryTracking(activeDeliveryForTracking);
 
-  async function handleAccept(orderId: string, orderNumber: string) {
+  const handleAccept = useCallback(async (orderId: string, orderNumber: string) => {
     if (actionLoading) return;
     devLog(`[APP-ACCEPT] orderId=${orderId}, orderNumber=${orderNumber}`);
     if (!paymentConnected) {
@@ -526,9 +643,9 @@ export default function DeliveriesScreen() {
         },
       },
     ]);
-  }
+  }, [actionLoading, paymentConnected, alert, acceptDelivery, refetchAvailable, refetchMy]);
 
-  async function handleConfirmPickup(deliveryId: string, order?: any) {
+  const handleConfirmPickup = useCallback(async (deliveryId: string, order?: any) => {
     if (actionLoading) return;
     devLog(`[APP-PICKUP] deliveryId=${deliveryId}, orderNumber=${order?.orderNumber || '?'}`);
     alert('Confirmar coleta', 'Voce ja retirou o pedido na loja?', [
@@ -563,9 +680,9 @@ export default function DeliveriesScreen() {
         },
       },
     ]);
-  }
+  }, [actionLoading, alert, confirmPickup, refetchMy]);
 
-  async function handleConfirmDelivery(deliveryId: string) {
+  const handleConfirmDelivery = useCallback(async (deliveryId: string) => {
     if (actionLoading) return;
     devLog(`[APP-DELIVERY] deliveryId=${deliveryId}`);
     alert('Confirmar entrega', 'O pedido foi entregue ao cliente?', [
@@ -590,7 +707,7 @@ export default function DeliveriesScreen() {
         },
       },
     ]);
-  }
+  }, [actionLoading, alert, confirmDeliveryMut, refetchMy, refetchAvailable]);
 
   const renderAvailableOrder = useCallback(({ item }: { item: any }) => {
     return (
@@ -626,7 +743,7 @@ export default function DeliveriesScreen() {
         <View style={styles.itemsList}>
           {item.items.map((oi: any) => (
             <Text key={oi.id} style={[styles.itemText, { color: colors.textLight }]}>
-              {oi.quantity}x {oi.product.name}
+              {oi.quantity}x {oi.product?.name || 'Produto removido'}
             </Text>
           ))}
         </View>
@@ -646,26 +763,8 @@ export default function DeliveriesScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Countdown timer bar */}
-        {(() => {
-          const started = offerTimersRef.current[item.id] || Date.now();
-          const elapsed = Math.min((Date.now() - started) / 1000, 60);
-          const remaining = Math.max(0, 60 - elapsed);
-          const progress = remaining / 60;
-          const barColor = remaining <= 10 ? colors.danger : remaining <= 30 ? colors.warning : colors.primary;
-          return (
-            <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={{ flex: 1, height: 4, backgroundColor: colors.grayLight, borderRadius: 2, overflow: 'hidden' }}>
-                  <View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: barColor, borderRadius: 2 }} />
-                </View>
-                <Text style={{ fontSize: fonts.tiny, color: barColor, fontWeight: '600', minWidth: 28 }}>
-                  {Math.ceil(remaining)}s
-                </Text>
-              </View>
-            </View>
-          );
-        })()}
+        {/* Countdown timer bar — auto-ticante, so a barra re-renderiza (F3) */}
+        <OfferCountdownBar startedAt={offerTimersRef.current[item.id] || Date.now()} colors={colors} />
       </View>
     );
   }, [colors, actionLoading, handleAccept]);
@@ -731,7 +830,7 @@ export default function DeliveriesScreen() {
             <View style={styles.itemsList}>
               {order.items.map((oi: any) => (
                 <Text key={oi.id} style={[styles.itemText, { color: colors.textLight }]}>
-                  {oi.quantity}x {oi.product.name}
+                  {oi.quantity}x {oi.product?.name || 'Produto removido'}
                 </Text>
               ))}
             </View>
@@ -774,33 +873,23 @@ export default function DeliveriesScreen() {
           </>
         )}
 
-        {!isActive && (() => {
-          const receipt = getReceiptStatus(order);
-          return (
-            <View style={styles.completedSection}>
-              <View style={styles.completedInfo}>
-                <Text style={[styles.completedText, { color: colors.textLight }]}>
-                  {order.customer?.name ? `${order.customer.name} • ` : ''}{order.items.length} {order.items.length === 1 ? 'item' : 'itens'} - R$ {Number(order.total).toFixed(2)}
-                </Text>
-                <Text style={[styles.completedDate, { color: colors.gray }]}>
-                  {new Date(item.deliveredAt).toLocaleDateString('pt-BR')}
-                </Text>
-              </View>
-              <View style={[styles.receiptBadge, { backgroundColor: receipt.color + '15' }]}>
-                <Ionicons name={receipt.icon as any} size={16} color={receipt.color} />
-                <Text style={[styles.receiptText, { color: receipt.color }]}>{receipt.label}</Text>
-              </View>
-              {receipt.detail && (
-                <Text style={[styles.receiptDetail, { color: colors.textLight }]}>
-                  Motivo: {receipt.detail}
-                </Text>
-              )}
+        {!isActive && (
+          <View style={styles.completedSection}>
+            <View style={styles.completedInfo}>
+              <Text style={[styles.completedText, { color: colors.textLight }]}>
+                {order.customer?.name ? `${order.customer.name} • ` : ''}{order.items.length} {order.items.length === 1 ? 'item' : 'itens'} - R$ {Number(order.total).toFixed(2)}
+              </Text>
+              <Text style={[styles.completedDate, { color: colors.gray }]}>
+                {new Date(item.deliveredAt).toLocaleDateString('pt-BR')}
+              </Text>
             </View>
-          );
-        })()}
+            {/* Badge auto-ticante — so ele re-renderiza durante a espera (F3) */}
+            <ReceiptStatusBadge order={order} colors={colors} styles={styles} />
+          </View>
+        )}
       </TouchableOpacity>
     );
-  }, [colors, statusLabels, actionLoading, currentLocation, handleConfirmPickup, handleConfirmDelivery, setClientLocation, getReceiptStatus]);
+  }, [colors, statusLabels, actionLoading, currentLocation, handleConfirmPickup, handleConfirmDelivery]);
 
   const isAvailableTab = tab === 'available';
 
@@ -1004,10 +1093,7 @@ export default function DeliveriesScreen() {
           data={availableOrders}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          removeClippedSubviews
-          maxToRenderPerBatch={6}
-          windowSize={5}
-          initialNumToRender={4}
+          {...listPerfProps}
           refreshControl={<RefreshControl refreshing={loadingAvailable} onRefresh={refetchAvailable} />}
           renderItem={renderAvailableOrder}
           ListEmptyComponent={
@@ -1076,13 +1162,12 @@ export default function DeliveriesScreen() {
         />
       ) : (
         <FlatList
-          data={[...activeDeliveries, ...completedDeliveries]}
+          data={myListData}
+          onEndReached={loadMoreMy}
+          onEndReachedThreshold={0.4}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          removeClippedSubviews
-          maxToRenderPerBatch={6}
-          windowSize={5}
-          initialNumToRender={4}
+          {...listPerfProps}
           refreshControl={<RefreshControl refreshing={loadingMy} onRefresh={refetchMy} />}
           renderItem={renderMyDelivery}
           ListEmptyComponent={

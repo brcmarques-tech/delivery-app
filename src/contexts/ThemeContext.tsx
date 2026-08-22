@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { Appearance } from 'react-native';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react';
+import { Appearance, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LightSensor } from 'expo-sensors';
 
@@ -68,6 +68,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>('system');
   const [systemDark, setSystemDark] = useState(Appearance.getColorScheme() === 'dark');
   const [sensorDark, setSensorDark] = useState<boolean | null>(null);
+  // Perf/bateria: quando o app esta em background nao adianta ler o sensor de luz.
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
   const lastSensorSwitch = useRef(0);
 
   // Carregar preferência salva
@@ -87,9 +89,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => listener.remove();
   }, []);
 
-  // Sensor de luminosidade (só no modo system)
+  // Acompanhar foreground/background pra pausar o sensor de luz.
   useEffect(() => {
-    if (mode !== 'system') return;
+    const sub = AppState.addEventListener('change', (state) => {
+      setAppActive(state === 'active');
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Sensor de luminosidade (só no modo system E com o app em foreground).
+  // Bateria: antes o listener rodava a cada 5s mesmo com o app em background.
+  useEffect(() => {
+    if (mode !== 'system' || !appActive) return;
 
     let subscription: any = null;
 
@@ -115,7 +126,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => {
       if (subscription) subscription.remove();
     };
-  }, [mode]);
+  }, [mode, appActive]);
 
   // Determinar se é dark
   let isDark: boolean;
@@ -128,22 +139,29 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     isDark = sensorDark !== null ? sensorDark : systemDark;
   }
 
-  function setMode(newMode: ThemeMode) {
+  const setMode = useCallback((newMode: ThemeMode) => {
     setModeState(newMode);
     AsyncStorage.setItem('themeMode', newMode);
     if (newMode !== 'system') {
       setSensorDark(null); // reset sensor ao sair do modo system
     }
-  }
+  }, []);
 
   // toggleTheme cicla: system -> dark -> light -> system
-  function toggleTheme() {
+  const toggleTheme = useCallback(() => {
     const next: ThemeMode = mode === 'system' ? 'dark' : mode === 'dark' ? 'light' : 'system';
     setMode(next);
-  }
+  }, [mode, setMode]);
+
+  // Perf: value memoizado. ThemeProvider e o provider mais externo e `colors` e
+  // consumido por praticamente toda tela — sem isso, cada render do provider
+  // (troca de tema, sensor de luz) re-renderizava o app inteiro.
+  const value = useMemo<ThemeContextData>(() => ({
+    isDark, mode, setMode, toggleTheme, colors: isDark ? darkColors : lightColors,
+  }), [isDark, mode, setMode, toggleTheme]);
 
   return (
-    <ThemeContext.Provider value={{ isDark, mode, setMode, toggleTheme, colors: isDark ? darkColors : lightColors }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

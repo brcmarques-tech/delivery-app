@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking, ActivityIndicator, Alert, Modal, TextInput, Share } from 'react-native';
 import { Image } from 'expo-image';
 import * as Clipboard from 'expo-clipboard';
@@ -31,6 +31,14 @@ const statusSteps = [
 
 const terminalStatuses = ['REJECTED', 'DISPUTED', 'CANCELLED', 'EXPIRED'];
 
+// BUGFIX: `DELIVERED` e um status valido e ate tratado em outros pontos da tela,
+// mas nao existia em statusSteps nem em terminalStatuses — o indice do passo
+// atual dava -1 e TODO o rastreador aparecia cinza, como se nada tivesse
+// acontecido. Mapeamos para o mesmo passo de "Entregue".
+const STATUS_EQUIVALENTE: Record<string, string> = {
+  DELIVERED: 'DELIVERER_CONFIRMED_DELIVERY',
+};
+
 const denyReasonOptions = [
   'Pedido não chegou',
   'Pedido incompleto',
@@ -39,23 +47,38 @@ const denyReasonOptions = [
   'Outro',
 ];
 
+// Perf (F3): module scope — era recriado a cada render do componente (que
+// re-renderiza 1x/segundo durante countdowns), como o denyReasonOptions acima.
+const disputeReasonOptions = [
+  'Pedido não chegou',
+  'Pedido incompleto',
+  'Pedido errado',
+  'Produto danificado',
+  'Produto com defeito',
+  'Outro',
+];
+
 export default function OrderDetailScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data, loading, refetch } = useQuery(GET_ORDER, {
+  const { data, loading, error, refetch } = useQuery(GET_ORDER, {
     variables: { id },
     fetchPolicy: 'cache-and-network',
   });
 
-  // Real-time updates for this order
+  // Real-time updates for this order. skip: !id — sem isto a subscription abria
+  // com orderId undefined e mantinha uma operação WS autenticada viva mesmo sem
+  // id/pós-expiração de sessão (mesmo padrão do fix KAN-238 nas outras telas).
   useSubscription(ORDER_UPDATED, {
+    skip: !id,
     variables: { orderId: id },
     onData: ({ data: subData }) => { devLog('[SUB] orderUpdated received:', subData?.data?.orderUpdated?.status); refetch(); },
     onError: (err) => { devLog('[SUB] orderUpdated error:', err?.message); },
   });
   useSubscription(DELIVERY_UPDATED, {
+    skip: !id,
     variables: { orderId: id },
     onData: () => { refetch(); },
   });
@@ -106,30 +129,58 @@ export default function OrderDetailScreen() {
 
   // Auto-open PIX modal when arriving at order with pending PIX payment
   // H5: Calculate PIX expiry from order creation time (30 min from creation, matching API's 30-minute expiry)
+  // Segundos restantes do PIX, sempre calculados a partir da criacao do pedido.
+  const segundosRestantesPix = useCallback((): number => {
+    if (!order?.createdAt) return 0;
+    const passados = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 1000);
+    return Math.max(0, 1800 - passados);
+  }, [order?.createdAt]);
+
+  // BUGFIX: o tempo restante so era calculado NESTE efeito, que depende de
+  // status/metodo/qrCode. Reabrir o modal reutilizava o valor velho — se ja
+  // tivesse zerado uma vez, cada toque em "Pagar com PIX" abria e fechava na
+  // hora com "gere um novo PIX", uma acao que o app NAO TEM (nao existe mutation
+  // de regerar). O pedido ficava impagavel. Agora o tempo e recalculado sempre e
+  // o modal so abre se ainda houver prazo.
   useEffect(() => {
     if (order?.status === 'AWAITING_PAYMENT' && order?.paymentMethod === 'PIX' && order?.pixQrCode) {
-      const pixExpiry = order.createdAt
-        ? Math.max(0, 1800 - Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 1000))
-        : 600;
-      setPixTimeLeft(pixExpiry);
-      setPixModalVisible(true);
+      const restante = segundosRestantesPix();
+      setPixTimeLeft(restante);
+      if (restante > 0) setPixModalVisible(true);
     }
-  }, [order?.status, order?.paymentMethod, order?.pixQrCode]);
+  }, [order?.status, order?.paymentMethod, order?.pixQrCode, segundosRestantesPix]);
 
   // PIX countdown timer (10 min)
+  // Perf (F3): deps eram [pixModalVisible, pixTimeLeft] — como pixTimeLeft muda a
+  // cada segundo, o interval era DESTRUIDO e RECRIADO a cada tick. Com o updater
+  // funcional cuidando do valor, basta depender da visibilidade do modal.
   useEffect(() => {
-    if (!pixModalVisible || pixTimeLeft <= 0) return;
+    if (!pixModalVisible) return;
     const timer = setInterval(() => {
-      setPixTimeLeft((prev) => {
-        if (prev <= 1) {
-          setPixModalVisible(false);
-          Alert.alert('PIX expirado', 'O tempo para pagamento expirou. Gere um novo PIX.');
-          return 0;
-        }
-        return prev - 1;
-      });
+      // BUGFIX: os efeitos colaterais (fechar modal + Alert) estavam DENTRO do
+      // updater do setState — em StrictMode/concorrencia o updater pode rodar
+      // duas vezes e o alerta aparecia em dobro. Agora o updater so calcula.
+      // BUGFIX: o contador decrementava 1 por TICK, em vez de recalcular pelo
+      // relogio. Timers JS nao disparam com o app em background — exatamente o
+      // que acontece quando o cliente vai ao app do banco pagar. Ele voltava 20
+      // minutos depois e o modal ainda mostrava ~24 min restantes de um PIX ja
+      // expirado; e como o fechamento depende de pixTimeLeft chegar a 0, o modal
+      // nunca fechava e ele colava um QR morto. A funcao correta ja existia e so
+      // era usada ao ABRIR o modal.
+      setPixTimeLeft(segundosRestantesPix());
     }, 1000);
     return () => clearInterval(timer);
+  }, [pixModalVisible, segundosRestantesPix]);
+
+  // Fecha o modal quando o contador zera (o efeito colateral saiu do updater).
+  useEffect(() => {
+    if (pixModalVisible && pixTimeLeft === 0) {
+      setPixModalVisible(false);
+      Alert.alert(
+        'PIX expirado',
+        'O prazo deste PIX terminou. Faça o pedido novamente para gerar um novo código.',
+      );
+    }
   }, [pixModalVisible, pixTimeLeft]);
 
   const handleCopyPixCode = async () => {
@@ -188,25 +239,39 @@ export default function OrderDetailScreen() {
     }
   };
 
+  // Frontend#1: guarda síncrona de duplo-toque. `disabled={pickingUp}` atualiza o
+  // estado um render depois — um duplo-toque rápido disparava confirmPickup/
+  // confirmDelivery duas vezes; a 2ª batia numa transição inválida e mostrava um
+  // "Nao foi possivel confirmar" falso sobre uma ação que na verdade deu certo.
+  const confirmingRef = useRef(false);
+
   const handleConfirmPickup = async () => {
     if (!order?.delivery?.id) return;
+    if (confirmingRef.current) return;
+    confirmingRef.current = true;
     try {
       await confirmPickup({ variables: { deliveryId: order.delivery.id } });
       Alert.alert('Confirmado!', 'Retirada confirmada.');
       refetch();
     } catch (err: any) {
       Alert.alert('Erro', err.message);
+    } finally {
+      confirmingRef.current = false;
     }
   };
 
   const handleConfirmDelivery = async () => {
     if (!order?.delivery?.id) return;
+    if (confirmingRef.current) return;
+    confirmingRef.current = true;
     try {
       await confirmDelivery({ variables: { deliveryId: order.delivery.id } });
       Alert.alert('Confirmado!', 'Entrega confirmada.');
       refetch();
     } catch (err: any) {
       Alert.alert('Erro', err.message);
+    } finally {
+      confirmingRef.current = false;
     }
   };
 
@@ -239,15 +304,6 @@ export default function OrderDetailScreen() {
     );
   };
 
-  const disputeReasonOptions = [
-    'Pedido não chegou',
-    'Pedido incompleto',
-    'Pedido errado',
-    'Produto danificado',
-    'Produto com defeito',
-    'Outro',
-  ];
-
   const handleDisputeCompleted = async () => {
     const reason = selectedDisputeReason === 'Outro' ? customDisputeReason.trim() : selectedDisputeReason;
     if (!reason) {
@@ -270,6 +326,36 @@ export default function OrderDetailScreen() {
   const canDisputeCompleted = order?.status === 'COMPLETED' && order?.completedAt && !isDeliverer &&
     (Date.now() - new Date(order.completedAt).getTime()) < 48 * 60 * 60 * 1000;
 
+  // BUGFIX: `error` nunca era lido. Numa falha do GET_ORDER (offline, token
+  // expirado, id invalido) `loading` vira false com `order` undefined e a tela
+  // ficava presa em "Carregando..." PARA SEMPRE — sem mensagem, sem retry e sem
+  // botao de voltar (o header e global com headerShown:false). E e exatamente
+  // para ca que o checkout navega logo apos criar o pedido.
+  if (!loading && (error || !order)) {
+    return (
+      <View style={[styles.loading, { backgroundColor: colors.background }]}>
+        <Ionicons name="receipt-outline" size={48} color={colors.grayLight} />
+        <Text style={{ color: colors.text, marginTop: 12, textAlign: 'center' }}>
+          Nao foi possivel carregar este pedido
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+          <TouchableOpacity
+            style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary }}
+            onPress={() => refetch()}
+          >
+            <Text style={{ color: '#FFF', fontWeight: '600' }}>Tentar de novo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.grayLight }}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/orders'))}
+          >
+            <Text style={{ color: colors.text, fontWeight: '600' }}>Voltar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   if (loading || !order) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
@@ -280,7 +366,8 @@ export default function OrderDetailScreen() {
 
   const isAwaitingPayment = order.status === 'AWAITING_PAYMENT';
   const isTerminal = terminalStatuses.includes(order.status);
-  const currentStepIndex = statusSteps.findIndex((s) => s.key === order.status);
+  const statusParaPasso = STATUS_EQUIVALENTE[order.status] ?? order.status;
+  const currentStepIndex = statusSteps.findIndex((s) => s.key === statusParaPasso);
 
   // ETA calculation
   const etaMinutes = order.estimatedDeliveryEta
@@ -317,7 +404,19 @@ export default function OrderDetailScreen() {
       {isAwaitingPayment && order.paymentMethod === 'PIX' && order.pixQrCode && (
         <TouchableOpacity
           style={[styles.payButton, { backgroundColor: '#00B4D8' }]}
-          onPress={() => setPixModalVisible(true)}
+          onPress={() => {
+            // Recalcula na hora do toque (ver BUGFIX acima).
+            const restante = segundosRestantesPix();
+            setPixTimeLeft(restante);
+            if (restante <= 0) {
+              Alert.alert(
+                'PIX expirado',
+                'O prazo deste PIX terminou. Faça o pedido novamente para gerar um novo código.',
+              );
+              return;
+            }
+            setPixModalVisible(true);
+          }}
         >
           <Ionicons name="qr-code-outline" size={18} color="#FFFFFF" />
           <Text style={[styles.payButtonText, { color: '#FFFFFF' }]}>Pagar com PIX</Text>
@@ -407,6 +506,24 @@ export default function OrderDetailScreen() {
         </View>
       )}
 
+      {/* CANCELLED era o UNICO status terminal sem banner — REJECTED, DISPUTED e
+          EXPIRED tinham. Como o tracker fica oculto em terminais, o cliente
+          abria um pedido cancelado e via so itens, endereco e total, sem
+          nenhuma indicacao de estado nem do estorno. */}
+      {order.status === 'CANCELLED' && (
+        <View style={[styles.terminalBanner, { backgroundColor: isDark ? '#3A1A1A' : '#F8D7DA' }]}>
+          <Ionicons name="close-circle-outline" size={18} color={colors.danger} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.terminalBannerTitle, { color: isDark ? '#FCA5A5' : '#721C24' }]}>Pedido cancelado</Text>
+            <Text style={[styles.terminalBannerSub, { color: isDark ? '#FCA5A5' : '#721C24' }]}>
+              {order.paymentMethod === 'ON_DELIVERY'
+                ? 'Nenhuma cobrança foi feita.'
+                : 'O estorno será processado no seu meio de pagamento em até 7 dias úteis.'}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Status tracker - only show for non-terminal statuses */}
       {!isTerminal && (
         <View style={[styles.statusContainer, { backgroundColor: colors.card }]}>
@@ -477,7 +594,7 @@ export default function OrderDetailScreen() {
           >
             <Ionicons name="call" size={18} color={colors.primary} />
           </TouchableOpacity>
-          {order.delivery.currentLatitude && order.deliveryLatitude && (
+          {order.delivery.currentLatitude && order.delivery.currentLongitude && order.deliveryLatitude && order.deliveryLongitude && (
             <TouchableOpacity
               style={styles.callButton}
               onPress={() => Linking.openURL(`https://www.google.com/maps/dir/${order.delivery.currentLatitude},${order.delivery.currentLongitude}/${order.deliveryLatitude},${order.deliveryLongitude}`)}
@@ -538,8 +655,15 @@ export default function OrderDetailScreen() {
               Confirme em {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
             </Text>
           )}
+          {/* KAN-255: o texto era "Confirmando automaticamente...", mas nao ha
+              nenhuma acao disparada no cliente ao zerar — a confirmacao
+              automatica e do servidor. Se o servidor nao confirmasse, o texto
+              mentia indefinidamente. Trocado por uma formulacao passiva e
+              honesta sobre quem faz a acao. */}
           {timeLeft === 0 && (
-            <Text style={[styles.confirmTimer, { color: colors.primary }]}>Confirmando automaticamente...</Text>
+            <Text style={[styles.confirmTimer, { color: colors.primary }]}>
+              Aguardando confirmação automática do sistema...
+            </Text>
           )}
           <TouchableOpacity
             style={[styles.confirmButton, { backgroundColor: colors.success }]}
@@ -634,7 +758,7 @@ export default function OrderDetailScreen() {
       </View>
 
       {/* Cancel button - PENDING or ACCEPTED (before PREPARING) */}
-      {(order.status === 'PENDING' || order.status === 'ACCEPTED') && !isDeliverer && (
+      {(order.status === 'AWAITING_PAYMENT' || order.status === 'PENDING' || order.status === 'ACCEPTED') && !isDeliverer && (
         <TouchableOpacity
           style={[styles.cancelButton, { borderColor: colors.danger }]}
           onPress={handleCancelOrder}
