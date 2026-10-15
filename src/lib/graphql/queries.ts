@@ -1,8 +1,26 @@
 import { gql } from '@apollo/client';
 
+// Perf (F6): a vitrine de lojas era SEM argumento — baixava a tabela de lojas
+// ativas inteira e a tela filtrava tudo no cliente (nome, tipo, aberto, frete
+// gratis). Agora os filtros e a paginacao vao para o servidor. Todos os
+// argumentos sao opcionais; sem nenhum, a resposta e a de antes.
 export const GET_STORES = gql`
-  query Stores {
-    stores {
+  query Stores(
+    $limit: Int
+    $offset: Int
+    $search: String
+    $storeType: String
+    $onlyOpen: Boolean
+    $onlyFreeDelivery: Boolean
+  ) {
+    stores(
+      limit: $limit
+      offset: $offset
+      search: $search
+      storeType: $storeType
+      onlyOpen: $onlyOpen
+      onlyFreeDelivery: $onlyFreeDelivery
+    ) {
       id
       name
       description

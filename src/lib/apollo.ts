@@ -165,6 +165,13 @@ const cache = new InMemoryCache({
         myAppointments: { keyArgs: false, merge: offsetMerge },
         // Perf (F5/F6): uma lista por (loja, busca); paginas encaixam por offset.
         storeProducts: { keyArgs: ['storeId', 'search', 'categoryId'], merge: offsetMerge },
+        // Perf (F6): uma lista por combinacao de filtro. A vitrine paginada da aba
+        // de busca e a busca de lojas do autocomplete sao a MESMA query com
+        // variaveis diferentes — sem keyArgs elas se sobrescreveriam no cache.
+        stores: {
+          keyArgs: ['search', 'storeType', 'onlyOpen', 'onlyFreeDelivery'],
+          merge: offsetMerge,
+        },
         availableDeliveries: { merge: (_existing, incoming) => incoming },
         storeOrders: { merge: (_existing, incoming) => incoming },
         popularProducts: { merge: (_existing, incoming) => incoming },

@@ -72,6 +72,9 @@ const SERVICE_CATEGORIES = [
 // de produto — categorias de servico (outros icones) nao passavam.
 type CategoryType = CategoryItem;
 
+// Perf (F6): tamanho da pagina da vitrine de lojas e da busca de lojas.
+const PAGINA_LOJAS = 20;
+
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -87,7 +90,33 @@ export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
 
-  const { data: storesData } = useQuery(GET_STORES);
+  // O servidor le `storeType` nulo como PRODUCTS, igual a tela fazia com
+  // `s.storeType || 'PRODUCTS'`.
+  const tipoDaAba = activeTab === 'products' ? 'PRODUCTS' : 'SERVICES';
+
+  // Perf (F6): a vitrine agora vem paginada e filtrada por tipo NO SERVIDOR.
+  // Antes esta query baixava a tabela de lojas ativas inteira e a tela fazia
+  // todo o resto no cliente — cada loja nova entrava na carga de todo mundo,
+  // para sempre.
+  const { data: storesData, fetchMore: fetchMoreStores } = useQuery(GET_STORES, {
+    variables: { storeType: tipoDaAba, limit: PAGINA_LOJAS, offset: 0 },
+  });
+
+  // Busca de lojas do autocomplete: query propria, com os MESMOS criterios que o
+  // filtro client-side aplicava (nome ou descricao, tipo da aba, e o chip de
+  // "aberto" / "frete gratis"). O `skip` enquanto nao ha termo reproduz o antigo
+  // `if (!debouncedQuery) return false`.
+  const { data: buscaLojasData } = useQuery(GET_STORES, {
+    variables: {
+      search: debouncedQuery,
+      storeType: tipoDaAba,
+      onlyOpen: activeFilter === 'open' ? true : undefined,
+      onlyFreeDelivery: activeFilter === 'free_delivery' ? true : undefined,
+      limit: PAGINA_LOJAS,
+      offset: 0,
+    },
+    skip: !debouncedQuery,
+  });
   const { data: promosData } = useQuery(GET_ACTIVE_PROMOTIONS);
   const [searchProducts, { data: productsData, loading: productsLoading }] = useLazyQuery(SEARCH_PRODUCTS);
   const [searchServices, { data: servicesData, loading: servicesLoading }] = useLazyQuery(SEARCH_SERVICES);
@@ -183,34 +212,38 @@ export default function SearchScreen() {
   // Agora cada derivado so recalcula quando seus inputs reais mudam, e os sorts
   // operam sobre copia dentro do useMemo (nada de mutacao durante o render).
 
-  // Stores split by type
-  const allStores = useMemo(() => storesData?.stores || [], [storesData?.stores]);
-  const productStores = useMemo(
-    () => allStores
-      .filter((s: any) => !s.storeType || s.storeType === 'PRODUCTS')
-      .sort((a: any, b: any) => a.name.localeCompare(b.name)),
-    [allStores],
-  );
-  const serviceStores = useMemo(
-    () => allStores
-      .filter((s: any) => s.storeType === 'SERVICES')
-      .sort((a: any, b: any) => a.name.localeCompare(b.name)),
-    [allStores],
-  );
+  // Perf (F6): a lista ja vem do servidor filtrada pelo tipo da aba e na ordem do
+  // ranking pago — o servidor rankeia o conjunto INTEIRO e devolve o recorte,
+  // entao paginar nao mexe em QUAL loja aparece primeiro. Isso e regra comercial
+  // (ver KAN-281), nao detalhe de implementacao, e por isso nao virou ORDER BY.
+  // Nao ha mais filtro nem sort de loja no cliente.
+  const idleStores = useMemo(() => storesData?.stores || [], [storesData?.stores]);
+
+  // Perf (F6): paginacao por scroll da vitrine. Mesmo padrao das outras telas
+  // (orders/deliveries/loja): o fim da lista vem do TAMANHO DA ULTIMA PAGINA
+  // recebida, nunca de `length % PAGINA === 0` — essa inferencia quebra quando a
+  // lista encolhe e faz requisicao infinita quando o total e multiplo exato.
+  const [temMaisLojas, setTemMaisLojas] = useState(true);
+  // Trocar de aba troca o conjunto: a paginacao recomeca.
+  useEffect(() => { setTemMaisLojas(true); }, [activeTab]);
+
+  const carregarMaisLojas = useCallback(() => {
+    if (!temMaisLojas || idleStores.length === 0) return;
+    fetchMoreStores({
+      variables: { storeType: tipoDaAba, limit: PAGINA_LOJAS, offset: idleStores.length },
+    })
+      .then((res: any) => {
+        if ((res?.data?.stores?.length ?? 0) < PAGINA_LOJAS) setTemMaisLojas(false);
+      })
+      .catch(() => {});
+  }, [temMaisLojas, idleStores.length, fetchMoreStores, tipoDaAba]);
 
   // Filter stores for search (by active tab context)
-  const filteredStores = useMemo(() => allStores.filter((s: any) => {
-    if (!debouncedQuery) return false;
-    const storeType = s.storeType || 'PRODUCTS';
-    if (activeTab === 'products' && storeType !== 'PRODUCTS') return false;
-    if (activeTab === 'services' && storeType !== 'SERVICES') return false;
-    const matchesQuery = s.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-      (s.description || '').toLowerCase().includes(debouncedQuery.toLowerCase());
-    if (!matchesQuery) return false;
-    if (activeFilter === 'open') return s.isOpen;
-    if (activeFilter === 'free_delivery') return s.freeDelivery;
-    return true;
-  }).sort((a: any, b: any) => a.name.localeCompare(b.name)), [allStores, debouncedQuery, activeTab, activeFilter]);
+  // Perf (F6): o servidor ja devolve filtrado (nome/descricao, tipo, chip) e
+  // ordenado por nome — a mesma ordem que o .sort() daqui produzia. De brinde, a
+  // busca do servidor usa unaccent, igual a de produtos: "acai" passou a achar
+  // "Acai" com cedilha e til, o que o includes() cru nao achava.
+  const filteredStores = useMemo(() => buscaLojasData?.stores || [], [buscaLojasData?.stores]);
 
   // Filter products (ordenado aqui — o .sort() que existia no JSX foi removido)
   const allProducts = useMemo(() => productsData?.searchProducts || [], [productsData?.searchProducts]);
@@ -269,8 +302,6 @@ export default function SearchScreen() {
   const isSearching = debouncedQuery.length >= 2;
   const isCategoryMode = activeCategory !== null;
   const categoryItems = activeTab === 'products' ? filteredProducts : filteredServices;
-  // Lojas da aba ativa — dado do FlatList do idle (ver renderCategoriesGrid).
-  const idleStores = activeTab === 'products' ? productStores : serviceStores;
 
   // Perf (F4): o overlay de autocomplete era um ScrollView com tres .map
   // (lojas + produtos OU servicos). Com limit 100 em cada query davam ate ~200
@@ -711,10 +742,12 @@ export default function SearchScreen() {
               ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
               onScrollBeginDrag={() => { setShowRecent(false); }}
               {...listPerfProps}
+              onEndReached={carregarMaisLojas}
+              onEndReachedThreshold={0.4}
               ListHeaderComponent={
                 activeTab === 'products'
-                  ? renderCategoriesGrid(PRODUCT_CATEGORIES, productStores)
-                  : renderCategoriesGrid(SERVICE_CATEGORIES, serviceStores)
+                  ? renderCategoriesGrid(PRODUCT_CATEGORIES, idleStores)
+                  : renderCategoriesGrid(SERVICE_CATEGORIES, idleStores)
               }
               ListEmptyComponent={
                 activeTab === 'products'
