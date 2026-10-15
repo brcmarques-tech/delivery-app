@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { devLog } from '../src/lib/devLog'; // KAN-223
 import { fetchWithTimeout } from '../src/lib/fetchWithTimeout'; // KAN-240
+import { totalDaLinha } from '../src/lib/precoPorPeso'; // KAN-282 item 6
 import {
   View,
   Text,
@@ -128,12 +129,15 @@ export default function CheckoutScreen() {
     }
   }, [params.selectedItems]);
 
-  const subtotal = useMemo(() => checkoutItems.reduce((sum, item) => {
-    if (item.isVariableWeight) {
-      return sum + (item.price * (item.weightGrams || 0)) / 1000;
-    }
-    return sum + item.price * item.quantity;
-  }, 0), [checkoutItems]);
+  // KAN-282 (item 6): somava os valores CRUS enquanto o servidor arredonda cada
+  // item em centavos antes de somar. Com 2 itens de R$ 39,90/kg x 355 g a tela
+  // dizia R$ 28,33 e o pedido saia R$ 28,32 — e a reconciliacao do checkout so
+  // avisa acima de 1 centavo, entao a divergencia passava calada. Pior: as
+  // LINHAS da propria tela somavam 28,32 e o subtotal mostrava 28,33.
+  const subtotal = useMemo(
+    () => checkoutItems.reduce((sum, item) => sum + totalDaLinha(item), 0),
+    [checkoutItems],
+  );
 
   // C1: Double-tap prevention ref
   const submittingRef = useRef(false);
@@ -315,6 +319,33 @@ export default function CheckoutScreen() {
   const belowMinimum = effectiveMinimum > 0 && subtotal < effectiveMinimum;
 
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  // KAN-282 (ALTO): `coords` nao era invalidado quando o cliente editava o
+  // endereco a mao. Duas janelas reais: (a) durante o debounce de 1s do geocode
+  // o botao seguia habilitado com a coordenada do endereco ANTERIOR; (b) se o
+  // geocode do endereco novo falhasse, a coordenada velha ficava para sempre,
+  // sem aviso — e `handleCheckout` so re-geocodificava quando `coords` era null.
+  // Resultado: apagar o endereco de casa, digitar o do trabalho e tocar
+  // "Finalizar" dentro de ~1s criava o pedido com o TEXTO do trabalho e a
+  // COORDENADA de casa. O frete era calculado para casa e o entregador
+  // navegava para casa.
+  //
+  // O conserto nao e invalidar no onChangeText: qualquer caminho que mexa no
+  // texto (GPS, endereco salvo, endereco padrao) teria de lembrar de fazer isso.
+  // Em vez disso a coordenada passa a carregar O TEXTO QUE A ORIGINOU, e so vale
+  // enquanto os dois batem. Coordenada orfa deixa de existir por construcao.
+  const [enderecoDasCoords, setEnderecoDasCoords] = useState<string | null>(null);
+  const aplicarCoords = useCallback(
+    (c: { latitude: number; longitude: number } | null, enderecoDeOrigem: string | null) => {
+      setCoords(c);
+      setEnderecoDasCoords(c ? enderecoDeOrigem : null);
+    },
+    [],
+  );
+  // Derivado, nao estado: a checagem e SINCRONA. Com um efeito de invalidacao
+  // haveria um render em que o botao ainda estaria habilitado com a coordenada
+  // velha. Aqui nao existe esse quadro.
+  const coordsValidas =
+    coords && enderecoDasCoords !== null && enderecoDasCoords === address ? coords : null;
   const [locatingGps, setLocatingGps] = useState(false);
   const [showAddressPicker, setShowAddressPicker] = useState(false);
   const [addressLoaded, setAddressLoaded] = useState(false);
@@ -351,7 +382,10 @@ export default function CheckoutScreen() {
         && Math.abs(defaultAddr.latitude) > 0.01 && Math.abs(defaultAddr.longitude) > 0.01;
 
       if (hasValidCoords) {
-        setCoords({ latitude: defaultAddr.latitude, longitude: defaultAddr.longitude });
+        aplicarCoords(
+          { latitude: defaultAddr.latitude, longitude: defaultAddr.longitude },
+          parts.join(', '),
+        );
         if (storeId) {
           const vars = { storeId, customerLatitude: defaultAddr.latitude, customerLongitude: defaultAddr.longitude };
           calcFee({ variables: vars });
@@ -402,10 +436,15 @@ export default function CheckoutScreen() {
   // Geocode address
   useEffect(() => {
     if (!address.trim() || !storeId) return;
+    // KAN-282: o texto pelo qual estamos geocodificando, congelado aqui. Se o
+    // cliente digitar mais durante o await, o resultado que chegar fica
+    // emparelhado com o texto VELHO e `coordsValidas` o descarta sozinho — em
+    // vez de o resultado atrasado se passar pelo endereco novo.
+    const enderecoAlvo = address;
     const timer = setTimeout(async () => {
       let result: { latitude: number; longitude: number } | null = null;
       try {
-        const results = await Location.geocodeAsync(address);
+        const results = await Location.geocodeAsync(enderecoAlvo);
         if (results.length > 0) {
           const { latitude, longitude } = results[0];
           if (Math.abs(latitude) > 0.01 && Math.abs(longitude) > 0.01) {
@@ -413,16 +452,20 @@ export default function CheckoutScreen() {
           }
         }
       } catch {}
-      if (!result) result = await geocodeNominatim(address);
+      if (!result) result = await geocodeNominatim(enderecoAlvo);
       if (result) {
-        setCoords(result);
+        aplicarCoords(result, enderecoAlvo);
         const vars = { storeId, customerLatitude: result.latitude, customerLongitude: result.longitude };
         calcFee({ variables: vars });
         calcTime({ variables: vars });
       }
+      // Geocode falhou: nao ha o que aplicar. A coordenada antiga ja nao vale
+      // (o texto divergiu), entao o botao fica desabilitado e handleCheckout
+      // tenta de novo no toque, com a mensagem que ja existe. O que NAO acontece
+      // mais e o pedido sair com a coordenada do endereco anterior.
     }, 1000);
     return () => clearTimeout(timer);
-  }, [address, storeId]);
+  }, [address, storeId, aplicarCoords]);
 
   async function handleGetLocation() {
     setLocatingGps(true);
@@ -434,7 +477,13 @@ export default function CheckoutScreen() {
       }
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
       const { latitude, longitude } = current.coords;
-      setCoords({ latitude, longitude });
+      // KAN-282: aqui a coordenada e a fonte da verdade e o texto e derivado
+      // DELA pelo reverse geocode — o oposto do caminho da digitacao. Por isso o
+      // par so e fechado depois de saber o texto: com o texto novo quando o
+      // reverse responde, e com o texto atual quando ele falha (o pedido leva
+      // lat/lng de qualquer forma, e e por elas que o entregador navega). O que
+      // nao pode existir e um par meio-feito.
+      let textoDoGps: string | null = null;
       try {
         const results = await Location.reverseGeocodeAsync({ latitude, longitude });
         if (results.length > 0) {
@@ -442,9 +491,11 @@ export default function CheckoutScreen() {
           const city = r.city || r.subregion || '';
           const neighborhood = r.district && r.district !== city ? r.district : '';
           const parts = [r.street, r.streetNumber, neighborhood, city, r.region].filter(Boolean);
-          setAddress(parts.join(', '));
+          textoDoGps = parts.join(', ');
+          setAddress(textoDoGps);
         }
       } catch {}
+      aplicarCoords({ latitude, longitude }, textoDoGps ?? address);
       if (storeId) {
         const vars = { storeId, customerLatitude: latitude, customerLongitude: longitude };
         calcFee({ variables: vars });
@@ -518,14 +569,22 @@ export default function CheckoutScreen() {
         }
       }
 
-      let finalCoords = coords;
+      // KAN-282: parte de `coordsValidas`, nao de `coords`. Era exatamente aqui
+      // que a coordenada orfa vazava para o pedido: `coords` truthy pulava o
+      // re-geocode e seguia com a coordenada do endereco anterior.
+      let finalCoords = coordsValidas;
       if (!isPickup) {
         if (!finalCoords) {
           try {
             const results = await Location.geocodeAsync(address);
             if (results.length > 0) {
-              finalCoords = { latitude: results[0].latitude, longitude: results[0].longitude };
-              setCoords(finalCoords);
+              const { latitude, longitude } = results[0];
+              // Mesma guarda do (0,0) dos outros caminhos: o geocode devolve
+              // zero quando nao acha nada, e o objeto zerado e truthy.
+              if (Math.abs(latitude) > 0.01 && Math.abs(longitude) > 0.01) {
+                finalCoords = { latitude, longitude };
+                aplicarCoords(finalCoords, address);
+              }
             }
           } catch {}
         }
@@ -607,9 +666,7 @@ export default function CheckoutScreen() {
       <View style={styles.itemInfo}>
         <Text style={[styles.itemName, { color: colors.text }]}>{item.name}</Text>
         <Text style={[styles.itemPrice, { color: colors.primary }]}>
-          {item.isVariableWeight
-            ? `R$ ${((item.price * (item.weightGrams || 0)) / 1000).toFixed(2)}`
-            : `R$ ${(item.price * item.quantity).toFixed(2)}`}
+          R$ {totalDaLinha(item).toFixed(2)}
         </Text>
       </View>
       <Text style={[styles.itemQty, { color: colors.textLight }]}>
@@ -722,14 +779,17 @@ export default function CheckoutScreen() {
                               Math.abs(Number(addr.latitude) || 0) > 0.01 &&
                               Math.abs(Number(addr.longitude) || 0) > 0.01;
                             if (temCoordValida) {
-                              setCoords({ latitude: addr.latitude, longitude: addr.longitude });
+                              aplicarCoords(
+                                { latitude: addr.latitude, longitude: addr.longitude },
+                                parts.join(', '),
+                              );
                               if (storeId) {
                                 calcFee({ variables: { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude } });
                                 calcTime({ variables: { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude } });
                               }
                             } else {
                               // Deixa o efeito de geocodificacao resolver pelo texto.
-                              setCoords(null);
+                              aplicarCoords(null, null);
                             }
                             setShowAddressPicker(false);
                           }}
@@ -913,9 +973,9 @@ export default function CheckoutScreen() {
           O cliente confirmava um valor e o pedido era criado por outro — a
           conferencia so acontecia DEPOIS de o pedido ja existir. */}
       <TouchableOpacity
-        style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: colors.primary }, (loading || belowMinimum || (!isPickup && !coords) || (!isPickup && (feeLoading || !feeCalculated))) && styles.checkoutDisabled]}
+        style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: colors.primary }, (loading || belowMinimum || (!isPickup && !coordsValidas) || (!isPickup && (feeLoading || !feeCalculated))) && styles.checkoutDisabled]}
         onPress={() => handleCheckout()}
-        disabled={loading || belowMinimum || (!isPickup && !coords) || (!isPickup && (feeLoading || !feeCalculated))}
+        disabled={loading || belowMinimum || (!isPickup && !coordsValidas) || (!isPickup && (feeLoading || !feeCalculated))}
       >
         <Text style={styles.checkoutText}>
           {loading

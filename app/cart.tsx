@@ -19,6 +19,10 @@ import { AnimatedItem } from '../src/components/AnimatedItem';
 import { AnimatedListItem } from '../src/components/AnimatedListItem';
 import { AnimatedPressable } from '../src/components/AnimatedPressable';
 
+// KAN-282 (item 6): a soma crua do app divergia do servidor em centavos.
+// A formula do servidor agora vive em um lugar so.
+import { totalDaLinha } from '../src/lib/precoPorPeso';
+
 function formatWeight(grams: number) {
   if (grams >= 1000) {
     const kg = grams / 1000;
@@ -47,9 +51,7 @@ const CartRow = React.memo(function CartRow({
   onRemove: (id: string) => void;
   onEdit: (item: CartItem) => void;
 }) {
-  const itemTotal = item.isVariableWeight
-    ? (item.price * (item.weightGrams || 0)) / 1000
-    : item.price * item.quantity;
+  const itemTotal = totalDaLinha(item);
 
   const qtyLabel = item.isVariableWeight
     ? formatWeight(item.weightGrams || 0)
@@ -154,12 +156,7 @@ export default function CartScreen() {
   const selectedTotal = useMemo(() => {
     return items
       .filter((i) => selectedIds.has(i.id))
-      .reduce((sum, item) => {
-        if (item.isVariableWeight) {
-          return sum + (item.price * (item.weightGrams || 0)) / 1000;
-        }
-        return sum + item.price * item.quantity;
-      }, 0);
+      .reduce((sum, item) => sum + totalDaLinha(item), 0);
   }, [items, selectedIds]);
 
   const selectedCount = selectedIds.size;

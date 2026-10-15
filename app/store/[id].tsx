@@ -25,6 +25,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../src/theme';
 import { imageCachePolicy } from '../../src/lib/deviceTier'; // Perf (F0)
+import { precoPorPeso } from '../../src/lib/precoPorPeso'; // KAN-282 item 6
 
 // UX: fileira de chips de categoria com setinhas indicando que ha mais
 // conteudo para os lados. Componente isolado e memoizado de proposito: o
@@ -665,7 +666,10 @@ export default function StoreScreen() {
                   <Text style={styles.addModalButtonText}>Adicionar</Text>
                   {selectedProduct.isVariableWeight ? (
                     <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={styles.addModalButtonPrice}>R$ {((selectedPrice * weightGrams) / 1000).toFixed(2)}</Text>
+                      {/* KAN-282 (item 6): o preco previsto no botao tem de ser
+                          o MESMO que o servidor vai cobrar, senao o cliente ve
+                          um valor ao adicionar e outro no carrinho. */}
+                      <Text style={styles.addModalButtonPrice}>R$ {precoPorPeso(selectedPrice, weightGrams).toFixed(2)}</Text>
                       <Text style={[styles.addModalButtonPrice, { fontSize: 10, opacity: 0.85 }]}>(R$ {selectedPrice.toFixed(2)}/kg)</Text>
                     </View>
                   ) : (
