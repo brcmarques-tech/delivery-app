@@ -269,6 +269,133 @@ export default function SearchScreen() {
   const isSearching = debouncedQuery.length >= 2;
   const isCategoryMode = activeCategory !== null;
   const categoryItems = activeTab === 'products' ? filteredProducts : filteredServices;
+  // Lojas da aba ativa — dado do FlatList do idle (ver renderCategoriesGrid).
+  const idleStores = activeTab === 'products' ? productStores : serviceStores;
+
+  // Perf (F4): o overlay de autocomplete era um ScrollView com tres .map
+  // (lojas + produtos OU servicos). Com limit 100 em cada query davam ate ~200
+  // linhas montadas de uma vez, cada uma com imagem — na tela em que o usuario
+  // esta DIGITANDO, que e o pior lugar possivel para segurar a thread de JS.
+  //
+  // Para virtualizar com um FlatList so (e nao tres aninhados, que desligariam a
+  // virtualizacao), as tres secoes viram UMA lista heterogenea, com o tipo
+  // marcado em cada item. A ordem e a mesma de antes — lojas primeiro, depois
+  // produtos ou servicos conforme a aba — e as chaves tambem (store-/prod-/svc-),
+  // entao o indice do FlatList ja coincide com o stagger que o codigo antigo
+  // calculava a mao (filteredStores.length + index).
+  type ItemAutocomplete =
+    | { tipo: 'store'; key: string; dado: any }
+    | { tipo: 'product'; key: string; dado: any }
+    | { tipo: 'service'; key: string; dado: any };
+
+  const autocompleteItems = useMemo<ItemAutocomplete[]>(() => {
+    const lista: ItemAutocomplete[] = filteredStores.map((store: any) => ({
+      tipo: 'store' as const,
+      key: `store-${store.id}`,
+      dado: store,
+    }));
+    if (activeTab === 'products') {
+      for (const product of filteredProducts) {
+        lista.push({ tipo: 'product' as const, key: `prod-${product.id}`, dado: product });
+      }
+    } else {
+      for (const service of filteredServices) {
+        lista.push({ tipo: 'service' as const, key: `svc-${service.id}`, dado: service });
+      }
+    }
+    return lista;
+  }, [filteredStores, filteredProducts, filteredServices, activeTab]);
+
+  const renderAutocompleteItem = useCallback(
+    ({ item, index }: { item: ItemAutocomplete; index: number }) => {
+      if (item.tipo === 'store') {
+        const store = item.dado;
+        return (
+          <AnimatedListItem index={index}>
+            <AnimatedPressable
+              style={[styles.acItem, { backgroundColor: colors.card }]}
+              onPress={() => { setQuery(''); router.push(`/store/${store.id}`); }}
+            >
+              {store.logoUrl ? (
+                <Image source={store.logoUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
+              ) : (
+                <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
+                  <Ionicons name="storefront-outline" size={16} color={colors.gray} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{store.name}</Text>
+                <Text style={{ fontSize: fonts.tiny, color: colors.gray }}>
+                  {(store.storeType || 'PRODUCTS') === 'PRODUCTS' ? 'Loja' : 'Prestador'}
+                </Text>
+              </View>
+              <View style={[styles.acBadge, { backgroundColor: colors.primary + '20' }]}>
+                <Ionicons name="storefront" size={12} color={colors.primary} />
+              </View>
+            </AnimatedPressable>
+          </AnimatedListItem>
+        );
+      }
+
+      if (item.tipo === 'product') {
+        const product = item.dado;
+        const hasPromo = product.promotionalPrice && product.promotionalPrice < product.price;
+        return (
+          <AnimatedListItem index={index}>
+            <AnimatedPressable
+              style={[styles.acItem, { backgroundColor: colors.card }]}
+              onPress={() => { setQuery(''); router.push(`/store/${product.store?.id}`); }}
+            >
+              {product.imageUrl ? (
+                <Image source={product.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
+              ) : (
+                <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
+                  <Ionicons name="cube-outline" size={16} color={colors.gray} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{product.name}</Text>
+                <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{product.store?.name}</Text>
+              </View>
+              <Text style={{ fontSize: fonts.small, fontWeight: '700', color: hasPromo ? colors.success : colors.text }}>
+                R$ {Number(hasPromo ? product.promotionalPrice : product.price).toFixed(2)}
+              </Text>
+            </AnimatedPressable>
+          </AnimatedListItem>
+        );
+      }
+
+      const service = item.dado;
+      return (
+        <AnimatedListItem index={index}>
+          <AnimatedPressable
+            style={[styles.acItem, { backgroundColor: colors.card }]}
+            onPress={() => { setQuery(''); router.push(`/store/${service.store?.id}`); }}
+          >
+            {service.imageUrl ? (
+              <Image source={service.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
+            ) : (
+              <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
+                <Ionicons name="construct-outline" size={16} color={colors.gray} />
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{service.name}</Text>
+              <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{service.store?.name}</Text>
+            </View>
+            {service.requiresQuote ? (
+              <Text style={{ fontSize: fonts.tiny, color: colors.primary, fontWeight: '600' }}>Orcamento</Text>
+            ) : service.price ? (
+              <Text style={{ fontSize: fonts.small, fontWeight: '700', color: colors.text }}>
+                R$ {Number(service.price).toFixed(2)}
+              </Text>
+            ) : null}
+          </AnimatedPressable>
+        </AnimatedListItem>
+      );
+    },
+    [colors, router],
+  );
   const hasResults = activeTab === 'products'
     ? filteredStores.length > 0 || filteredProducts.length > 0 || matchingPromos.length > 0
     : filteredStores.length > 0 || filteredServices.length > 0;
@@ -323,7 +450,13 @@ export default function SearchScreen() {
     );
   }
 
-  function renderCategoriesAndStores(categories: CategoryItem[], stores: any[]) {
+  // Perf (F4): renderCategoriesAndStores montava TODAS as lojas da plataforma de
+  // uma vez (`stores.map`), cada card com logo, dentro de um ScrollView. Hoje sao
+  // dezenas; isso cresce com o cadastro e nunca encolhe, e e a primeira coisa que
+  // a aba de busca mostra. Foi quebrada em cabecalho + lista para a lista virar
+  // FlatList: a grade de categorias (10 itens fixos) e as promocoes (cortadas em
+  // 6) viram header e footer, e so as lojas virtualizam.
+  function renderCategoriesGrid(categories: CategoryItem[], stores: any[]) {
     return (
       <View>
         {/* Categories grid */}
@@ -342,30 +475,31 @@ export default function SearchScreen() {
           ))}
         </View>
 
-        {/* Stores list */}
+        {/* Titulo da lista — so quando ha loja para listar, como antes */}
         {stores.length > 0 && (
-          <View style={{ marginTop: 20, gap: 6 }}>
+          <View style={{ marginTop: 20 }}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               {categories === PRODUCT_CATEGORIES ? 'Lojas' : 'Prestadores'}
             </Text>
-            {stores.map((store: any, index: number) => renderStoreCard(store, index))}
           </View>
         )}
+      </View>
+    );
+  }
 
-        {stores.length === 0 && (
-          <View style={{ marginTop: 20, alignItems: 'center', gap: 6 }}>
-            <Ionicons
-              name={categories === PRODUCT_CATEGORIES ? 'storefront-outline' : 'construct-outline'}
-              size={40}
-              color={colors.gray}
-            />
-            <Text style={{ fontSize: fonts.small, color: colors.textLight, textAlign: 'center' }}>
-              {categories === PRODUCT_CATEGORIES
-                ? 'Nenhuma loja de produtos disponivel'
-                : 'Nenhum prestador de servicos disponivel'}
-            </Text>
-          </View>
-        )}
+  function renderSemLojas(categories: CategoryItem[]) {
+    return (
+      <View style={{ marginTop: 20, alignItems: 'center', gap: 6 }}>
+        <Ionicons
+          name={categories === PRODUCT_CATEGORIES ? 'storefront-outline' : 'construct-outline'}
+          size={40}
+          color={colors.gray}
+        />
+        <Text style={{ fontSize: fonts.small, color: colors.textLight, textAlign: 'center' }}>
+          {categories === PRODUCT_CATEGORIES
+            ? 'Nenhuma loja de produtos disponivel'
+            : 'Nenhum prestador de servicos disponivel'}
+        </Text>
       </View>
     );
   }
@@ -569,13 +703,26 @@ export default function SearchScreen() {
         ) : (
           <>
             {/* Idle: categories + stores + promos */}
-            <ScrollView contentContainerStyle={styles.idleContent} onScrollBeginDrag={() => { setShowRecent(false); }}>
-              {/* Categories + stores — based on active tab */}
-              {activeTab === 'products'
-                ? renderCategoriesAndStores(PRODUCT_CATEGORIES, productStores)
-                : renderCategoriesAndStores(SERVICE_CATEGORIES, serviceStores)
+            <FlatList
+              data={idleStores}
+              keyExtractor={(item: any) => item.id}
+              renderItem={({ item, index }) => renderStoreCard(item, index)}
+              contentContainerStyle={styles.idleList}
+              ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
+              onScrollBeginDrag={() => { setShowRecent(false); }}
+              {...listPerfProps}
+              ListHeaderComponent={
+                activeTab === 'products'
+                  ? renderCategoriesGrid(PRODUCT_CATEGORIES, productStores)
+                  : renderCategoriesGrid(SERVICE_CATEGORIES, serviceStores)
               }
-
+              ListEmptyComponent={
+                activeTab === 'products'
+                  ? renderSemLojas(PRODUCT_CATEGORIES)
+                  : renderSemLojas(SERVICE_CATEGORIES)
+              }
+              ListFooterComponent={
+                <View style={{ marginTop: 28 }}>
               {/* Promotions highlight */}
               {promotions.length > 0 && (
                 <View style={styles.section}>
@@ -616,116 +763,41 @@ export default function SearchScreen() {
                   </ScrollView>
                 </View>
               )}
-            </ScrollView>
+                </View>
+              }
+            />
 
             {/* Autocomplete overlay — only for text search without category */}
             {isSearching && (
               <View style={[styles.autocompleteOverlay, { backgroundColor: colors.background }]}>
-                <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 10 }}>
-                  {(productsLoading || servicesLoading) && (
+                <FlatList
+                  data={autocompleteItems}
+                  keyExtractor={(item) => item.key}
+                  renderItem={renderAutocompleteItem}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={{ padding: 10 }}
+                  {...listPerfProps}
+                  ListHeaderComponent={(productsLoading || servicesLoading) ? (
                     <View style={styles.loadingRow}>
                       <ActivityIndicator size="small" color={colors.primary} />
                       <Text style={[styles.loadingText, { color: colors.textLight }]}>Buscando...</Text>
                     </View>
-                  )}
-
-                  {/* Stores first (ja ordenadas no useMemo — sort no JSX mutava o array memoizado) */}
-                  {filteredStores.map((store: any, index: number) => (
-                    <AnimatedListItem key={`store-${store.id}`} index={index}>
-                    <AnimatedPressable
-                      style={[styles.acItem, { backgroundColor: colors.card }]}
-                      onPress={() => { setQuery(''); router.push(`/store/${store.id}`); }}
-                    >
-                      {store.logoUrl ? (
-                        <Image source={store.logoUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
-                      ) : (
-                        <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                          <Ionicons name="storefront-outline" size={16} color={colors.gray} />
+                  ) : null}
+                  ListEmptyComponent={
+                    /* Mesma condicao de antes: o estado vazio NAO aparece quando
+                       so promocoes casaram (hasResults inclui matchingPromos na
+                       aba de produtos, e promo nao entra nesta lista). */
+                    !(productsLoading || servicesLoading) && !hasResults && debouncedQuery.length >= 2 ? (
+                      <AnimatedItem delay={100} fromY={20}>
+                        <View style={styles.emptyContainer}>
+                          <Ionicons name="search-outline" size={56} color={colors.grayLight} />
+                          <Text style={[styles.emptyText, { color: colors.textLight }]}>Nenhum resultado para "{debouncedQuery}"</Text>
+                          <Text style={[styles.emptySubtext, { color: colors.gray }]}>Tente buscar com outras palavras</Text>
                         </View>
-                      )}
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{store.name}</Text>
-                        <Text style={{ fontSize: fonts.tiny, color: colors.gray }}>
-                          {(store.storeType || 'PRODUCTS') === 'PRODUCTS' ? 'Loja' : 'Prestador'}
-                        </Text>
-                      </View>
-                      <View style={[styles.acBadge, { backgroundColor: colors.primary + '20' }]}>
-                        <Ionicons name="storefront" size={12} color={colors.primary} />
-                      </View>
-                    </AnimatedPressable>
-                    </AnimatedListItem>
-                  ))}
-
-                  {/* Products (products tab) — ja ordenados no useMemo */}
-                  {activeTab === 'products' && filteredProducts
-                    .map((product: any, index: number) => {
-                      const hasPromo = product.promotionalPrice && product.promotionalPrice < product.price;
-                      return (
-                        <AnimatedListItem key={`prod-${product.id}`} index={filteredStores.length + index}>
-                        <AnimatedPressable
-                          style={[styles.acItem, { backgroundColor: colors.card }]}
-                          onPress={() => { setQuery(''); router.push(`/store/${product.store?.id}`); }}
-                        >
-                          {product.imageUrl ? (
-                            <Image source={product.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
-                          ) : (
-                            <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                              <Ionicons name="cube-outline" size={16} color={colors.gray} />
-                            </View>
-                          )}
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{product.name}</Text>
-                            <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{product.store?.name}</Text>
-                          </View>
-                          <Text style={{ fontSize: fonts.small, fontWeight: '700', color: hasPromo ? colors.success : colors.text }}>
-                            R$ {Number(hasPromo ? product.promotionalPrice : product.price).toFixed(2)}
-                          </Text>
-                        </AnimatedPressable>
-                        </AnimatedListItem>
-                      );
-                    })}
-
-                  {/* Services (services tab) — ja ordenados no useMemo */}
-                  {activeTab === 'services' && filteredServices
-                    .map((service: any, index: number) => (
-                      <AnimatedListItem key={`svc-${service.id}`} index={filteredStores.length + index}>
-                      <AnimatedPressable
-                        style={[styles.acItem, { backgroundColor: colors.card }]}
-                        onPress={() => { setQuery(''); router.push(`/store/${service.store?.id}`); }}
-                      >
-                        {service.imageUrl ? (
-                          <Image source={service.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
-                        ) : (
-                          <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                            <Ionicons name="construct-outline" size={16} color={colors.gray} />
-                          </View>
-                        )}
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{service.name}</Text>
-                          <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{service.store?.name}</Text>
-                        </View>
-                        {service.requiresQuote ? (
-                          <Text style={{ fontSize: fonts.tiny, color: colors.primary, fontWeight: '600' }}>Orcamento</Text>
-                        ) : service.price ? (
-                          <Text style={{ fontSize: fonts.small, fontWeight: '700', color: colors.text }}>
-                            R$ {Number(service.price).toFixed(2)}
-                          </Text>
-                        ) : null}
-                      </AnimatedPressable>
-                      </AnimatedListItem>
-                    ))}
-
-                  {/* Empty state */}
-                  {!(productsLoading || servicesLoading) && !hasResults && debouncedQuery.length >= 2 && (
-                    <AnimatedItem delay={100} fromY={20}>
-                    <View style={styles.emptyContainer}>
-                      <Ionicons name="search-outline" size={56} color={colors.grayLight} />
-                      <Text style={[styles.emptyText, { color: colors.textLight }]}>Nenhum resultado para "{debouncedQuery}"</Text>
-                      <Text style={[styles.emptySubtext, { color: colors.gray }]}>Tente buscar com outras palavras</Text>
-                    </View>
-                    </AnimatedItem>
-                  )}
-                </ScrollView>
+                      </AnimatedItem>
+                    ) : null
+                  }
+                />
               </View>
             )}
           </>
@@ -815,7 +887,11 @@ const styles = StyleSheet.create({
   },
 
   // Idle state
-  idleContent: { padding: 10, gap: 28 },
+  // Conteudo do idle. O ScrollView antigo usava `gap: 28` para separar os dois
+  // blocos (categorias+lojas e promocoes); com o FlatList (Perf F4) o
+  // espacamento entre cards vem do ItemSeparatorComponent (6, como era) e o dos
+  // blocos vem da margem do rodape (28, como era), entao aqui sobra o padding.
+  idleList: { padding: 10 },
   section: { gap: 6 },
   sectionTitle: { fontSize: fonts.large, fontWeight: '600' },
 
