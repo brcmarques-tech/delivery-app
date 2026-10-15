@@ -683,6 +683,10 @@ export const SIMULATE_ANTICIPATION = gql`
       anticipatedAmount
       fee
       feePercentage
+      # true = os valores NAO vieram do Pagar.me, sao estimativa nossa. A tela
+      # tem de deixar isso visivel: antes o numero estimado era exibido com a
+      # mesma cara de uma cotacao real.
+      isEstimate
     }
   }
 `;

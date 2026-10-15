@@ -139,9 +139,15 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
 
   async function handleAnticipate() {
     if (!sim) return;
+    // Quando os valores sao ESTIMATIVA nossa (o provedor nao respondeu a
+    // simulacao), a confirmacao nao pode prometer numero. Antes o texto dizia
+    // "Voce recebera R$ X" com um X que o nosso proprio codigo inventou.
+    const corpo = sim.isEstimate
+      ? `Nao conseguimos confirmar a taxa com o provedor agora.\n\nEstimativa: taxa de cerca de R$ ${sim.fee?.toFixed(2) || '0.00'} (~${sim.feePercentage || 0}%), voce receberia cerca de R$ ${sim.anticipatedAmount?.toFixed(2) || '0.00'}.\n\nO valor final e definido pelo provedor e pode ser diferente.`
+      : `Sera cobrada uma taxa de R$ ${sim.fee?.toFixed(2) || '0.00'} (~${sim.feePercentage || 0}%).\n\nVoce recebera R$ ${sim.anticipatedAmount?.toFixed(2) || '0.00'}.`;
     Alert.alert(
-      'Confirmar Antecipacao',
-      `Sera cobrada uma taxa de R$ ${sim.fee?.toFixed(2) || '0.00'} (~${sim.feePercentage || 0}%).\n\nVoce recebera R$ ${sim.anticipatedAmount?.toFixed(2) || '0.00'}.`,
+      sim.isEstimate ? 'Antecipacao (valores estimados)' : 'Confirmar Antecipacao',
+      corpo,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -259,6 +265,20 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             Receba seus valores pendentes agora, com uma pequena taxa.
           </Text>
 
+          {/* O servidor marca `isEstimate` quando nao conseguiu cotar com o
+              provedor e caiu numa estimativa de ~3,5% feita por nos. Sem este
+              aviso, o numero estimado aparecia identico a uma cotacao real — e
+              em destaque, no "Voce recebe". */}
+          {sim.isEstimate && (
+            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start', marginBottom: 12 }}>
+              <Ionicons name="alert-circle-outline" size={14} color="#f59e0b" />
+              <Text style={{ fontSize: 10, color: '#f59e0b', flex: 1 }}>
+                Nao conseguimos confirmar a taxa com o provedor agora. Os valores
+                abaixo sao uma estimativa e o valor final pode ser diferente.
+              </Text>
+            </View>
+          )}
+
           <View style={[styles.simBox, { backgroundColor: colors.background }]}>
             <View style={styles.simRow}>
               <Text style={{ fontSize: 10, color: colors.textSecondary }}>Valor pendente</Text>
@@ -270,8 +290,12 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             </View>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <View style={styles.simRow}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: '#16a34a' }}>Voce recebe</Text>
-              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#16a34a' }}>R$ {sim.anticipatedAmount.toFixed(2)}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#16a34a' }}>
+                {sim.isEstimate ? 'Voce recebe (estimado)' : 'Voce recebe'}
+              </Text>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#16a34a' }}>
+                {sim.isEstimate ? '~' : ''}R$ {sim.anticipatedAmount.toFixed(2)}
+              </Text>
             </View>
           </View>
 
