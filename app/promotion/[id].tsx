@@ -12,7 +12,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
-import { GET_ACTIVE_PROMOTIONS } from '../../src/lib/graphql/queries';
+import { GET_PROMOTION } from '../../src/lib/graphql/queries';
 import { useCart } from '../../src/contexts/CartContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,9 +25,13 @@ export default function PromotionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
   const { addItem, itemCount } = useCart();
-  const { data, loading } = useQuery(GET_ACTIVE_PROMOTIONS);
+  // Perf (F6): era `useQuery(GET_ACTIVE_PROMOTIONS)` + `.find(p => p.id === id)`
+  // — baixava TODAS as promocoes ativas para mostrar uma. E, pior, isso impedia
+  // paginar aquela lista: com limite, a tela pararia de achar promocao fora da
+  // primeira pagina. Agora pede exatamente a que vai mostrar.
+  const { data, loading } = useQuery(GET_PROMOTION, { variables: { id } });
 
-  const promo = (data?.activePromotions || []).find((p: any) => p.id === id);
+  const promo = data?.promotion;
 
   // BUGFIX: `loading` nao era lido — no primeiro render `data` e undefined,
 

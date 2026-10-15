@@ -32,6 +32,12 @@ import { AnimatedListItem } from '../../src/components/AnimatedListItem';
 import { AnimatedPressable } from '../../src/components/AnimatedPressable';
 import { AnimatedItem } from '../../src/components/AnimatedItem';
 
+// Perf (F6): teto do carrossel de Destaques. O carrossel e horizontal e o
+// usuario desliza alguns itens — montar a lista inteira de promocoes ativas
+// (cada uma com imagem) nunca teve retorno, e o custo crescia com cada
+// promocao vendida.
+const LIMITE_DESTAQUES = 10;
+
 export default function HomeScreen() {
   const { user } = useAuth();
   const { location } = useLocation();
@@ -40,7 +46,14 @@ export default function HomeScreen() {
   const { height: screenHeight } = useWindowDimensions();
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
 
-  const { data: promosData, refetch: refetchPromos, loading: promosLoading } = useQuery(GET_ACTIVE_PROMOTIONS);
+  // Perf (F6): o carrossel de Destaques montava TODAS as promocoes ativas, cada
+  // uma com imagem, num ScrollView horizontal — crescia com cada promocao
+  // vendida e nunca encolhia. Agora pede um teto, e a tela corta no mesmo teto
+  // para nao depender do que houver no cache.
+  const { data: promosData, refetch: refetchPromos, loading: promosLoading } = useQuery(
+    GET_ACTIVE_PROMOTIONS,
+    { variables: { limit: LIMITE_DESTAQUES, offset: 0 } },
+  );
   const { data: popularData, refetch: refetchPopular } = useQuery(GET_POPULAR_PRODUCTS, {
     variables: { limit: 12 },
   });
@@ -70,7 +83,7 @@ export default function HomeScreen() {
     onData: () => { refetchPromos(); },
   });
 
-  const promotions = promosData?.activePromotions || [];
+  const promotions = (promosData?.activePromotions || []).slice(0, LIMITE_DESTAQUES);
   const popularProducts = popularData?.popularProducts || [];
   const reorderProducts = reorderData?.reorderSuggestions || [];
   const frequentStores = frequentData?.frequentStores || [];

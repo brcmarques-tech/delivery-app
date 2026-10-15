@@ -74,6 +74,8 @@ type CategoryType = CategoryItem;
 
 // Perf (F6): tamanho da pagina da vitrine de lojas e da busca de lojas.
 const PAGINA_LOJAS = 20;
+// Teto das promocoes nesta tela — o carrossel exibe 6.
+const LIMITE_PROMOS_BUSCA = 6;
 
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
@@ -117,7 +119,20 @@ export default function SearchScreen() {
     },
     skip: !debouncedQuery,
   });
-  const { data: promosData } = useQuery(GET_ACTIVE_PROMOTIONS);
+  // Perf (F6): esta tela mostra no maximo 6 promocoes (o carrossel corta em 6),
+  // mas baixava a lista inteira de promocoes ativas. Agora pede 6.
+  //
+  // ATENCAO para quem mexer aqui: `matchingPromos` (abaixo) filtra esta lista
+  // pelo termo buscado e alimenta SO o `hasResults`, que decide se o estado
+  // "Nenhum resultado" aparece — promocao casada nao e renderizada em lugar
+  // nenhum do overlay. Ou seja, quando SO uma promocao casa, o usuario ja hoje
+  // ve um overlay em branco (sem lista e sem mensagem). Com o limite, a janela
+  // desse caso fica menor, mas o comportamento estranho e anterior a isto e
+  // esta registrado para decidir com o Bruno: ou o overlay passa a listar as
+  // promocoes casadas, ou `matchingPromos` sai do `hasResults`.
+  const { data: promosData } = useQuery(GET_ACTIVE_PROMOTIONS, {
+    variables: { limit: LIMITE_PROMOS_BUSCA, offset: 0 },
+  });
   const [searchProducts, { data: productsData, loading: productsLoading }] = useLazyQuery(SEARCH_PRODUCTS);
   const [searchServices, { data: servicesData, loading: servicesLoading }] = useLazyQuery(SEARCH_SERVICES);
 

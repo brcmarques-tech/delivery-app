@@ -284,8 +284,8 @@ export const GET_ORDER = gql`
 `;
 
 export const GET_ACTIVE_PROMOTIONS = gql`
-  query ActivePromotions {
-    activePromotions {
+  query ActivePromotions($limit: Int, $offset: Int) {
+    activePromotions(limit: $limit, offset: $offset) {
       id
       title
       description
@@ -313,6 +313,43 @@ export const GET_ACTIVE_PROMOTIONS = gql`
     }
   }
 `;
+// Perf (F6): UMA promocao por id. A tela de detalhe (promotion/[id].tsx) baixava
+// a lista INTEIRA de promocoes ativas e fazia `.find(p => p.id === id)` no
+// cliente. Alem do desperdicio, isso impedia paginar a lista: no momento em que
+// activePromotions ganhasse limite, a tela pararia de achar promocao fora da
+// primeira pagina. O servidor aplica o mesmo filtro da vitrine, entao o que era
+// invisivel continua invisivel.
+export const GET_PROMOTION = gql`
+  query Promotion($id: String!) {
+    promotion(id: $id) {
+      id
+      title
+      description
+      imageUrl
+      startDate
+      endDate
+      promotionalPrice
+      product {
+        id
+        name
+        imageUrl
+        price
+        description
+      }
+      store {
+        id
+        name
+        logoUrl
+        deliveryFee
+        estimatedDeliveryMinutes
+        freeDelivery
+        isOpen
+        verificationLevel
+      }
+    }
+  }
+`;
+
 
 export const CALCULATE_DELIVERY_FEE = gql`
   query CalculateDeliveryFee($storeId: String!, $customerLatitude: Float!, $customerLongitude: Float!) {

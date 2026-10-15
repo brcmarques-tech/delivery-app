@@ -175,7 +175,11 @@ const cache = new InMemoryCache({
         availableDeliveries: { merge: (_existing, incoming) => incoming },
         storeOrders: { merge: (_existing, incoming) => incoming },
         popularProducts: { merge: (_existing, incoming) => incoming },
-        activePromotions: { merge: (_existing, incoming) => incoming },
+        // Perf (F6): uma lista por TAMANHO DE PAGINA. A home pede 10 e a aba de
+        // busca pede 6 — como o offsetMerge TRUNCA no offset 0, sem o keyArgs a
+        // segunda tela a responder encurtaria a lista da primeira. `offset` fica
+        // fora da chave de proposito: e ele que o merge usa para encaixar.
+        activePromotions: { keyArgs: ['limit'], merge: offsetMerge },
       },
     },
   },
