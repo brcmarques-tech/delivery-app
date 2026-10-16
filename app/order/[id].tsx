@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { devLog } from '../../src/lib/devLog'; // KAN-223
 import { GET_ORDER } from '../../src/lib/graphql/queries';
 import { CONFIRM_RECEIPT, CONFIRM_PICKUP, CONFIRM_DELIVERY, CUSTOMER_DENY_DELIVERY, CANCEL_ORDER, DISPUTE_COMPLETED_ORDER, CANCEL_DISPUTE } from '../../src/lib/graphql/mutations';
+import { CodigoDoCliente } from '../../src/components/CodigoDoCliente';
 import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -605,8 +606,34 @@ export default function OrderDetailScreen() {
         </View>
       )}
 
-      {/* Deliverer action buttons */}
-      {isDeliverer && order.status === 'VENDOR_CONFIRMED_PICKUP' && (
+      {/* O CÓDIGO DO CLIENTE.
+          `!isDeliverer` é a condição que importa aqui: esta tela serve ao
+          cliente E ao entregador, e o código do cliente na sessão do entregador
+          derrubaria o esquema inteiro. O componente também exige a prop e o
+          servidor valida a posse — três camadas, nenhuma confiando na outra. */}
+      {!!order.usaCodigoDeEntrega &&
+        !isDeliverer &&
+        ['ACCEPTED', 'PREPARING', 'READY', 'PICKED_UP', 'VENDOR_CONFIRMED_PICKUP', 'DELIVERING'].includes(
+          order.status,
+        ) && <CodigoDoCliente orderId={order.id} ehOCliente={!isDeliverer} />}
+
+      {/* Deliverer action buttons.
+          Em pedido COM código estes botões não aparecem: o servidor os recusa,
+          e o fluxo de códigos vive na aba de Entregas. A escolha de APONTAR em
+          vez de duplicar o fluxo aqui é deliberada — caminho de dinheiro em
+          duas telas é como as duas implementações começam a divergir. */}
+      {isDeliverer && !!order.usaCodigoDeEntrega &&
+        ['READY', 'VENDOR_CONFIRMED_PICKUP', 'PICKED_UP', 'DELIVERING'].includes(order.status) && (
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/(tabs)/deliveries')}
+        >
+          <Ionicons name="keypad-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.actionButtonText}>Confirmar por código (ir para Entregas)</Text>
+        </TouchableOpacity>
+      )}
+
+      {isDeliverer && !order.usaCodigoDeEntrega && order.status === 'VENDOR_CONFIRMED_PICKUP' && (
         <TouchableOpacity
           style={[styles.actionButton, { backgroundColor: colors.primary }]}
           onPress={handleConfirmPickup}
@@ -623,7 +650,7 @@ export default function OrderDetailScreen() {
         </TouchableOpacity>
       )}
 
-      {isDeliverer && order.status === 'DELIVERING' && (
+      {isDeliverer && !order.usaCodigoDeEntrega && order.status === 'DELIVERING' && (
         <TouchableOpacity
           style={[styles.actionButton, { backgroundColor: colors.success }]}
           onPress={handleConfirmDelivery}

@@ -22,7 +22,17 @@ import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import { io, Socket } from 'socket.io-client';
 import { GET_AVAILABLE_DELIVERIES, GET_MY_DELIVERIES } from '../../src/lib/graphql/queries';
-import { ACCEPT_DELIVERY, CONFIRM_PICKUP, CONFIRM_DELIVERY } from '../../src/lib/graphql/mutations';
+import {
+  ACCEPT_DELIVERY,
+  CONFIRM_PICKUP,
+  CONFIRM_DELIVERY,
+  REGISTRAR_CODIGO_DA_LOJA,
+  REGISTRAR_CODIGO_DO_CLIENTE,
+  REGISTRAR_ENTREGA_SEM_CODIGO,
+} from '../../src/lib/graphql/mutations';
+import { ModalDeCodigo } from '../../src/components/ModalDeCodigo';
+import { ModalEntregaSemCodigo } from '../../src/components/ModalEntregaSemCodigo';
+import { CodigoDoEntregador } from '../../src/components/CodigoDoEntregador';
 import { useDeliveryTracking } from '../../src/hooks/useDeliveryTracking';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -515,6 +525,54 @@ export default function DeliveriesScreen() {
   const [confirmDeliveryMut] = useMutation(CONFIRM_DELIVERY);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // ─── Garantia de entrega por CÓDIGOS ───────────────────────────────────
+  //
+  // A tela passa a ter DOIS fluxos, e quem escolhe é `order.usaCodigoDeEntrega`:
+  //
+  //  - pedido COM código: os botões abrem modal de digitação. As mutations
+  //    antigas (confirmPickup/confirmDelivery) são RECUSADAS pelo servidor
+  //    nesses pedidos, de propósito — era por elas que se contornavam os
+  //    códigos. Sem este fluxo, o entregador não conseguia concluir entrega
+  //    nenhuma: apertava o botão e levava erro.
+  //  - pedido SEM código: segue nos botões antigos. Não é código morto — é o
+  //    caminho de todo pedido criado ANTES do deploy dos códigos, que vai
+  //    chegar na porta do cliente sem código nenhum.
+  const [registrarCodigoDaLoja] = useMutation(REGISTRAR_CODIGO_DA_LOJA);
+  const [registrarCodigoDoCliente] = useMutation(REGISTRAR_CODIGO_DO_CLIENTE);
+  const [registrarEntregaSemCodigo] = useMutation(REGISTRAR_ENTREGA_SEM_CODIGO);
+
+  // Um estado só para os três modais: qual está aberto, de qual pedido, e o
+  // erro que o servidor devolveu. Três `useState` separados abririam a porta
+  // para dois modais visíveis ao mesmo tempo.
+  const [modalDeCodigo, setModalDeCodigo] = useState<{
+    tipo: 'LOJA' | 'CLIENTE' | 'SEM_CODIGO';
+    orderId: string;
+    orderNumber: string;
+  } | null>(null);
+  const [erroDoCodigo, setErroDoCodigo] = useState<string | null>(null);
+  const [enviandoCodigo, setEnviandoCodigo] = useState(false);
+
+  const fecharModalDeCodigo = useCallback(() => {
+    setModalDeCodigo(null);
+    setErroDoCodigo(null);
+    setEnviandoCodigo(false);
+  }, []);
+
+  // O GPS acompanha as duas digitações do entregador porque é a evidência que
+  // sustenta contestação de chargeback — recuperar repasse já feito é
+  // impossível, então a prova de onde a pessoa estava é a defesa.
+  //
+  // `currentLocation` pode ser null (permissão negada, GPS desligado). Mando
+  // null e o servidor aceita: travar a entrega por falta de GPS puniria o
+  // entregador por uma configuração do aparelho dele.
+  const gpsAtual = useCallback(
+    () => ({
+      latitude: currentLocation ? currentLocation.latitude : null,
+      longitude: currentLocation ? currentLocation.longitude : null,
+    }),
+    [currentLocation],
+  );
+
   // Track when each available order first appeared (for countdown timer)
   const offerTimersRef = useRef<Record<string, number>>({});
   const availableOrders = useMemo(
@@ -648,6 +706,16 @@ export default function DeliveriesScreen() {
   const handleConfirmPickup = useCallback(async (deliveryId: string, order?: any) => {
     if (actionLoading) return;
     devLog(`[APP-PICKUP] deliveryId=${deliveryId}, orderNumber=${order?.orderNumber || '?'}`);
+
+    // Pedido com código não coleta por botão: coleta digitando o código da
+    // loja. A mutation antiga é recusada pelo servidor aqui, e com razão — era
+    // por ela que se contornavam os códigos.
+    if (order?.usaCodigoDeEntrega) {
+      setErroDoCodigo(null);
+      setModalDeCodigo({ tipo: 'LOJA', orderId: order.id, orderNumber: order.orderNumber });
+      return;
+    }
+
     alert('Confirmar coleta', 'Voce ja retirou o pedido na loja?', [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -682,9 +750,18 @@ export default function DeliveriesScreen() {
     ]);
   }, [actionLoading, alert, confirmPickup, refetchMy]);
 
-  const handleConfirmDelivery = useCallback(async (deliveryId: string) => {
+  const handleConfirmDelivery = useCallback(async (deliveryId: string, order?: any) => {
     if (actionLoading) return;
     devLog(`[APP-DELIVERY] deliveryId=${deliveryId}`);
+
+    // Pedido com código: a entrega se fecha com o código DO CLIENTE, e é esse
+    // registro que LIBERA O DINHEIRO. Daí o modal em vez de um "sim, entreguei".
+    if (order?.usaCodigoDeEntrega) {
+      setErroDoCodigo(null);
+      setModalDeCodigo({ tipo: 'CLIENTE', orderId: order.id, orderNumber: order.orderNumber });
+      return;
+    }
+
     alert('Confirmar entrega', 'O pedido foi entregue ao cliente?', [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -708,6 +785,93 @@ export default function DeliveriesScreen() {
       },
     ]);
   }, [actionLoading, alert, confirmDeliveryMut, refetchMy, refetchAvailable]);
+
+  // ─── Envio dos códigos ─────────────────────────────────────────────────
+  //
+  // A mensagem de erro do SERVIDOR vai para dentro do modal, literal. Isso é
+  // deliberado e diferente do resto desta tela, que traduz tudo para "Nao foi
+  // possivel...". Aqui as mensagens são a informação de que a pessoa precisa
+  // para agir, e cada uma pede uma ação diferente:
+  //
+  //   "Código incorreto. Restam 3 tentativas."
+  //   "Muitas tentativas erradas. Tente novamente em 15 minutos."
+  //   "Confirme a coleta na loja pelos dois códigos antes de registrar a entrega."
+  //
+  // Trocar as três por "Erro ao registrar" deixaria o entregador na porta do
+  // cliente sem saber se insiste, se espera, ou se volta para a loja.
+  const enviarCodigo = useCallback(
+    async (codigo: string) => {
+      if (!modalDeCodigo || enviandoCodigo) return;
+      const { tipo, orderId } = modalDeCodigo;
+      setEnviandoCodigo(true);
+      setErroDoCodigo(null);
+      try {
+        const variables = { orderId, codigo, ...gpsAtual() };
+        if (tipo === 'LOJA') {
+          await registrarCodigoDaLoja({ variables });
+          devLog(`[APP-CODIGO] codigo da loja registrado | order=${orderId}`);
+        } else {
+          await registrarCodigoDoCliente({ variables });
+          devLog(`[APP-CODIGO] codigo do cliente registrado | order=${orderId}`);
+        }
+        fecharModalDeCodigo();
+        await refetchMy();
+        refetchAvailable();
+      } catch (e: any) {
+        const msg = e?.graphQLErrors?.[0]?.message || e?.message || 'Não deu para registrar o código.';
+        devLog(`[APP-CODIGO] recusado: ${msg}`);
+        setErroDoCodigo(msg);
+        setEnviandoCodigo(false);
+      }
+    },
+    [
+      modalDeCodigo,
+      enviandoCodigo,
+      gpsAtual,
+      registrarCodigoDaLoja,
+      registrarCodigoDoCliente,
+      fecharModalDeCodigo,
+      refetchMy,
+      refetchAvailable,
+    ],
+  );
+
+  const enviarEntregaSemCodigo = useCallback(
+    async (motivo: string) => {
+      if (!modalDeCodigo || enviandoCodigo) return;
+      const { orderId, orderNumber } = modalDeCodigo;
+      setEnviandoCodigo(true);
+      setErroDoCodigo(null);
+      try {
+        await registrarEntregaSemCodigo({ variables: { orderId, motivo, ...gpsAtual() } });
+        devLog(`[APP-CODIGO] entrega SEM codigo registrada | order=${orderId}`);
+        fecharModalDeCodigo();
+        await refetchMy();
+        refetchAvailable();
+        // Aviso explícito do que acontece a seguir. Sem isto a pessoa sai da
+        // tela achando que foi paga, e o valor só sai depois da janela.
+        alert(
+          'Registrado',
+          `O pedido #${orderNumber} foi registrado como entregue sem o código. O cliente foi avisado e tem um prazo para contestar; passado o prazo sem contestação, o repasse é liberado.`,
+        );
+      } catch (e: any) {
+        const msg = e?.graphQLErrors?.[0]?.message || e?.message || 'Não deu para registrar.';
+        devLog(`[APP-CODIGO] sem-codigo recusado: ${msg}`);
+        setErroDoCodigo(msg);
+        setEnviandoCodigo(false);
+      }
+    },
+    [
+      modalDeCodigo,
+      enviandoCodigo,
+      gpsAtual,
+      registrarEntregaSemCodigo,
+      fecharModalDeCodigo,
+      refetchMy,
+      refetchAvailable,
+      alert,
+    ],
+  );
 
   const renderAvailableOrder = useCallback(({ item }: { item: any }) => {
     return (
@@ -835,6 +999,21 @@ export default function DeliveriesScreen() {
               ))}
             </View>
 
+            {/* O código que o entregador DITA ao lojista, visível só enquanto a
+                coleta não fechou. Depois dela ele não serve mais e só ocuparia
+                espaço numa tela que a pessoa usa em movimento.
+
+                Este é o único ponto do app que depende do TERCEIRO código. Se a
+                decisão for ficar em dois (entregador só recolhendo), é esta
+                linha que sai — ver o comentário em CodigoDoEntregador.tsx. */}
+            {!!order.usaCodigoDeEntrega &&
+              (order.status === 'READY' || order.status === 'VENDOR_CONFIRMED_PICKUP') && (
+                <CodigoDoEntregador
+                  orderId={order.id}
+                  codigoDaLojaJaRegistrado={!!order.codigoDaLojaJaRegistrado}
+                />
+              )}
+
             <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
               <Text style={[styles.totalText, { color: colors.text }]}>R$ {Number(order.total).toFixed(2)}</Text>
               {(order.status === 'READY' || order.status === 'VENDOR_CONFIRMED_PICKUP') && (() => {
@@ -843,14 +1022,38 @@ export default function DeliveriesScreen() {
                 const nearStore = currentLocation
                   ? haversineDistance(currentLocation.latitude, currentLocation.longitude, storeLat, storeLng) <= 200
                   : false;
+                const comCodigo = !!order.usaCodigoDeEntrega;
+                // Já digitou o código da loja e o pedido continua em READY:
+                // falta o LOJISTA digitar o código do entregador. Oferecer
+                // "Digitar código da loja" de novo aqui seria convidar a pessoa
+                // a gastar tentativa num código que ela já acertou.
+                const esperandoALoja = comCodigo && order.codigoDaLojaJaRegistrado;
+                if (esperandoALoja) {
+                  return (
+                    <View style={[styles.actionButton, { backgroundColor: colors.warning }]}>
+                      <Ionicons name="hourglass" size={18} color="#FFFFFF" />
+                      <Text style={styles.actionButtonText}>Aguardando a loja</Text>
+                    </View>
+                  );
+                }
                 return nearStore ? (
                   <TouchableOpacity
                     style={[styles.actionButton, { backgroundColor: actionLoading ? colors.gray : colors.primary }]}
                     onPress={() => handleConfirmPickup(item.id, order)}
                     disabled={!!actionLoading}
                   >
-                    <Ionicons name={actionLoading === item.id ? 'hourglass' : 'bag-check'} size={18} color="#FFFFFF" />
-                    <Text style={styles.actionButtonText}>{actionLoading === item.id ? 'Confirmando...' : 'Coletei'}</Text>
+                    <Ionicons
+                      name={actionLoading === item.id ? 'hourglass' : comCodigo ? 'keypad' : 'bag-check'}
+                      size={18}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.actionButtonText}>
+                      {actionLoading === item.id
+                        ? 'Confirmando...'
+                        : comCodigo
+                          ? 'Código da loja'
+                          : 'Coletei'}
+                    </Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={[styles.actionButton, { backgroundColor: colors.gray }]}>
@@ -862,11 +1065,27 @@ export default function DeliveriesScreen() {
               {(order.status === 'PICKED_UP' || order.status === 'DELIVERING') && (
                 <TouchableOpacity
                   style={[styles.actionButton, { backgroundColor: actionLoading ? colors.gray : colors.success }]}
-                  onPress={() => handleConfirmDelivery(item.id)}
+                  onPress={() => handleConfirmDelivery(item.id, order)}
                   disabled={!!actionLoading}
                 >
-                  <Ionicons name={actionLoading === item.id ? 'hourglass' : 'checkmark-done'} size={18} color="#FFFFFF" />
-                  <Text style={styles.actionButtonText}>{actionLoading === item.id ? 'Confirmando...' : 'Confirmar entrega'}</Text>
+                  <Ionicons
+                    name={
+                      actionLoading === item.id
+                        ? 'hourglass'
+                        : order.usaCodigoDeEntrega
+                          ? 'keypad'
+                          : 'checkmark-done'
+                    }
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.actionButtonText}>
+                    {actionLoading === item.id
+                      ? 'Confirmando...'
+                      : order.usaCodigoDeEntrega
+                        ? 'Código do cliente'
+                        : 'Confirmar entrega'}
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -895,6 +1114,55 @@ export default function DeliveriesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* ─── Códigos de entrega ───────────────────────────────────────────
+          Um modal por vez, decidido por `modalDeCodigo.tipo`. O de digitação
+          serve às duas digitações do entregador (loja e cliente) com textos
+          diferentes, porque a consequência é diferente: a do cliente LIBERA O
+          DINHEIRO, e quem está na porta tem de saber disso antes de apertar. */}
+      <ModalDeCodigo
+        visivel={modalDeCodigo?.tipo === 'LOJA'}
+        titulo="Código da loja"
+        explicacao={`Pedido #${modalDeCodigo?.orderNumber || ''}. Peça o código ao lojista e digite aqui. É isso que registra a coleta — não há botão de "coletei".`}
+        rotuloConfirmar="Registrar coleta"
+        carregando={enviandoCodigo}
+        erro={erroDoCodigo}
+        onConfirmar={enviarCodigo}
+        onFechar={fecharModalDeCodigo}
+      />
+
+      <ModalDeCodigo
+        visivel={modalDeCodigo?.tipo === 'CLIENTE'}
+        titulo="Código do cliente"
+        explicacao={`Pedido #${modalDeCodigo?.orderNumber || ''}. Peça o código ao cliente na entrega. Ao registrar, a entrega é concluída e o repasse é liberado.`}
+        rotuloConfirmar="Concluir entrega"
+        carregando={enviandoCodigo}
+        erro={erroDoCodigo}
+        acaoSecundaria={{
+          rotulo: 'Não consegui o código do cliente',
+          onPress: () => {
+            setErroDoCodigo(null);
+            setModalDeCodigo((m) => (m ? { ...m, tipo: 'SEM_CODIGO' } : m));
+          },
+        }}
+        onConfirmar={enviarCodigo}
+        onFechar={fecharModalDeCodigo}
+      />
+
+      <ModalEntregaSemCodigo
+        visivel={modalDeCodigo?.tipo === 'SEM_CODIGO'}
+        numeroDoPedido={modalDeCodigo?.orderNumber}
+        temGps={!!currentLocation}
+        carregando={enviandoCodigo}
+        erro={erroDoCodigo}
+        onConfirmar={enviarEntregaSemCodigo}
+        onFechar={() => {
+          // "Voltar e tentar o código" volta ao modal de digitação, não fecha
+          // tudo: a pessoa está na porta e pode ser que o cliente apareça.
+          setErroDoCodigo(null);
+          setModalDeCodigo((m) => (m ? { ...m, tipo: 'CLIENTE' } : m));
+        }}
+      />
+
       {/* Modal: Store map after accepting delivery */}
       <Modal visible={!!acceptedStore} transparent animationType="slide">
         <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} onPress={() => setAcceptedStore(null)}>
