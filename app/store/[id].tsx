@@ -24,6 +24,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../src/theme';
+import { aplicarCoresDaLoja } from '../../src/coresDaLoja';
 import { imageCachePolicy } from '../../src/lib/deviceTier'; // Perf (F0)
 import { precoPorPeso } from '../../src/lib/precoPorPeso'; // KAN-282 item 6
 
@@ -93,10 +94,19 @@ const CategoryChips = React.memo(function CategoryChips({
 
 export default function StoreScreen() {
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
+  const { colors: coresDoApp } = useTheme();
   const { user } = useAuth();
   const { id, productId } = useLocalSearchParams<{ id: string; productId?: string }>();
   const { data, loading, error, refetch } = useQuery(GET_STORE, { variables: { id } });
+
+  // KAN-13: desta linha para baixo, `colors` é o tema do app com as cores da
+  // LOJA por cima (quando ela escolheu alguma). Fazer a troca aqui, uma vez,
+  // vale mais do que espalhar `loja.primaryColor ??` pelas ~90 referências de
+  // cor desta tela — e garante que nenhuma fique para trás.
+  const colors = useMemo(
+    () => aplicarCoresDaLoja(coresDoApp, data?.store),
+    [coresDoApp, data?.store],
+  );
 
   // Follow system
   const { data: followData, refetch: refetchFollow } = useQuery(IS_FOLLOWING_STORE, {
@@ -259,6 +269,25 @@ export default function StoreScreen() {
     }
     return built;
   }, [store?.categories, allProducts, allServices, isServiceStore, debouncedStoreQuery]);
+
+  // KAN-13: a loja escolhe como os produtos aparecem. GRADE so vale para
+  // PRODUTO — servico nao tem foto grande para mostrar, e o cartao dele ja
+  // carrega duracao, preco e botao de agendar.
+  const ehGrade = store?.productLayout === 'GRID' && !isServiceStore;
+
+  // Na grade, cada "item" da lista passa a ser uma LINHA com dois produtos.
+  // E assim porque SectionList nao tem numColumns — e porque manter o caminho
+  // de lista intocado era mais seguro do que generalizar o cartao atual, que
+  // carrega peso variavel, adicao rapida, zoom de foto e estado de
+  // indisponivel.
+  const secoesVisiveis = useMemo(() => {
+    if (!ehGrade) return sections;
+    return sections.map((sec) => {
+      const pares: any[][] = [];
+      for (let i = 0; i < sec.data.length; i += 2) pares.push(sec.data.slice(i, i + 2));
+      return { ...sec, data: pares };
+    });
+  }, [sections, ehGrade]);
 
   // Perf (F5/F6): proxima pagina de 100 quando o scroll chega perto do fim.
   const loadMoreProducts = useCallback(() => {
@@ -423,8 +452,10 @@ export default function StoreScreen() {
       </View>
 
       <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.id}
+        sections={secoesVisiveis as any}
+        keyExtractor={(item: any) =>
+          Array.isArray(item) ? item.map((i: any) => i.id).join('|') : item.id
+        }
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
         keyboardShouldPersistTaps="handled"
         onEndReached={loadMoreProducts}
@@ -444,6 +475,84 @@ export default function StoreScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
         )}
         renderItem={({ item }) => {
+          // ─── KAN-13: linha da GRADE (dois produtos por linha) ───────────
+          if (ehGrade && Array.isArray(item)) {
+            return (
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                {item.map((produto: any) => {
+                  const preco = Number(produto.promotionalPrice || produto.price);
+                  return (
+                    <TouchableOpacity
+                      key={produto.id}
+                      style={[styles.cartaoGrade, { backgroundColor: colors.card }]}
+                      onPress={() => store.isOpen && openProductModal(produto)}
+                      disabled={!store.isOpen || !produto.isAvailable}
+                      activeOpacity={0.8}
+                    >
+                      {produto.imageUrl ? (
+                        <Image
+                          source={produto.imageUrl}
+                          style={styles.imagemGrade}
+                          cachePolicy={imageCachePolicy}
+                          recyclingKey={produto.id}
+                        />
+                      ) : (
+                        <View style={[styles.imagemGrade, { backgroundColor: colors.grayLight, alignItems: 'center', justifyContent: 'center' }]}>
+                          <Ionicons name="fast-food-outline" size={22} color={colors.gray} />
+                        </View>
+                      )}
+                      <Text style={[styles.productName, { color: colors.text }]} numberOfLines={2}>
+                        {produto.name}
+                      </Text>
+                      {produto.promotionalPrice ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Text style={[styles.priceOld, { color: colors.gray }]}>
+                            R$ {Number(produto.price).toFixed(2)}
+                          </Text>
+                          <Text style={[styles.price, { color: colors.primary }]}>
+                            R$ {preco.toFixed(2)}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={[styles.price, { color: colors.primary }]}>
+                          R$ {preco.toFixed(2)}
+                          {produto.isVariableWeight ? '/kg' : ''}
+                        </Text>
+                      )}
+                      {!produto.isAvailable && (
+                        <Text style={{ fontSize: fonts.tiny, color: colors.danger }}>
+                          Indisponivel
+                        </Text>
+                      )}
+                      {store.isOpen && produto.isAvailable && !produto.isVariableWeight && (
+                        <TouchableOpacity
+                          style={[styles.addGrade, { backgroundColor: colors.primary }]}
+                          onPress={() => {
+                            addItem(
+                              {
+                                productId: produto.id,
+                                name: produto.name,
+                                price: produto.promotionalPrice ?? produto.price,
+                                imageUrl: produto.imageUrl,
+                                storeId: store.id,
+                                storeName: store.name,
+                              },
+                              1,
+                            );
+                          }}
+                        >
+                          <Ionicons name="add" size={16} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+                {/* linha ímpar: o espaço vazio mantém o alinhamento das colunas */}
+                {item.length === 1 && <View style={{ flex: 1 }} />}
+              </View>
+            );
+          }
+
           if (isServiceStore) {
             // Service card
             const servicePrice = item.price ? Number(item.price) : null;
@@ -769,6 +878,29 @@ const styles = StyleSheet.create({
   closedText: { fontSize: fonts.small, fontWeight: '600' },
   list: { padding: 12, paddingBottom: 100 },
   sectionTitle: { fontSize: fonts.large, fontWeight: 'bold', marginTop: 12, marginBottom: 12 },
+  // KAN-13 (grade)
+  cartaoGrade: {
+    flex: 1,
+    borderRadius: 10,
+    padding: 8,
+    gap: 4,
+    position: 'relative',
+  },
+  imagemGrade: {
+    width: '100%',
+    height: 110,
+    borderRadius: 8,
+  },
+  addGrade: {
+    position: 'absolute',
+    right: 8,
+    top: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   productCard: {
     borderRadius: 10,
     padding: 12,

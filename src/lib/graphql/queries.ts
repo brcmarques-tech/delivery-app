@@ -84,6 +84,11 @@ export const GET_STORE = gql`
       description
       logoUrl
       bannerUrl
+      # KAN-13: a identidade visual escolhida pela loja. Nulo = tema do app.
+      primaryColor
+      backgroundColor
+      textColor
+      productLayout
       isOpen
       hasOwnDelivery
       ownerPaymentConnected
