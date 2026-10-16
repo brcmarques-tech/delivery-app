@@ -159,6 +159,9 @@ export default function ProfileScreen() {
   }
 
   const menuItems = [
+    // KAN-12: a entrada para a tela de fidelidade fica ANTES de enderecos —
+    // e a unica do menu que oferece algo ao cliente em vez de pedir dado.
+    { icon: 'ribbon-outline' as const, label: 'Cliente fiel', onPress: () => router.push('/fidelidade') },
     { icon: 'location-outline' as const, label: 'Meus enderecos', onPress: () => router.push('/addresses') },
     { icon: 'card-outline' as const, label: 'Formas de pagamento', onPress: () => router.push('/cards') },
     { icon: 'help-circle-outline' as const, label: 'Ajuda', onPress: () => setShowHelp(true) },

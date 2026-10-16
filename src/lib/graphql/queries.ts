@@ -879,3 +879,41 @@ export const GET_MEU_CODIGO_DE_ENTREGA = gql`
     meuCodigoDeEntrega(orderId: $orderId)
   }
 `;
+
+// ─── Cliente fiel (KAN-12) ───
+//
+// Tudo do PROPRIO cliente: a query nao aceita id de usuario, de proposito.
+export const MINHA_FIDELIDADE = gql`
+  query MinhaFidelidade {
+    minhaFidelidade {
+      comprasNoTotal
+      lojasOndeSouFiel
+      descontoDisponivel
+      porLoja {
+        storeId
+        storeName
+        storeLogoUrl
+        comprasConcluidas
+        comprasNoMes
+        faltamParaOProximoPremio
+        proximoMarco
+        clienteFiel
+      }
+      cupons {
+        id
+        code
+        discountType
+        discountValue
+        maxUses
+        usesCount
+        isActive
+        expiresAt
+        origem
+        store {
+          id
+          name
+        }
+      }
+    }
+  }
+`;
