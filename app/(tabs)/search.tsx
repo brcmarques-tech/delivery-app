@@ -122,14 +122,17 @@ export default function SearchScreen() {
   // Perf (F6): esta tela mostra no maximo 6 promocoes (o carrossel corta em 6),
   // mas baixava a lista inteira de promocoes ativas. Agora pede 6.
   //
-  // ATENCAO para quem mexer aqui: `matchingPromos` (abaixo) filtra esta lista
-  // pelo termo buscado e alimenta SO o `hasResults`, que decide se o estado
-  // "Nenhum resultado" aparece — promocao casada nao e renderizada em lugar
-  // nenhum do overlay. Ou seja, quando SO uma promocao casa, o usuario ja hoje
-  // ve um overlay em branco (sem lista e sem mensagem). Com o limite, a janela
-  // desse caso fica menor, mas o comportamento estranho e anterior a isto e
-  // esta registrado para decidir com o Bruno: ou o overlay passa a listar as
-  // promocoes casadas, ou `matchingPromos` sai do `hasResults`.
+  // ATENCAO para quem mexer aqui: este limite tambem define quantas promocoes
+  // podem aparecer no overlay de busca, porque `matchingPromos` (abaixo)
+  // filtra ESTA lista — nao faz uma busca propria no servidor. Uma promocao
+  // fora destas 6 nao casa com o termo nem que exista. Se a busca por oferta
+  // virar importante, o certo e uma query de busca de promocao no servidor, e
+  // nao aumentar este numero (foi por baixar a lista inteira que o limite
+  // existe).
+  //
+  // KAN-297: antes, a promocao casada alimentava SO o `hasResults` e nao era
+  // desenhada em lugar nenhum — termo que casava so com promocao dava overlay
+  // em branco. Agora ela e um item do overlay (tipo 'promo').
   const { data: promosData } = useQuery(GET_ACTIVE_PROMOTIONS, {
     variables: { limit: LIMITE_PROMOS_BUSCA, offset: 0 },
   });
@@ -330,16 +333,34 @@ export default function SearchScreen() {
   // entao o indice do FlatList ja coincide com o stagger que o codigo antigo
   // calculava a mao (filteredStores.length + index).
   type ItemAutocomplete =
+    | { tipo: 'promo'; key: string; dado: any }
     | { tipo: 'store'; key: string; dado: any }
     | { tipo: 'product'; key: string; dado: any }
     | { tipo: 'service'; key: string; dado: any };
 
   const autocompleteItems = useMemo<ItemAutocomplete[]>(() => {
-    const lista: ItemAutocomplete[] = filteredStores.map((store: any) => ({
-      tipo: 'store' as const,
-      key: `store-${store.id}`,
-      dado: store,
-    }));
+    // KAN-297: a promocao casada agora É RENDERIZADA.
+    //
+    // O bug: `matchingPromos` filtrava as promocoes pelo termo e alimentava SO
+    // o `hasResults`, que suprime o "Nenhum resultado". Promocao nao era
+    // desenhada em lugar nenhum do overlay. Quando o termo casava SO com uma
+    // promocao, dava tela em branco: lista vazia E mensagem suprimida. Alguem
+    // escreveu o filtro e ligou no hasResults, mas a secao nunca foi criada.
+    //
+    // Entram PRIMEIRO de proposito: promocao e canal pago (tem adCost), quem
+    // digita "picanha" quer ver a oferta de picanha, e o lojista esta pagando
+    // justamente por essa posicao.
+    const lista: ItemAutocomplete[] =
+      activeTab === 'products'
+        ? matchingPromos.map((promo: any) => ({
+            tipo: 'promo' as const,
+            key: `promo-${promo.id}`,
+            dado: promo,
+          }))
+        : [];
+    for (const store of filteredStores) {
+      lista.push({ tipo: 'store' as const, key: `store-${store.id}`, dado: store });
+    }
     if (activeTab === 'products') {
       for (const product of filteredProducts) {
         lista.push({ tipo: 'product' as const, key: `prod-${product.id}`, dado: product });
@@ -350,10 +371,58 @@ export default function SearchScreen() {
       }
     }
     return lista;
-  }, [filteredStores, filteredProducts, filteredServices, activeTab]);
+  }, [matchingPromos, filteredStores, filteredProducts, filteredServices, activeTab]);
 
   const renderAutocompleteItem = useCallback(
     ({ item, index }: { item: ItemAutocomplete; index: number }) => {
+      if (item.tipo === 'promo') {
+        const promo = item.dado;
+        const precoCheio = Number(promo.product?.price) || 0;
+        const precoPromo = Number(promo.promotionalPrice) || 0;
+        const desconto =
+          precoCheio > 0 && precoPromo > 0 ? Math.round((1 - precoPromo / precoCheio) * 100) : 0;
+        return (
+          <AnimatedListItem index={index}>
+            <AnimatedPressable
+              style={[styles.acItem, { backgroundColor: colors.card }]}
+              onPress={() => { setQuery(''); router.push(`/promotion/${promo.id}`); }}
+            >
+              {(promo.product?.imageUrl || promo.imageUrl) ? (
+                <Image
+                  source={promo.product?.imageUrl || promo.imageUrl}
+                  style={styles.acLogo}
+                  cachePolicy={imageCachePolicy}
+                />
+              ) : (
+                <View style={[styles.acLogo, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                  <Ionicons name="megaphone-outline" size={16} color="#FFFFFF" />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>
+                  {promo.title}
+                </Text>
+                <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>
+                  {/* Diz que é oferta: sem isto a linha some entre produtos e
+                      lojas, e o cliente não entende por que ela está no topo. */}
+                  Oferta{promo.store?.name ? ` · ${promo.store.name}` : ''}
+                </Text>
+              </View>
+              {desconto > 0 && (
+                <View style={styles.promoBadge}>
+                  <Text style={styles.promoBadgeText}>-{desconto}%</Text>
+                </View>
+              )}
+              {precoPromo > 0 && (
+                <Text style={{ fontSize: fonts.small, fontWeight: '700', color: colors.success, marginLeft: 8 }}>
+                  R$ {precoPromo.toFixed(2)}
+                </Text>
+              )}
+            </AnimatedPressable>
+          </AnimatedListItem>
+        );
+      }
+
       if (item.tipo === 'store') {
         const store = item.dado;
         return (
@@ -832,9 +901,10 @@ export default function SearchScreen() {
                     </View>
                   ) : null}
                   ListEmptyComponent={
-                    /* Mesma condicao de antes: o estado vazio NAO aparece quando
-                       so promocoes casaram (hasResults inclui matchingPromos na
-                       aba de produtos, e promo nao entra nesta lista). */
+                    /* `hasResults` inclui as promocoes casadas, e agora elas
+                       ESTAO nesta lista (KAN-297) — logo, "nada a mostrar" e
+                       "nenhum resultado" voltaram a ser a mesma coisa, e nao
+                       existe mais o caso de overlay vazio e silencioso. */
                     !(productsLoading || servicesLoading) && !hasResults && debouncedQuery.length >= 2 ? (
                       <AnimatedItem delay={100} fromY={20}>
                         <View style={styles.emptyContainer}>
