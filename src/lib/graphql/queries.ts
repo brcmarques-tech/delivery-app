@@ -320,6 +320,7 @@ export const GET_ACTIVE_PROMOTIONS = gql`
         freeDelivery
         isOpen
         verificationLevel
+        storeType
       }
     }
   }

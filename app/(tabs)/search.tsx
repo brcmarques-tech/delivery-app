@@ -75,8 +75,20 @@ type CategoryType = CategoryItem;
 
 // Perf (F6): tamanho da pagina da vitrine de lojas e da busca de lojas.
 const PAGINA_LOJAS = 20;
-// Teto das promocoes nesta tela — o carrossel exibe 6.
-const LIMITE_PROMOS_BUSCA = 6;
+// Quantas ofertas a tela baixa. NÃO é o tamanho do carrossel (ele corta em 6
+// na hora de desenhar): a BUSCA procura nesta lista. Com o limite em 6, a 7ª
+// oferta em diante nunca casava com termo nenhum — buscar "coca" não achava a
+// oferta da Coca-Cola, que era a 8ª.
+const LIMITE_PROMOS_BUSCA = 50;
+
+// Produto com preço promocional vem antes; empate por nome. Antes era só
+// alfabético: o arroz em oferta ficava no meio dos outros arrozes.
+function emPromocao(p: any): boolean {
+  return !!p.promotionalPrice && Number(p.promotionalPrice) < Number(p.price);
+}
+function promocaoPrimeiro(a: any, b: any): number {
+  return Number(emPromocao(b)) - Number(emPromocao(a)) || a.name.localeCompare(b.name);
+}
 
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
@@ -275,7 +287,7 @@ export default function SearchScreen() {
           return keywords.some((kw: string) => catName.includes(kw.trim())) || catName.includes(activeCategory.label.toLowerCase());
         })
         .filter((p: any) => !query.trim() || p.name.toLowerCase().includes(query.trim().toLowerCase()))
-        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        .sort(promocaoPrimeiro);
     }
     return allProducts
       .filter((p: any) => {
@@ -285,8 +297,32 @@ export default function SearchScreen() {
         return true;
       })
       .slice()
-      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      .sort(promocaoPrimeiro);
   }, [allProducts, activeCategory, query, activeFilter]);
+
+  // Ofertas DA ABA: loja de produtos na aba Produtos, prestador na aba
+  // Serviços. Antes as mesmas ofertas apareciam nas duas — a aba Serviços
+  // mostrava a cesta do mercado.
+  const promotions = useMemo(
+    () =>
+      (promosData?.activePromotions || []).filter(
+        (p: any) => (p.store?.storeType || 'PRODUCTS') === tipoDaAba,
+      ),
+    [promosData?.activePromotions, tipoDaAba],
+  );
+
+  // Serviço não tem preço promocional: o "em oferta" dele é o prestador estar
+  // com uma oferta ativa. Esses vêm primeiro, como o produto em promoção.
+  const lojasComOferta = useMemo(
+    () => new Set(promotions.map((p: any) => p.store?.id).filter(Boolean)),
+    [promotions],
+  );
+  const ofertaPrimeiro = useCallback(
+    (a: any, b: any) =>
+      Number(lojasComOferta.has(b.store?.id)) - Number(lojasComOferta.has(a.store?.id)) ||
+      a.name.localeCompare(b.name),
+    [lojasComOferta],
+  );
 
   // Filter services (idem)
   const allServices = useMemo(() => servicesData?.searchServices || [], [servicesData?.searchServices]);
@@ -299,7 +335,7 @@ export default function SearchScreen() {
           return keywords.some((kw: string) => catName.includes(kw.trim())) || catName.includes(activeCategory.label.toLowerCase());
         })
         .filter((s: any) => !query.trim() || s.name.toLowerCase().includes(query.trim().toLowerCase()))
-        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        .sort(ofertaPrimeiro);
     }
     return allServices
       .filter((s: any) => {
@@ -307,16 +343,23 @@ export default function SearchScreen() {
         return true;
       })
       .slice()
-      .sort((a: any, b: any) => a.name.localeCompare(b.name));
-  }, [allServices, activeCategory, query, activeFilter]);
+      .sort(ofertaPrimeiro);
+  }, [allServices, activeCategory, query, activeFilter, ofertaPrimeiro]);
 
-  // Promotions matching search
-  const promotions = promosData?.activePromotions || [];
-  const matchingPromos = useMemo(() => (debouncedQuery ? promotions.filter((p: any) =>
-    p.title.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-    (p.product?.name || '').toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-    (p.store?.name || '').toLowerCase().includes(debouncedQuery.toLowerCase()),
-  ) : []), [promotions, debouncedQuery]);
+  // Quem busca "arroz" quer a OFERTA de arroz no topo. As que casam pelo
+  // produto ou pelo título vêm antes das que casam só pelo nome da loja — senão
+  // uma loja chamada "Arroz & Cia" punha a oferta de picanha dela na frente.
+  const matchingPromos = useMemo(() => {
+    if (!debouncedQuery) return [];
+    const termo = debouncedQuery.toLowerCase();
+    const peloProduto = (p: any) =>
+      p.title.toLowerCase().includes(termo) || (p.product?.name || '').toLowerCase().includes(termo);
+    const pelaLoja = (p: any) => (p.store?.name || '').toLowerCase().includes(termo);
+    return [
+      ...promotions.filter(peloProduto),
+      ...promotions.filter((p: any) => !peloProduto(p) && pelaLoja(p)),
+    ];
+  }, [promotions, debouncedQuery]);
 
   const isSearching = debouncedQuery.length >= 2;
   const isCategoryMode = activeCategory !== null;
@@ -329,10 +372,8 @@ export default function SearchScreen() {
   //
   // Para virtualizar com um FlatList so (e nao tres aninhados, que desligariam a
   // virtualizacao), as tres secoes viram UMA lista heterogenea, com o tipo
-  // marcado em cada item. A ordem e a mesma de antes — lojas primeiro, depois
-  // produtos ou servicos conforme a aba — e as chaves tambem (store-/prod-/svc-),
-  // entao o indice do FlatList ja coincide com o stagger que o codigo antigo
-  // calculava a mao (filteredStores.length + index).
+  // marcado em cada item (chaves promo-/prod-/svc-/store-). Ordem: ofertas,
+  // depois produtos ou servicos conforme a aba, e as lojas por ultimo.
   type ItemAutocomplete =
     | { tipo: 'promo'; key: string; dado: any }
     | { tipo: 'store'; key: string; dado: any }
@@ -351,25 +392,29 @@ export default function SearchScreen() {
     // Entram PRIMEIRO de proposito: promocao e canal pago (tem adCost), quem
     // digita "picanha" quer ver a oferta de picanha, e o lojista esta pagando
     // justamente por essa posicao.
-    const lista: ItemAutocomplete[] =
-      activeTab === 'products'
-        ? matchingPromos.map((promo: any) => ({
-            tipo: 'promo' as const,
-            key: `promo-${promo.id}`,
-            dado: promo,
-          }))
-        : [];
-    for (const store of filteredStores) {
-      lista.push({ tipo: 'store' as const, key: `store-${store.id}`, dado: store });
-    }
+    // Nas duas abas: `matchingPromos` já vem filtrado pelo tipo da loja (ofertas
+    // de prestadores na aba Serviços).
+    const lista: ItemAutocomplete[] = matchingPromos.map((promo: any) => ({
+      tipo: 'promo' as const,
+      key: `promo-${promo.id}`,
+      dado: promo,
+    }));
+    // Depois das ofertas, os PRODUTOS (com os em promoção na frente) e só então
+    // as lojas: com as lojas no meio, a oferta de arroz ficava separada dos
+    // outros arrozes. O produto que já apareceu como oferta não se repete.
     if (activeTab === 'products') {
+      const jaNaOferta = new Set(matchingPromos.map((promo: any) => promo.product?.id).filter(Boolean));
       for (const product of filteredProducts) {
+        if (jaNaOferta.has(product.id)) continue;
         lista.push({ tipo: 'product' as const, key: `prod-${product.id}`, dado: product });
       }
     } else {
       for (const service of filteredServices) {
         lista.push({ tipo: 'service' as const, key: `svc-${service.id}`, dado: service });
       }
+    }
+    for (const store of filteredStores) {
+      lista.push({ tipo: 'store' as const, key: `store-${store.id}`, dado: store });
     }
     return lista;
   }, [matchingPromos, filteredStores, filteredProducts, filteredServices, activeTab]);
@@ -514,7 +559,7 @@ export default function SearchScreen() {
   );
   const hasResults = activeTab === 'products'
     ? filteredStores.length > 0 || filteredProducts.length > 0 || matchingPromos.length > 0
-    : filteredStores.length > 0 || filteredServices.length > 0;
+    : filteredStores.length > 0 || filteredServices.length > 0 || matchingPromos.length > 0;
   const hasCategoryResults = categoryItems.length > 0;
 
   const tabHalfWidth = (screenWidth - 20) / 2;
@@ -830,58 +875,60 @@ export default function SearchScreen() {
               onEndReached={carregarMaisLojas}
               onEndReachedThreshold={0.4}
               ListHeaderComponent={
-                activeTab === 'products'
-                  ? renderCategoriesGrid(PRODUCT_CATEGORIES, idleStores)
-                  : renderCategoriesGrid(SERVICE_CATEGORIES, idleStores)
+                <>
+                  {/* Ofertas no TOPO (antes ficavam no rodapé, depois de todas as
+                      lojas). Já filtradas pelo tipo de loja da aba. */}
+                  <View style={{ marginBottom: 8 }}>
+                {/* Promotions highlight */}
+                {promotions.length > 0 && (
+                  <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Ofertas do momento</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {promotions.slice(0, 6).map((promo: any, index: number) => {
+                        const discount = promo.product?.price && promo.promotionalPrice
+                          ? Math.round((1 - promo.promotionalPrice / promo.product.price) * 100) : 0;
+                        return (
+                          <AnimatedListItem key={promo.id} index={index}>
+                          <AnimatedPressable
+                            style={[styles.promoCard, { backgroundColor: colors.card }]}
+                            onPress={() => router.push(`/promotion/${promo.id}`)}
+                          >
+                            {(promo.product?.imageUrl || promo.imageUrl) ? (
+                              <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy={imageCachePolicy} />
+                            ) : (
+                              <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                                <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
+                              </View>
+                            )}
+                            {discount > 0 && (
+                              <View style={styles.promoBadge}>
+                                <Text style={styles.promoBadgeText}>-{discount}%</Text>
+                              </View>
+                            )}
+                            <View style={styles.promoInfo}>
+                              <Text style={[styles.promoName, { color: colors.text }]} numberOfLines={1}>{promo.title}</Text>
+                              <Text style={[styles.promoStore, { color: colors.textLight }]} numberOfLines={1}>{promo.store?.name}</Text>
+                              {promo.promotionalPrice && (
+                                <Text style={[styles.promoPrice, { color: colors.primary }]}>{formatarReais(promo.promotionalPrice)}</Text>
+                              )}
+                            </View>
+                          </AnimatedPressable>
+                          </AnimatedListItem>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
+                  </View>
+                  {activeTab === 'products'
+                    ? renderCategoriesGrid(PRODUCT_CATEGORIES, idleStores)
+                    : renderCategoriesGrid(SERVICE_CATEGORIES, idleStores)}
+                </>
               }
               ListEmptyComponent={
                 activeTab === 'products'
                   ? renderSemLojas(PRODUCT_CATEGORIES)
                   : renderSemLojas(SERVICE_CATEGORIES)
-              }
-              ListFooterComponent={
-                <View style={{ marginTop: 28 }}>
-              {/* Promotions highlight */}
-              {promotions.length > 0 && (
-                <View style={styles.section}>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Ofertas do momento</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {promotions.slice(0, 6).map((promo: any, index: number) => {
-                      const discount = promo.product?.price && promo.promotionalPrice
-                        ? Math.round((1 - promo.promotionalPrice / promo.product.price) * 100) : 0;
-                      return (
-                        <AnimatedListItem key={promo.id} index={index}>
-                        <AnimatedPressable
-                          style={[styles.promoCard, { backgroundColor: colors.card }]}
-                          onPress={() => router.push(`/promotion/${promo.id}`)}
-                        >
-                          {(promo.product?.imageUrl || promo.imageUrl) ? (
-                            <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy={imageCachePolicy} />
-                          ) : (
-                            <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
-                              <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
-                            </View>
-                          )}
-                          {discount > 0 && (
-                            <View style={styles.promoBadge}>
-                              <Text style={styles.promoBadgeText}>-{discount}%</Text>
-                            </View>
-                          )}
-                          <View style={styles.promoInfo}>
-                            <Text style={[styles.promoName, { color: colors.text }]} numberOfLines={1}>{promo.title}</Text>
-                            <Text style={[styles.promoStore, { color: colors.textLight }]} numberOfLines={1}>{promo.store?.name}</Text>
-                            {promo.promotionalPrice && (
-                              <Text style={[styles.promoPrice, { color: colors.primary }]}>{formatarReais(promo.promotionalPrice)}</Text>
-                            )}
-                          </View>
-                        </AnimatedPressable>
-                        </AnimatedListItem>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              )}
-                </View>
               }
             />
 
