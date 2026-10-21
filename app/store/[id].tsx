@@ -667,10 +667,18 @@ export default function StoreScreen() {
                   <Ionicons name="fast-food-outline" size={18} color={colors.gray} />
                 </View>
               )}
-              {store.isOpen && item.isAvailable && !item.isVariableWeight && (
+              {/* Produto por peso também tem o "+": antes ele não aparecia e o
+                  card não parecia clicável. No peso o "+" abre o seletor de
+                  gramas (o mesmo do toque no card) — adicionar direto
+                  exigiria chutar um peso. */}
+              {store.isOpen && item.isAvailable && (
                 <TouchableOpacity
                   style={[styles.quickAddBtn, { backgroundColor: colors.primary }]}
                   onPress={() => {
+                    if (item.isVariableWeight) {
+                      openProductModal(item);
+                      return;
+                    }
                     addItem({ productId: item.id, name: item.name, price: item.promotionalPrice ?? item.price, imageUrl: item.imageUrl, storeId: store.id, storeName: store.name }, 1);
                   }}
                 >

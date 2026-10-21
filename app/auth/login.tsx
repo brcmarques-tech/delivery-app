@@ -214,6 +214,11 @@ export default function LoginScreen() {
             { text: 'Sim, entrar aqui', onPress: () => handleLogin(true) },
           ],
         );
+      } else if (/throttl|too many|status code 429/i.test(msg)) {
+        // A API aceita 8 tentativas por minuto. Na 9a dizia "email ou senha
+        // invalidos": a pessoa achava que errou, tentava de novo e continuava
+        // bloqueada.
+        setLoginError('Muitas tentativas seguidas. Aguarde um minuto e tente de novo.');
       } else if (/network|timeout|failed to fetch|abort|status code 5[0-9][0-9]|response not successful/i.test(msg)) {
         // Rede fora do ar nao e credencial errada. Dizer "email ou senha
         // invalidos" aqui manda a pessoa trocar a senha por causa do Wi-Fi.

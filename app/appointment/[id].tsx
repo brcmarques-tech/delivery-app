@@ -35,7 +35,7 @@ const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pendente',
   CONFIRMED: 'Confirmado',
   CANCELLED: 'Cancelado',
-  COMPLETED: 'Concluido',
+  COMPLETED: 'Concluído',
   NO_SHOW: 'Nao compareceu',
   QUOTE_REQUESTED: 'Orcamento solicitado',
   QUOTED: 'Orcamento recebido',

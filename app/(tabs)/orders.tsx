@@ -36,7 +36,7 @@ type ActiveTab = 'orders' | 'appointments';
 const appointmentStatusLabels: Record<string, { label: string; colorKey: string }> = {
   PENDING: { label: 'Pendente', colorKey: 'warning' },
   CONFIRMED: { label: 'Confirmado', colorKey: 'primary' },
-  COMPLETED: { label: 'Concluido', colorKey: 'success' },
+  COMPLETED: { label: 'Concluído', colorKey: 'success' },
   CANCELLED: { label: 'Cancelado', colorKey: 'gray' },
   NO_SHOW: { label: 'Nao compareceu', colorKey: 'danger' },
   QUOTE_REQUESTED: { label: 'Orcamento solicitado', colorKey: 'warning' },
@@ -119,7 +119,7 @@ export default function OrdersScreen() {
     DELIVERING: { label: 'A caminho', color: colors.success },
     DELIVERED: { label: 'Entregue', color: colors.grayDark },
     CANCELLED: { label: 'Cancelado', color: colors.danger },
-    COMPLETED: { label: 'Entregue', color: colors.success },
+    COMPLETED: { label: 'Concluído', color: colors.success },
     REJECTED: { label: 'Rejeitado', color: colors.danger },
     DISPUTED: { label: 'Em reclamacao', color: colors.warning },
     VENDOR_CONFIRMED_PICKUP: { label: 'Retirado', color: colors.primary },

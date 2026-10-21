@@ -257,7 +257,7 @@ export default function DeliveriesScreen() {
     DELIVERING: { label: 'A caminho', color: colors.primary },
     DELIVERER_CONFIRMED_DELIVERY: { label: 'Aguardando cliente', color: colors.warning },
     DELIVERED: { label: 'Entregue', color: colors.success },
-    COMPLETED: { label: 'Concluido', color: colors.success },
+    COMPLETED: { label: 'Concluído', color: colors.success },
     DISPUTED: { label: 'Disputado', color: colors.danger },
     CANCELLED: { label: 'Cancelado', color: colors.danger },
   }), [colors]);

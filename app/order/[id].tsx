@@ -15,6 +15,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { fonts } from '../../src/theme';
 import { alerta } from '../../src/lib/alerta';
+import { telefoneParaDiscar } from '../../src/lib/telefone';
 import { formatarReais } from '../../src/lib/dinheiro';
 
 // O que acontece com o dinheiro de um pedido cancelado. Um texto so, usado no
@@ -40,7 +41,7 @@ const statusSteps = [
   { key: 'VENDOR_CONFIRMED_PICKUP', label: 'Saiu da loja', icon: 'storefront-outline' as const },
   { key: 'DELIVERING', label: 'A caminho', icon: 'navigate-outline' as const },
   { key: 'DELIVERER_CONFIRMED_DELIVERY', label: 'Entregue', icon: 'checkmark-done-outline' as const },
-  { key: 'COMPLETED', label: 'Finalizado', icon: 'checkmark-circle' as const },
+  { key: 'COMPLETED', label: 'Concluído', icon: 'checkmark-circle' as const },
 ];
 
 const terminalStatuses = ['REJECTED', 'DISPUTED', 'CANCELLED', 'EXPIRED'];
@@ -493,7 +494,7 @@ export default function OrderDetailScreen() {
                   style={{ backgroundColor: colors.success, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginLeft: 8 }}
                   disabled={cancellingDispute}
                   onPress={() => {
-                    alerta('Cancelar reclamação', 'Tem certeza que deseja cancelar a reclamação? O pedido voltará para "Finalizado".', [
+                    alerta('Cancelar reclamação', 'Tem certeza que deseja cancelar a reclamação? O pedido voltará para "Concluído".', [
                       { text: 'Não', style: 'cancel' },
                       { text: 'Sim, cancelar', onPress: async () => {
                         try {
@@ -605,15 +606,31 @@ export default function OrderDetailScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.delivererName, { color: colors.text }]}>{order.delivery.deliverer.name}</Text>
             <Text style={[styles.delivererPhone, { color: colors.textLight }]}>
-              {order.status === 'DELIVERING' ? 'Saiu para entrega' : order.status === 'DELIVERER_CONFIRMED_DELIVERY' ? 'Entrega confirmada' : 'Entregador a caminho'}
+              {/* Antes, todo status fora desses dois caía em "Entregador a
+                  caminho" — inclusive pedido concluído ou cancelado. */}
+              {({
+                READY: 'Indo buscar na loja',
+                VENDOR_CONFIRMED_PICKUP: 'Retirando na loja',
+                PICKED_UP: 'Saiu para entrega',
+                DELIVERING: 'Saiu para entrega',
+                DELIVERER_CONFIRMED_DELIVERY: 'Entrega confirmada',
+                COMPLETED: 'Entregou o seu pedido',
+                DISPUTED: 'Entrega em análise',
+                CANCELLED: 'Entrega cancelada',
+              } as Record<string, string>)[order.status] || 'Entregador do pedido'}
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.callButton}
-            onPress={() => order.delivery.deliverer.phone && Linking.openURL(`https://wa.me/55${order.delivery.deliverer.phone.replace(/\D/g, '')}`)}
-          >
-            <Ionicons name="call" size={18} color={colors.primary} />
-          </TouchableOpacity>
+          {/* wa.me precisa de 55 + DDD + número, sem "+". Antes era "55" +
+              os dígitos crus: telefone já gravado com 55 virava 5555... e o
+              WhatsApp abria a conversa com outro número. */}
+          {!!telefoneParaDiscar(order.delivery.deliverer.phone) && (
+            <TouchableOpacity
+              style={styles.callButton}
+              onPress={() => Linking.openURL(`https://wa.me/${telefoneParaDiscar(order.delivery.deliverer.phone)!.slice(1)}`)}
+            >
+              <Ionicons name="call" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          )}
           {order.delivery.currentLatitude && order.delivery.currentLongitude && order.deliveryLatitude && order.deliveryLongitude && (
             <TouchableOpacity
               style={styles.callButton}
