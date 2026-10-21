@@ -30,6 +30,7 @@ import { CALCULATE_DELIVERY_FEE, GET_MY_ADDRESSES, GET_STORE, ESTIMATE_DELIVERY_
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../src/theme';
 import { formatarReais } from '../src/lib/dinheiro';
+import { textoDoEndereco } from '../src/lib/endereco';
 
 const PAGARME_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAGARME_PUBLIC_KEY || '';
 
@@ -373,11 +374,8 @@ export default function CheckoutScreen() {
     if (addressLoaded || savedAddresses.length === 0) return;
     const defaultAddr = savedAddresses.find((a: any) => a.isDefault) || savedAddresses[0];
     if (defaultAddr) {
-      const parts = [defaultAddr.street, defaultAddr.number];
-      if (defaultAddr.complement) parts.push(defaultAddr.complement);
-      parts.push(defaultAddr.neighborhood);
-      parts.push(`${defaultAddr.city}/${defaultAddr.state}`);
-      setAddress(parts.join(', '));
+      const textoEndereco = textoDoEndereco(defaultAddr);
+      setAddress(textoEndereco);
 
       const hasValidCoords = defaultAddr.latitude && defaultAddr.longitude
         && Math.abs(defaultAddr.latitude) > 0.01 && Math.abs(defaultAddr.longitude) > 0.01;
@@ -385,7 +383,7 @@ export default function CheckoutScreen() {
       if (hasValidCoords) {
         aplicarCoords(
           { latitude: defaultAddr.latitude, longitude: defaultAddr.longitude },
-          parts.join(', '),
+          textoEndereco,
         );
         if (storeId) {
           const vars = { storeId, customerLatitude: defaultAddr.latitude, customerLongitude: defaultAddr.longitude };
@@ -434,9 +432,19 @@ export default function CheckoutScreen() {
     }
   }, [storeHasOwnDelivery, isPickup, ownerPaymentConnected]);
 
+  // Em que pé está a busca do endereço digitado. Antes não existia: sem
+  // endereço, procurando ou não encontrado, o botão dizia "Calculando
+  // entrega..." — e no "não encontrado" ficava assim para sempre, desabilitado,
+  // sem a pessoa saber que precisava corrigir o endereço.
+  const [buscaDoEndereco, setBuscaDoEndereco] = useState<'ociosa' | 'buscando' | 'nao_achou'>('ociosa');
+
   // Geocode address
   useEffect(() => {
-    if (!address.trim() || !storeId) return;
+    if (!address.trim() || !storeId) {
+      setBuscaDoEndereco('ociosa');
+      return;
+    }
+    setBuscaDoEndereco('buscando');
     // KAN-282: o texto pelo qual estamos geocodificando, congelado aqui. Se o
     // cliente digitar mais durante o await, o resultado que chegar fica
     // emparelhado com o texto VELHO e `coordsValidas` o descarta sozinho — em
@@ -454,6 +462,7 @@ export default function CheckoutScreen() {
         }
       } catch {}
       if (!result) result = await geocodeNominatim(enderecoAlvo);
+      setBuscaDoEndereco(result ? 'ociosa' : 'nao_achou');
       if (result) {
         aplicarCoords(result, enderecoAlvo);
         const vars = { storeId, customerLatitude: result.latitude, customerLongitude: result.longitude };
@@ -758,17 +767,14 @@ export default function CheckoutScreen() {
                 {showAddressPicker && (
                   <View style={styles.addressPickerList}>
                     {savedAddresses.map((addr: any) => {
-                      const label = [addr.street, addr.number, addr.neighborhood, `${addr.city}/${addr.state}`].filter(Boolean).join(', ');
+                      const label = textoDoEndereco(addr);
                       return (
                         <TouchableOpacity
                           key={addr.id}
                           style={[styles.addressPickerItem, { backgroundColor: colors.background }]}
                           onPress={() => {
-                            const parts = [addr.street, addr.number];
-                            if (addr.complement) parts.push(addr.complement);
-                            parts.push(addr.neighborhood);
-                            parts.push(`${addr.city}/${addr.state}`);
-                            setAddress(parts.join(', '));
+                            const textoEndereco = textoDoEndereco(addr);
+                            setAddress(textoEndereco);
                             // BUGFIX: endereco salvo pode ter (0,0) — a tela de
                             // enderecos grava zero quando o geocode nao acha nada.
                             // Sem esta guarda o `coords` virava um objeto truthy,
@@ -782,7 +788,7 @@ export default function CheckoutScreen() {
                             if (temCoordValida) {
                               aplicarCoords(
                                 { latitude: addr.latitude, longitude: addr.longitude },
-                                parts.join(', '),
+                                textoEndereco,
                               );
                               if (storeId) {
                                 calcFee({ variables: { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude } });
@@ -824,6 +830,11 @@ export default function CheckoutScreen() {
                     multiline
                   />
                 </View>
+                {buscaDoEndereco === 'nao_achou' && !coordsValidas && (
+                  <Text style={{ color: colors.danger, fontSize: fonts.small, marginTop: 6 }}>
+                    Não encontramos esse endereço. Confira rua, número e cidade, ou use o GPS.
+                  </Text>
+                )}
               </View>
             )}
 
@@ -937,7 +948,15 @@ export default function CheckoutScreen() {
                 ) : (
                   // M1: Show 'Gratis' for zero fee when calculation is done, 'Calculando...' only when not yet calculated
                   <Text style={[styles.summaryValue, { color: colors.text }]}>
-                    {feeCalculated ? (deliveryFee > 0 ? `${formatarReais(deliveryFee)}` : 'Gratis') : 'Calculando...'}
+                    {/* O endereço vem antes da taxa: apagado o endereço, a taxa
+                        calculada para o anterior continuava aparecendo. */}
+                    {!coordsValidas && !address.trim()
+                      ? 'Informe o endereço'
+                      : !coordsValidas && buscaDoEndereco === 'nao_achou'
+                        ? '—'
+                        : feeCalculated
+                          ? (deliveryFee > 0 ? `${formatarReais(deliveryFee)}` : 'Gratis')
+                          : 'Calculando...'}
                   </Text>
                 )}
               </View>
@@ -983,6 +1002,12 @@ export default function CheckoutScreen() {
             ? 'Finalizando...'
             : belowMinimum
             ? `Pedido minimo: ${formatarReais(effectiveMinimum)}`
+            : !isPickup && !coordsValidas && !address.trim()
+            ? 'Informe o endereço de entrega'
+            : !isPickup && !coordsValidas && buscaDoEndereco === 'buscando'
+            ? 'Localizando endereço...'
+            : !isPickup && !coordsValidas && buscaDoEndereco === 'nao_achou'
+            ? 'Endereço não encontrado'
             : !isPickup && (feeLoading || !feeCalculated)
             ? 'Calculando entrega...'
             : `Finalizar pedido - ${formatarReais(finalTotal)}`}
