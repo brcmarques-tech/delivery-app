@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/react-native';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import { ApolloProvider } from '@apollo/client';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -17,6 +17,7 @@ import { usePushNotifications } from '../src/hooks/usePushNotifications';
 import { useProductSync } from '../src/hooks/useProductSync';
 import { DeliveryConfirmationModal } from '../src/components/DeliveryConfirmationModal';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
+import { anotarCaminho } from '../src/lib/saidaDaSessao';
 
 // KAN-221: era process.env.SENTRY_DSN, sem o prefixo EXPO_PUBLIC_ — no Expo so
 // variaveis EXPO_PUBLIC_* sao inlinadas no bundle, entao o dsn ficava undefined
@@ -55,6 +56,14 @@ function MemoryPressureHandler() {
   return null;
 }
 
+// Guarda a tela atual para, se a sessão cair, o login devolver a pessoa a ela
+// (ver src/lib/saidaDaSessao.ts).
+function RastreiaCaminho() {
+  const caminho = usePathname();
+  useEffect(() => { anotarCaminho(caminho); }, [caminho]);
+  return null;
+}
+
 function ThemedStatusBar() {
   const { isDark } = useTheme();
   return <StatusBar style={isDark ? 'light' : 'dark'} />;
@@ -71,6 +80,7 @@ export default function RootLayout() {
                 <CartProvider>
                   <NotificationListener />
                   <MemoryPressureHandler />
+                  <RastreiaCaminho />
                   <DeliveryConfirmationModal />
                   <ThemedStatusBar />
                   <Stack screenOptions={{ headerShown: false }} />

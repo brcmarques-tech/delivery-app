@@ -22,6 +22,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { fonts } from '../../src/theme';
+import { consumirMotivo } from '../../src/lib/saidaDaSessao';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -74,6 +75,9 @@ export default function LoginScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+  // Sessão que caiu por ter sido aberta em outro aparelho: antes o app só
+  // jogava aqui, sem dizer por quê. Lido uma vez, na abertura da tela.
+  const [motivoDaSaida] = useState(() => consumirMotivo());
   const [transitioning, setTransitioning] = useState(false);
 
   // Transition animation values
@@ -263,6 +267,13 @@ export default function LoginScreen() {
         <OnceAnimated delay={50} fromY={30}>
           <View style={[styles.formCard, { backgroundColor: colors.white }]}>
             <View style={styles.form}>
+              {motivoDaSaida && (
+                <View style={styles.avisoSaida}>
+                  <Text style={styles.avisoSaidaTexto}>
+                    Sua conta foi aberta em outro aparelho. Entre de novo para continuar.
+                  </Text>
+                </View>
+              )}
               <OnceAnimated delay={100} fromX={30}>
                 <TextInput
                   style={[styles.input, { backgroundColor: colors.grayLight, color: colors.text }]}
@@ -456,6 +467,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 12,
   },
+  avisoSaida: {
+    backgroundColor: '#FFF7E6',
+    borderColor: '#F5C26B',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  avisoSaidaTexto: { color: '#8A5A00', fontSize: fonts.small, lineHeight: 18 },
   errorText: {
     color: '#ef4444',
     fontSize: fonts.small,

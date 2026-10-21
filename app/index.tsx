@@ -4,11 +4,15 @@ import { useQuery } from '@apollo/client';
 import { GET_MY_ADDRESSES } from '../src/lib/graphql/queries';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { SplashLoading } from '../src/components/SplashLoading';
+import { consumirVoltarPara } from '../src/lib/saidaDaSessao';
 
 export default function Index() {
   const { user, loading } = useAuth();
+  // Tela de onde a sessão caiu (ver src/lib/saidaDaSessao.ts). Consumida uma
+  // vez, depois que a pessoa entra de novo.
+  const destinoRef = useRef<string | null | undefined>(undefined);
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const [splashHidden, setSplashHidden] = useState(false);
   const [animDone, setAnimDone] = useState(false);
@@ -52,6 +56,12 @@ export default function Index() {
   // Termos de uso obrigatorios
   if (!user.acceptedTermsAt) {
     return <Redirect href="/accept-terms" />;
+  }
+
+  // Voltou depois de a sessão cair: de volta à tela onde estava (pedido, loja).
+  if (destinoRef.current === undefined) destinoRef.current = consumirVoltarPara(user.id);
+  if (destinoRef.current) {
+    return <Redirect href={destinoRef.current as any} />;
   }
 
   // If query errored (e.g. token not ready yet) or still loading, go to home
