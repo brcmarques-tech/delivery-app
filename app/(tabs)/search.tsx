@@ -25,6 +25,7 @@ import { AnimatedListItem } from '../../src/components/AnimatedListItem';
 import { AnimatedPressable } from '../../src/components/AnimatedPressable';
 import { AnimatedItem } from '../../src/components/AnimatedItem';
 import ReAnimated, { FadeIn, FadeOut, FadeInDown, FadeInRight, FadeOutRight } from 'react-native-reanimated';
+import { formatarReais } from '../../src/lib/dinheiro';
 
 type FilterType = 'all' | 'open' | 'free_delivery' | 'promo';
 type TabType = 'products' | 'services';
@@ -415,7 +416,7 @@ export default function SearchScreen() {
               )}
               {precoPromo > 0 && (
                 <Text style={{ fontSize: fonts.small, fontWeight: '700', color: colors.success, marginLeft: 8 }}>
-                  R$ {precoPromo.toFixed(2)}
+                  {formatarReais(precoPromo)}
                 </Text>
               )}
             </AnimatedPressable>
@@ -473,7 +474,7 @@ export default function SearchScreen() {
                 <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{product.store?.name}</Text>
               </View>
               <Text style={{ fontSize: fonts.small, fontWeight: '700', color: hasPromo ? colors.success : colors.text }}>
-                R$ {Number(hasPromo ? product.promotionalPrice : product.price).toFixed(2)}
+                {formatarReais(hasPromo ? product.promotionalPrice : product.price)}
               </Text>
             </AnimatedPressable>
           </AnimatedListItem>
@@ -502,7 +503,7 @@ export default function SearchScreen() {
               <Text style={{ fontSize: fonts.tiny, color: colors.primary, fontWeight: '600' }}>Orcamento</Text>
             ) : service.price ? (
               <Text style={{ fontSize: fonts.small, fontWeight: '700', color: colors.text }}>
-                R$ {Number(service.price).toFixed(2)}
+                {formatarReais(service.price)}
               </Text>
             ) : null}
           </AnimatedPressable>
@@ -641,13 +642,13 @@ export default function SearchScreen() {
           </View>
           {isProduct ? (
             <Text style={{ fontSize: fonts.small, fontWeight: '700', color: hasPromo ? colors.success : colors.text }}>
-              R$ {Number(hasPromo ? item.promotionalPrice : item.price).toFixed(2)}
+              {formatarReais(hasPromo ? item.promotionalPrice : item.price)}
             </Text>
           ) : item.requiresQuote ? (
             <Text style={{ fontSize: fonts.tiny, color: colors.primary, fontWeight: '600' }}>Orcamento</Text>
           ) : item.price ? (
             <Text style={{ fontSize: fonts.small, fontWeight: '700', color: colors.text }}>
-              R$ {Number(item.price).toFixed(2)}
+              {formatarReais(item.price)}
             </Text>
           ) : null}
         </AnimatedPressable>
@@ -870,7 +871,7 @@ export default function SearchScreen() {
                             <Text style={[styles.promoName, { color: colors.text }]} numberOfLines={1}>{promo.title}</Text>
                             <Text style={[styles.promoStore, { color: colors.textLight }]} numberOfLines={1}>{promo.store?.name}</Text>
                             {promo.promotionalPrice && (
-                              <Text style={[styles.promoPrice, { color: colors.primary }]}>R$ {Number(promo.promotionalPrice).toFixed(2)}</Text>
+                              <Text style={[styles.promoPrice, { color: colors.primary }]}>{formatarReais(promo.promotionalPrice)}</Text>
                             )}
                           </View>
                         </AnimatedPressable>

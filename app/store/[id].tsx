@@ -29,6 +29,7 @@ import { imageCachePolicy } from '../../src/lib/deviceTier'; // Perf (F0)
 import { precoPorPeso } from '../../src/lib/precoPorPeso'; // KAN-282 item 6
 import { useLocation } from '../../src/contexts/LocationContext';
 import { rotuloDoFrete, rotuloDoFreteGratisAcima } from '../../src/lib/frete';
+import { formatarReais } from '../../src/lib/dinheiro';
 
 // UX: fileira de chips de categoria com setinhas indicando que ha mais
 // conteudo para os lados. Componente isolado e memoizado de proposito: o
@@ -399,7 +400,7 @@ export default function StoreScreen() {
             {Number(store.minimumOrder) > 0 && (
               <>
                 <Text style={[styles.detailDot, { color: colors.gray }]}>•</Text>
-                <Text style={[styles.detailText, { color: colors.textLight }]}>Min R$ {Number(store.minimumOrder).toFixed(2)}</Text>
+                <Text style={[styles.detailText, { color: colors.textLight }]}>Min {formatarReais(store.minimumOrder)}</Text>
               </>
             )}
           </View>
@@ -523,15 +524,15 @@ export default function StoreScreen() {
                       {produto.promotionalPrice ? (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                           <Text style={[styles.priceOld, { color: colors.gray }]}>
-                            R$ {Number(produto.price).toFixed(2)}
+                            {formatarReais(produto.price)}
                           </Text>
                           <Text style={[styles.price, { color: colors.primary }]}>
-                            R$ {preco.toFixed(2)}
+                            {formatarReais(preco)}
                           </Text>
                         </View>
                       ) : (
                         <Text style={[styles.price, { color: colors.primary }]}>
-                          R$ {preco.toFixed(2)}
+                          {formatarReais(preco)}
                           {produto.isVariableWeight ? '/kg' : ''}
                         </Text>
                       )}
@@ -583,7 +584,7 @@ export default function StoreScreen() {
                     {item.requiresQuote ? (
                       <Text style={[styles.price, { color: colors.warning }]}>Solicitar orcamento</Text>
                     ) : servicePrice ? (
-                      <Text style={[styles.price, { color: colors.primary }]}>R$ {servicePrice.toFixed(2)}</Text>
+                      <Text style={[styles.price, { color: colors.primary }]}>{formatarReais(servicePrice)}</Text>
                     ) : null}
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
@@ -644,14 +645,14 @@ export default function StoreScreen() {
               ) : null}
               <View style={styles.priceRow}>
                 {item.isVariableWeight ? (
-                  <Text style={[styles.price, { color: colors.primary }]}>R$ {itemPrice.toFixed(2)}/kg</Text>
+                  <Text style={[styles.price, { color: colors.primary }]}>{formatarReais(itemPrice)}/kg</Text>
                 ) : item.promotionalPrice ? (
                   <>
-                    <Text style={[styles.priceOld, { color: colors.gray }]}>R$ {Number(item.price).toFixed(2)}</Text>
-                    <Text style={[styles.price, { color: colors.primary }]}>R$ {itemPrice.toFixed(2)}</Text>
+                    <Text style={[styles.priceOld, { color: colors.gray }]}>{formatarReais(item.price)}</Text>
+                    <Text style={[styles.price, { color: colors.primary }]}>{formatarReais(itemPrice)}</Text>
                   </>
                 ) : (
-                  <Text style={[styles.price, { color: colors.primary }]}>R$ {itemPrice.toFixed(2)}</Text>
+                  <Text style={[styles.price, { color: colors.primary }]}>{formatarReais(itemPrice)}</Text>
                 )}
                 {!item.isVariableWeight && item.unit && <Text style={[styles.unit, { color: colors.textLight }]}>/ {item.unit}</Text>}
               </View>
@@ -734,14 +735,14 @@ export default function StoreScreen() {
                   ) : null}
                   <View style={styles.addModalPriceRow}>
                     {selectedProduct.isVariableWeight ? (
-                      <Text style={[styles.addModalUnit, { color: colors.textLight }]}>R$ {Number(selectedProduct.promotionalPrice || selectedProduct.price).toFixed(2)}/kg</Text>
+                      <Text style={[styles.addModalUnit, { color: colors.textLight }]}>{formatarReais(selectedProduct.promotionalPrice || selectedProduct.price)}/kg</Text>
                     ) : selectedProduct.promotionalPrice ? (
                       <>
-                        <Text style={[styles.addModalPriceOld, { color: colors.gray }]}>R$ {Number(selectedProduct.price).toFixed(2)}</Text>
-                        <Text style={[styles.addModalPrice, { color: colors.primary }]}>R$ {Number(selectedProduct.promotionalPrice).toFixed(2)}</Text>
+                        <Text style={[styles.addModalPriceOld, { color: colors.gray }]}>{formatarReais(selectedProduct.price)}</Text>
+                        <Text style={[styles.addModalPrice, { color: colors.primary }]}>{formatarReais(selectedProduct.promotionalPrice)}</Text>
                       </>
                     ) : (
-                      <Text style={[styles.addModalPrice, { color: colors.primary }]}>R$ {Number(selectedProduct.price).toFixed(2)}</Text>
+                      <Text style={[styles.addModalPrice, { color: colors.primary }]}>{formatarReais(selectedProduct.price)}</Text>
                     )}
                     {!selectedProduct.isVariableWeight && selectedProduct.unit && <Text style={[styles.addModalUnit, { color: colors.textLight }]}>/ {selectedProduct.unit}</Text>}
                   </View>
@@ -794,11 +795,11 @@ export default function StoreScreen() {
                       {/* KAN-282 (item 6): o preco previsto no botao tem de ser
                           o MESMO que o servidor vai cobrar, senao o cliente ve
                           um valor ao adicionar e outro no carrinho. */}
-                      <Text style={styles.addModalButtonPrice}>R$ {precoPorPeso(selectedPrice, weightGrams).toFixed(2)}</Text>
-                      <Text style={[styles.addModalButtonPrice, { fontSize: 10, opacity: 0.85 }]}>(R$ {selectedPrice.toFixed(2)}/kg)</Text>
+                      <Text style={styles.addModalButtonPrice}>{formatarReais(precoPorPeso(selectedPrice, weightGrams))}</Text>
+                      <Text style={[styles.addModalButtonPrice, { fontSize: 10, opacity: 0.85 }]}>({formatarReais(selectedPrice)}/kg)</Text>
                     </View>
                   ) : (
-                    <Text style={styles.addModalButtonPrice}>R$ {(selectedPrice * quantity).toFixed(2)}</Text>
+                    <Text style={styles.addModalButtonPrice}>{formatarReais((selectedPrice * quantity))}</Text>
                   )}
                 </TouchableOpacity>
               </>

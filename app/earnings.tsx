@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MY_BALANCE, SIMULATE_ANTICIPATION } from '../src/lib/graphql/queries';
 import { REGISTER_RECIPIENT, REQUEST_ANTICIPATION, DISCONNECT_PAYMENT, TOGGLE_AUTO_ANTICIPATION } from '../src/lib/graphql/mutations';
 import { alerta } from '../src/lib/alerta';
+import { formatarReais } from '../src/lib/dinheiro';
 
 const BANKS = [
   { code: '001', name: 'Banco do Brasil' },
@@ -144,8 +145,8 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
     // simulacao), a confirmacao nao pode prometer numero. Antes o texto dizia
     // "Voce recebera R$ X" com um X que o nosso proprio codigo inventou.
     const corpo = sim.isEstimate
-      ? `Nao conseguimos confirmar a taxa com o provedor agora.\n\nEstimativa: taxa de cerca de R$ ${sim.fee?.toFixed(2) || '0.00'} (~${sim.feePercentage || 0}%), voce receberia cerca de R$ ${sim.anticipatedAmount?.toFixed(2) || '0.00'}.\n\nO valor final e definido pelo provedor e pode ser diferente.`
-      : `Sera cobrada uma taxa de R$ ${sim.fee?.toFixed(2) || '0.00'} (~${sim.feePercentage || 0}%).\n\nVoce recebera R$ ${sim.anticipatedAmount?.toFixed(2) || '0.00'}.`;
+      ? `Nao conseguimos confirmar a taxa com o provedor agora.\n\nEstimativa: taxa de cerca de ${formatarReais(sim.fee)} (~${sim.feePercentage || 0}%), voce receberia cerca de ${formatarReais(sim.anticipatedAmount)}.\n\nO valor final e definido pelo provedor e pode ser diferente.`
+      : `Sera cobrada uma taxa de ${formatarReais(sim.fee)} (~${sim.feePercentage || 0}%).\n\nVoce recebera ${formatarReais(sim.anticipatedAmount)}.`;
     alerta(
       sim.isEstimate ? 'Antecipacao (valores estimados)' : 'Confirmar Antecipacao',
       corpo,
@@ -159,7 +160,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             try {
               const { data } = await requestAnticipation();
               const r = data.requestAnticipation;
-              alerta('Antecipacao Solicitada!', `Valor aprovado: R$ ${r.approvedAmount?.toFixed(2)}\nTaxa cobrada: R$ ${r.fee?.toFixed(2)}\nStatus: ${r.status}`);
+              alerta('Antecipacao Solicitada!', `Valor aprovado: ${formatarReais(r.approvedAmount)}\nTaxa cobrada: ${formatarReais(r.fee)}\nStatus: ${r.status}`);
               refetchBalance();
             } catch (err: any) {
               const msg = err.message?.includes('network') ? 'Sem conexao com a internet. Tente novamente.' : err.message || 'Erro ao solicitar antecipacao.';
@@ -228,7 +229,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             <Text style={{ fontSize: 10, color: isDark ? '#bbf7d0' : '#166534' }}>Disponivel para saque</Text>
           </View>
           <Text style={{ fontSize: 28, fontWeight: 'bold', color: isDark ? '#86efac' : '#166534', marginTop: 4 }}>
-            R$ {(balance?.availableAmount || 0).toFixed(2)}
+            {formatarReais((balance?.availableAmount || 0))}
           </Text>
         </View>
 
@@ -239,7 +240,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             </View>
             <Text style={{ fontSize: 10, color: isDark ? '#fed7aa' : '#9a3412', marginTop: 6 }}>A receber</Text>
             <Text style={{ fontSize: 20, fontWeight: 'bold', color: isDark ? '#fdba74' : '#9a3412' }}>
-              R$ {(balance?.waitingFundsAmount || 0).toFixed(2)}
+              {formatarReais((balance?.waitingFundsAmount || 0))}
             </Text>
           </View>
 
@@ -249,7 +250,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             </View>
             <Text style={{ fontSize: 10, color: isDark ? '#bfdbfe' : '#1e40af', marginTop: 6 }}>Ja transferido</Text>
             <Text style={{ fontSize: 20, fontWeight: 'bold', color: isDark ? '#93c5fd' : '#1e40af' }}>
-              R$ {(balance?.transferredAmount || 0).toFixed(2)}
+              {formatarReais((balance?.transferredAmount || 0))}
             </Text>
           </View>
         </View>
@@ -283,11 +284,11 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
           <View style={[styles.simBox, { backgroundColor: colors.background }]}>
             <View style={styles.simRow}>
               <Text style={{ fontSize: 10, color: colors.textSecondary }}>Valor pendente</Text>
-              <Text style={{ fontSize: 10, fontWeight: '600', color: colors.text }}>R$ {sim.originalAmount.toFixed(2)}</Text>
+              <Text style={{ fontSize: 10, fontWeight: '600', color: colors.text }}>{formatarReais(sim.originalAmount)}</Text>
             </View>
             <View style={styles.simRow}>
               <Text style={{ fontSize: 10, color: '#dc2626' }}>Taxa (~{sim.feePercentage}%)</Text>
-              <Text style={{ fontSize: 10, fontWeight: '600', color: '#dc2626' }}>- R$ {sim.fee.toFixed(2)}</Text>
+              <Text style={{ fontSize: 10, fontWeight: '600', color: '#dc2626' }}>- {formatarReais(sim.fee)}</Text>
             </View>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <View style={styles.simRow}>
@@ -295,7 +296,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
                 {sim.isEstimate ? 'Voce recebe (estimado)' : 'Voce recebe'}
               </Text>
               <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#16a34a' }}>
-                {sim.isEstimate ? '~' : ''}R$ {sim.anticipatedAmount.toFixed(2)}
+                {sim.isEstimate ? '~' : ''}{formatarReais(sim.anticipatedAmount)}
               </Text>
             </View>
           </View>

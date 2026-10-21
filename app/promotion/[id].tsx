@@ -18,6 +18,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as staticColors, fonts } from '../../src/theme';
 import { rotuloDoFrete } from '../../src/lib/frete';
+import { formatarReais } from '../../src/lib/dinheiro';
 
 const { width } = Dimensions.get('window');
 
@@ -154,11 +155,11 @@ export default function PromotionScreen() {
           <View style={[styles.priceCard, { backgroundColor: colors.card }]}>
             <View style={styles.priceLeft}>
               {originalPrice > 0 && (
-                <Text style={[styles.originalPrice, { color: colors.gray }]}>De R$ {originalPrice.toFixed(2)}</Text>
+                <Text style={[styles.originalPrice, { color: colors.gray }]}>De {formatarReais(originalPrice)}</Text>
               )}
-              <Text style={styles.promoPrice}>R$ {promoPrice.toFixed(2)}</Text>
+              <Text style={styles.promoPrice}>{formatarReais(promoPrice)}</Text>
               {savings > 0 && (
-                <Text style={styles.savingsText}>Voce economiza R$ {savings.toFixed(2)}</Text>
+                <Text style={styles.savingsText}>Voce economiza {formatarReais(savings)}</Text>
               )}
             </View>
             {discount > 0 && (
@@ -194,9 +195,9 @@ export default function PromotionScreen() {
                     <Text style={[styles.productDesc, { color: colors.textLight }]} numberOfLines={2}>{promo.product.description}</Text>
                   ) : null}
                   <View style={styles.productPriceRow}>
-                    <Text style={[styles.productPriceOld, { color: colors.gray }]}>R$ {originalPrice.toFixed(2)}</Text>
+                    <Text style={[styles.productPriceOld, { color: colors.gray }]}>{formatarReais(originalPrice)}</Text>
                     <Ionicons name="arrow-forward" size={14} color={staticColors.primary} />
-                    <Text style={styles.productPriceNew}>R$ {promoPrice.toFixed(2)}</Text>
+                    <Text style={styles.productPriceNew}>{formatarReais(promoPrice)}</Text>
                   </View>
                 </View>
               </View>
@@ -257,7 +258,7 @@ export default function PromotionScreen() {
         <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: insets.bottom + 16 }]}>
           <TouchableOpacity style={styles.addButton} onPress={handleAddToCart}>
             <Ionicons name="cart-outline" size={18} color="#FFF" />
-            <Text style={styles.addButtonText}>Adicionar ao carrinho - R$ {promoPrice.toFixed(2)}</Text>
+            <Text style={styles.addButtonText}>Adicionar ao carrinho - {formatarReais(promoPrice)}</Text>
           </TouchableOpacity>
         </View>
       )}

@@ -29,6 +29,7 @@ import { CREATE_ORDER, SAVE_CARD } from '../src/lib/graphql/mutations';
 import { CALCULATE_DELIVERY_FEE, GET_MY_ADDRESSES, GET_STORE, ESTIMATE_DELIVERY_TIME, LIST_MY_CARDS, GET_MINIMUM_ORDER_PLATFORM } from '../src/lib/graphql/queries';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../src/theme';
+import { formatarReais } from '../src/lib/dinheiro';
 
 const PAGARME_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAGARME_PUBLIC_KEY || '';
 
@@ -633,7 +634,7 @@ export default function CheckoutScreen() {
       // H1: Reconcile client-side price with server total
       const serverTotal = Number(order.total);
       if (Math.abs(serverTotal - finalTotal) > 0.01) {
-        alert('Valor atualizado', `O valor do pedido foi atualizado para R$ ${serverTotal.toFixed(2)}`);
+        alert('Valor atualizado', `O valor do pedido foi atualizado para ${formatarReais(serverTotal)}`);
       }
 
       // Remove purchased items from cart
@@ -666,7 +667,7 @@ export default function CheckoutScreen() {
       <View style={styles.itemInfo}>
         <Text style={[styles.itemName, { color: colors.text }]}>{item.name}</Text>
         <Text style={[styles.itemPrice, { color: colors.primary }]}>
-          R$ {totalDaLinha(item).toFixed(2)}
+          {formatarReais(totalDaLinha(item))}
         </Text>
       </View>
       <Text style={[styles.itemQty, { color: colors.textLight }]}>
@@ -919,13 +920,13 @@ export default function CheckoutScreen() {
                 <View style={[styles.minimumOrderWarning, { backgroundColor: errorBg, borderColor: errorBorder }]}>
                   <Ionicons name="alert-circle" size={18} color={errorText} />
                   <Text style={[styles.minimumOrderText, { color: errorText }]}>
-                    Pedido minimo desta loja: R$ {effectiveMinimum.toFixed(2)}. Faltam R$ {(effectiveMinimum - subtotal).toFixed(2)}.
+                    Pedido minimo desta loja: {formatarReais(effectiveMinimum)}. Faltam {formatarReais((effectiveMinimum - subtotal))}.
                   </Text>
                 </View>
               )}
               <View style={styles.summaryRow}>
                 <Text style={[styles.summaryLabel, { color: colors.textLight }]}>Subtotal</Text>
-                <Text style={[styles.summaryValue, { color: colors.text }, belowMinimum && { color: errorText }]}>R$ {subtotal.toFixed(2)}</Text>
+                <Text style={[styles.summaryValue, { color: colors.text }, belowMinimum && { color: errorText }]}>{formatarReais(subtotal)}</Text>
               </View>
               <View style={styles.summaryRow}>
                 <Text style={[styles.summaryLabel, { color: colors.textLight }]}>{isPickup ? 'Retirada' : 'Taxa de entrega'}</Text>
@@ -936,7 +937,7 @@ export default function CheckoutScreen() {
                 ) : (
                   // M1: Show 'Gratis' for zero fee when calculation is done, 'Calculando...' only when not yet calculated
                   <Text style={[styles.summaryValue, { color: colors.text }]}>
-                    {feeCalculated ? (deliveryFee > 0 ? `R$ ${deliveryFee.toFixed(2)}` : 'Gratis') : 'Calculando...'}
+                    {feeCalculated ? (deliveryFee > 0 ? `${formatarReais(deliveryFee)}` : 'Gratis') : 'Calculando...'}
                   </Text>
                 )}
               </View>
@@ -944,7 +945,7 @@ export default function CheckoutScreen() {
               {!isPickup && storeData?.store?.freeDeliveryAbove && subtotal < Number(storeData.store.freeDeliveryAbove) && (
                 <View style={[styles.summaryRow, { marginTop: 4 }]}>
                   <Text style={{ fontSize: 10, color: colors.success, fontWeight: '600' }}>
-                    Faltam R$ {(Number(storeData.store.freeDeliveryAbove) - subtotal).toFixed(2)} para frete gratis!
+                    Faltam {formatarReais((Number(storeData.store.freeDeliveryAbove) - subtotal))} para frete gratis!
                   </Text>
                 </View>
               )}
@@ -959,7 +960,7 @@ export default function CheckoutScreen() {
               )}
               <View style={[styles.summaryRow, styles.totalRow, { borderTopColor: colors.grayLight }]}>
                 <Text style={[styles.totalLabel, { color: colors.text }]}>Total</Text>
-                <Text style={[styles.totalValue, { color: colors.primary }]}>R$ {finalTotal.toFixed(2)}</Text>
+                <Text style={[styles.totalValue, { color: colors.primary }]}>{formatarReais(finalTotal)}</Text>
               </View>
             </View>
           </View>
@@ -981,10 +982,10 @@ export default function CheckoutScreen() {
           {loading
             ? 'Finalizando...'
             : belowMinimum
-            ? `Pedido minimo: R$ ${effectiveMinimum.toFixed(2)}`
+            ? `Pedido minimo: ${formatarReais(effectiveMinimum)}`
             : !isPickup && (feeLoading || !feeCalculated)
             ? 'Calculando entrega...'
-            : `Finalizar pedido - R$ ${finalTotal.toFixed(2)}`}
+            : `Finalizar pedido - ${formatarReais(finalTotal)}`}
         </Text>
       </TouchableOpacity>
 

@@ -15,6 +15,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { fonts } from '../../src/theme';
 import { alerta } from '../../src/lib/alerta';
+import { formatarReais } from '../../src/lib/dinheiro';
 
 // O que acontece com o dinheiro de um pedido cancelado. Um texto so, usado no
 // alerta do cancelamento e no aviso da tela: antes eram dois textos que
@@ -776,7 +777,7 @@ export default function OrderDetailScreen() {
             <View key={item.id} style={styles.itemRow}>
               <Text style={[styles.itemQty, { color: colors.textLight }]}>{weightLabel ? weightLabel : `${item.quantity}x`}</Text>
               <Text style={[styles.itemName, { color: colors.text }]}>{item.product?.name || 'Produto removido'}</Text>
-              <Text style={[styles.itemPrice, { color: colors.text }]}>R$ {Number(item.totalPrice).toFixed(2)}</Text>
+              <Text style={[styles.itemPrice, { color: colors.text }]}>{formatarReais(item.totalPrice)}</Text>
             </View>
           );
         })}
@@ -790,15 +791,15 @@ export default function OrderDetailScreen() {
       <View style={[styles.section, { backgroundColor: colors.card }]}>
         <View style={styles.totalRow}>
           <Text style={[styles.totalLabel, { color: colors.textLight }]}>Subtotal</Text>
-          <Text style={[styles.totalValue, { color: colors.text }]}>R$ {Number(order.subtotal).toFixed(2)}</Text>
+          <Text style={[styles.totalValue, { color: colors.text }]}>{formatarReais(order.subtotal)}</Text>
         </View>
         <View style={styles.totalRow}>
           <Text style={[styles.totalLabel, { color: colors.textLight }]}>Entrega</Text>
-          <Text style={[styles.totalValue, { color: colors.text }]}>R$ {Number(order.deliveryFee).toFixed(2)}</Text>
+          <Text style={[styles.totalValue, { color: colors.text }]}>{formatarReais(order.deliveryFee)}</Text>
         </View>
         <View style={[styles.totalRow, styles.grandTotal, { borderTopColor: colors.grayLight }]}>
           <Text style={[styles.grandTotalLabel, { color: colors.text }]}>Total</Text>
-          <Text style={[styles.grandTotalValue, { color: colors.primary }]}>R$ {Number(order.total).toFixed(2)}</Text>
+          <Text style={[styles.grandTotalValue, { color: colors.primary }]}>{formatarReais(order.total)}</Text>
         </View>
       </View>
 
@@ -864,7 +865,7 @@ export default function OrderDetailScreen() {
 
             {/* Amount */}
             <Text style={[styles.pixAmount, { color: colors.text }]}>
-              R$ {Number(order?.total || 0).toFixed(2)}
+              {formatarReais(order?.total || 0)}
             </Text>
             <Text style={[styles.pixLabel, { color: colors.textLight }]}>
               Pedido #{order?.orderNumber}

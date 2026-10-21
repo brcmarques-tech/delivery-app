@@ -1000,7 +1000,7 @@ export default function DeliveriesScreen() {
         <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
           <View>
             <Text style={[styles.feeLabel, { color: colors.textLight }]}>Taxa de entrega</Text>
-            <Text style={[styles.feeValue, { color: colors.success }]}>R$ {Number(item.deliveryFee).toFixed(2)}</Text>
+            <Text style={[styles.feeValue, { color: colors.success }]}>{formatarReais(item.deliveryFee)}</Text>
           </View>
           <TouchableOpacity
             style={[
@@ -1220,7 +1220,7 @@ export default function DeliveriesScreen() {
           <View style={styles.completedSection}>
             <View style={styles.completedInfo}>
               <Text style={[styles.completedText, { color: colors.textLight }]}>
-                {order.customer?.name ? `${order.customer.name} • ` : ''}{order.items.length} {order.items.length === 1 ? 'item' : 'itens'} - R$ {Number(order.total).toFixed(2)}
+                {order.customer?.name ? `${order.customer.name} • ` : ''}{order.items.length} {order.items.length === 1 ? 'item' : 'itens'} - {formatarReais(order.total)}
               </Text>
               <Text style={[styles.completedDate, { color: colors.gray }]}>
                 {/* Entrega de pedido cancelado não tem deliveredAt: new Date(null)

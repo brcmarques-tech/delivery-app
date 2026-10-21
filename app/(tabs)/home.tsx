@@ -31,6 +31,7 @@ import { imageCachePolicy } from '../../src/lib/deviceTier'; // Perf (F0)
 import { AnimatedListItem } from '../../src/components/AnimatedListItem';
 import { AnimatedPressable } from '../../src/components/AnimatedPressable';
 import { AnimatedItem } from '../../src/components/AnimatedItem';
+import { formatarReais } from '../../src/lib/dinheiro';
 
 // Perf (F6): teto do carrossel de Destaques. O carrossel e horizontal e o
 // usuario desliza alguns itens — montar a lista inteira de promocoes ativas
@@ -149,15 +150,15 @@ export default function HomeScreen() {
             {hasPromo ? (
               <>
                 <Text style={{ fontSize: 10, color: colors.gray, textDecorationLine: 'line-through' }}>
-                  R$ {Number(product.price).toFixed(2)}
+                  {formatarReais(product.price)}
                 </Text>
                 <Text style={[styles.productPrice, { color: colors.success }]}>
-                  R$ {Number(product.promotionalPrice).toFixed(2)}
+                  {formatarReais(product.promotionalPrice)}
                 </Text>
               </>
             ) : (
               <Text style={[styles.productPrice, { color: colors.text }]}>
-                R$ {Number(product.price).toFixed(2)}
+                {formatarReais(product.price)}
               </Text>
             )}
           </View>
@@ -262,15 +263,15 @@ export default function HomeScreen() {
                       {promoPrice && originalPrice ? (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
                           <Text style={{ fontSize: fonts.tiny, color: colors.gray, textDecorationLine: 'line-through' }}>
-                            R$ {Number(originalPrice).toFixed(2)}
+                            {formatarReais(originalPrice)}
                           </Text>
                           <Text style={{ fontSize: fonts.regular, fontWeight: '700', color: colors.primary }}>
-                            R$ {Number(promoPrice).toFixed(2)}
+                            {formatarReais(promoPrice)}
                           </Text>
                         </View>
                       ) : promoPrice ? (
                         <Text style={{ fontSize: fonts.regular, fontWeight: '700', color: colors.primary, marginTop: 2 }}>
-                          R$ {Number(promoPrice).toFixed(2)}
+                          {formatarReais(promoPrice)}
                         </Text>
                       ) : null}
                     </View>

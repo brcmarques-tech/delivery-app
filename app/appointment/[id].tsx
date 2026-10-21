@@ -29,6 +29,7 @@ import {
   RATE_SERVICE,
 } from '../../src/lib/graphql/mutations';
 import { alerta } from '../../src/lib/alerta';
+import { formatarReais } from '../../src/lib/dinheiro';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pendente',
@@ -212,7 +213,7 @@ export default function AppointmentDetailScreen() {
             <View style={s.row}>
               <Ionicons name="cash-outline" size={16} color={colors.textSecondary} />
               <Text style={[s.rowText, { color: colors.text, fontWeight: '600' }]}>
-                R$ {Number(apt.price).toFixed(2)}
+                {formatarReais(apt.price)}
               </Text>
             </View>
           ) : null}

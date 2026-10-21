@@ -22,6 +22,7 @@ import { AnimatedPressable } from '../src/components/AnimatedPressable';
 // KAN-282 (item 6): a soma crua do app divergia do servidor em centavos.
 // A formula do servidor agora vive em um lugar so.
 import { totalDaLinha } from '../src/lib/precoPorPeso';
+import { formatarReais } from '../src/lib/dinheiro';
 
 function formatWeight(grams: number) {
   if (grams >= 1000) {
@@ -82,7 +83,7 @@ const CartRow = React.memo(function CartRow({
 
         <View style={styles.itemInfo}>
           <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={2}>{item.name}</Text>
-          <Text style={[styles.itemPrice, { color: colors.primary }]}>R$ {itemTotal.toFixed(2)}</Text>
+          <Text style={[styles.itemPrice, { color: colors.primary }]}>{formatarReais(itemTotal)}</Text>
           {item.notes ? (
             <Text style={[styles.itemNotes, { color: colors.textLight }]} numberOfLines={1}>{item.notes}</Text>
           ) : null}
@@ -344,7 +345,7 @@ export default function CartScreen() {
             <Text style={[styles.footerLabel, { color: colors.textLight }]}>
               {selectedCount} {selectedCount === 1 ? 'item' : 'itens'}
             </Text>
-            <Text style={[styles.footerTotal, { color: colors.text }]}>R$ {selectedTotal.toFixed(2)}</Text>
+            <Text style={[styles.footerTotal, { color: colors.text }]}>{formatarReais(selectedTotal)}</Text>
           </View>
           <TouchableOpacity
             style={[
@@ -390,7 +391,7 @@ export default function CartScreen() {
 
             {isWeight && editingItem && (
               <Text style={[styles.editorSubtext, { color: colors.textLight }]}>
-                R$ {((editingItem.price * editValue) / 1000).toFixed(2)}
+                {formatarReais(((editingItem.price * editValue) / 1000))}
               </Text>
             )}
 

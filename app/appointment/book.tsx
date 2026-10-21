@@ -17,6 +17,7 @@ import { useAlert } from '../../src/contexts/AlertContext';
 import { fonts } from '../../src/theme';
 import { AVAILABLE_SLOTS, STORE_SCHEDULE } from '../../src/lib/graphql/queries';
 import { CREATE_APPOINTMENT } from '../../src/lib/graphql/mutations';
+import { formatarReais } from '../../src/lib/dinheiro';
 
 const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
 const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -141,7 +142,7 @@ export default function BookAppointmentScreen() {
             {price != null && (
               <View style={styles.detailChip}>
                 <Ionicons name="cash-outline" size={14} color={colors.primary} />
-                <Text style={[styles.detailText, { color: colors.primary }]}>R$ {price.toFixed(2)}</Text>
+                <Text style={[styles.detailText, { color: colors.primary }]}>{formatarReais(price)}</Text>
               </View>
             )}
             {duration != null && (
@@ -280,7 +281,7 @@ export default function BookAppointmentScreen() {
               <>
                 <Text style={styles.confirmText}>Confirmar agendamento</Text>
                 {price != null && (
-                  <Text style={styles.confirmPrice}>R$ {price.toFixed(2)}</Text>
+                  <Text style={styles.confirmPrice}>{formatarReais(price)}</Text>
                 )}
               </>
             )}

@@ -29,6 +29,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as staticColors, fonts } from '../../src/theme';
+import { formatarReais } from '../../src/lib/dinheiro';
 
 type ActiveTab = 'orders' | 'appointments';
 
@@ -238,7 +239,7 @@ export default function OrdersScreen() {
 
             <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
               {item.price ? (
-                <Text style={[styles.total, { color: colors.text }]}>R$ {Number(item.price).toFixed(2)}</Text>
+                <Text style={[styles.total, { color: colors.text }]}>{formatarReais(item.price)}</Text>
               ) : (
                 <Text style={{ fontSize: fonts.small, color: colors.textLight }}>Preco a definir</Text>
               )}
@@ -283,7 +284,7 @@ export default function OrdersScreen() {
             )}
           </View>
           <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
-            <Text style={[styles.total, { color: colors.text }]}>R$ {Number(item.total).toFixed(2)}</Text>
+            <Text style={[styles.total, { color: colors.text }]}>{formatarReais(item.total)}</Text>
             <Ionicons name="chevron-forward" size={18} color={colors.gray} />
           </View>
         </AnimatedPressable>
