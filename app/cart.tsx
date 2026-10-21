@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -115,6 +115,48 @@ export default function CartScreen() {
   const { colors } = useTheme();
   const { items, updateQuantity, updateWeight, removeItem, clearCart } = useCart();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Seleção automática. Antes tudo chegava DESMARCADO: a pessoa tocava em "Ver
+  // carrinho" e via "0 itens · R$ 0,00" com o Comprar apagado.
+  //
+  // O checkout aceita uma loja por vez, então "marcar tudo" não serve com duas
+  // lojas no carrinho. Regra: ao abrir, marca a loja do último produto
+  // adicionado; depois, item novo DESSA loja já entra marcado. A seleção é por
+  // id, e o id troca quando o servidor confirma o item (o provisório
+  // `local-...` vira o definitivo) — por isso item "novo" de uma loja já
+  // marcada também entra, ou a confirmação desmarcaria o que a pessoa escolheu.
+  //
+  // A loja escolhida fica numa ref, e não só implícita nos ids marcados: ao
+  // abrir, os itens chegam em duas levas (os salvos no aparelho e depois os do
+  // servidor, com OUTROS ids). Sem a ref, a segunda leva apagava a seleção
+  // inteira e nada voltava a ser marcado.
+  const idsVistosRef = useRef<Set<string>>(new Set());
+  const lojaEscolhidaRef = useRef<string | null>(null);
+  useEffect(() => {
+    // Durante a sincronização com o servidor a lista fica vazia por um
+    // instante. Podar a seleção nesse momento apagava a escolha, e quando os
+    // MESMOS itens voltavam (já "vistos") nada era marcado de novo.
+    if (items.length === 0) return;
+    const novos = items.filter((i) => !idsVistosRef.current.has(i.id));
+    novos.forEach((i) => idsVistosRef.current.add(i.id));
+    setSelectedIds((prev) => {
+      const aindaExistem = new Set([...prev].filter((id) => items.some((i) => i.id === id)));
+      if (novos.length === 0 && aindaExistem.size === prev.size) return prev;
+      const lojaMarcada =
+        items.find((i) => aindaExistem.has(i.id))?.storeId ??
+        lojaEscolhidaRef.current ??
+        items[items.length - 1]?.storeId;
+      if (lojaMarcada) {
+        for (const i of novos) if (i.storeId === lojaMarcada) aindaExistem.add(i.id);
+      }
+      return aindaExistem;
+    });
+  }, [items]);
+  // Acompanha a escolha manual: marcar itens de outra loja muda a "loja da vez".
+  useEffect(() => {
+    const loja = items.find((i) => selectedIds.has(i.id))?.storeId;
+    if (loja) lojaEscolhidaRef.current = loja;
+  }, [items, selectedIds]);
 
   // Adjustment modal state
   const [editingItem, setEditingItem] = useState<CartItem | null>(null);
