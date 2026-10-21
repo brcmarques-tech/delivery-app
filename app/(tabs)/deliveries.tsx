@@ -61,6 +61,20 @@ function entregaEmCurso(d: any): boolean {
   return !d.deliveredAt && !PEDIDO_ENCERRADO.includes(d.order?.status);
 }
 
+// Pode somar mais uma corrida às que já estão em curso? Só da MESMA loja e
+// enquanto todas ainda esperam coleta. Espelho de regras-de-acumulo.ts na API
+// — mesmos textos, para o aviso daqui e o erro de lá dizerem a mesma coisa.
+function motivoParaNaoSomar(ativas: any[], storeIdDaNova?: string): string | null {
+  if (ativas.length === 0) return null;
+  if (ativas.some((d) => d.order?.store?.id !== storeIdDaNova)) {
+    return 'Você já tem uma entrega de outra loja. Finalize-a antes de aceitar esta.';
+  }
+  if (ativas.some((d) => d.order?.status !== 'READY')) {
+    return 'Você já saiu da loja com uma entrega. Finalize-a antes de aceitar outra.';
+  }
+  return null;
+}
+
 // O erro do servidor, quando é uma regra de negócio (vem em português e diz o
 // que fazer). Falha de rede não tem nada útil para mostrar.
 function mensagemDoServidor(e: any): string | null {
@@ -664,7 +678,6 @@ export default function DeliveriesScreen() {
     () => myDeliveries.filter((d: any) => !entregaEmCurso(d)),
     [myDeliveries],
   );
-  const entregaEmAndamento = activeDeliveries[0] || null;
   const myListData = useMemo(
     () => [...activeDeliveries, ...completedDeliveries],
     [activeDeliveries, completedDeliveries],
@@ -706,7 +719,7 @@ export default function DeliveriesScreen() {
     }
   }, [actionLoading, recusarOfertaMut, refetchAvailable]);
 
-  const handleAccept = useCallback(async (orderId: string, orderNumber: string) => {
+  const handleAccept = useCallback(async (orderId: string, orderNumber: string, storeId?: string) => {
     if (actionLoading) return;
     devLog(`[APP-ACCEPT] orderId=${orderId}, orderNumber=${orderNumber}`);
     if (!paymentConnected) {
@@ -714,13 +727,11 @@ export default function DeliveriesScreen() {
       alert('Conta nao conectada', 'Conecte sua conta de pagamento para aceitar entregas.');
       return;
     }
-    // Uma entrega por vez (regra da API). Antes o app deixava tentar, a API
-    // recusava e a tela dizia só "não foi possível aceitar".
-    if (entregaEmAndamento) {
-      alert(
-        'Você já tem uma entrega',
-        `Termine o pedido #${entregaEmAndamento.order?.orderNumber || ''} antes de aceitar outro.`,
-      );
+    // Várias corridas só da MESMA loja e antes de sair dela (regra da API,
+    // regras-de-acumulo.ts). Avisa antes de tentar, em vez de a API recusar.
+    const naoPode = motivoParaNaoSomar(activeDeliveries, storeId);
+    if (naoPode) {
+      alert('Não dá para somar esta corrida', naoPode);
       return;
     }
     // Aceitar offline deixava o entregador sem localização: na porta da loja o
@@ -774,7 +785,7 @@ export default function DeliveriesScreen() {
         },
       },
     ]);
-  }, [actionLoading, paymentConnected, alert, acceptDelivery, refetchAvailable, refetchMy, entregaEmAndamento, isOnline, toggleOnline]);
+  }, [actionLoading, paymentConnected, alert, acceptDelivery, refetchAvailable, refetchMy, activeDeliveries, isOnline, toggleOnline]);
 
   // Desistir da corrida — só antes da coleta. O pedido volta para a fila e a
   // API gera um código novo para o próximo entregador.
@@ -1036,9 +1047,9 @@ export default function DeliveriesScreen() {
             <TouchableOpacity
               style={[
                 styles.acceptButton,
-                { backgroundColor: actionLoading || entregaEmAndamento ? colors.gray : colors.success },
+                { backgroundColor: actionLoading || motivoParaNaoSomar(activeDeliveries, item.store?.id) ? colors.gray : colors.success },
               ]}
-              onPress={() => handleAccept(item.id, item.orderNumber)}
+              onPress={() => handleAccept(item.id, item.orderNumber, item.store?.id)}
               disabled={!!actionLoading}
             >
               <Ionicons name={actionLoading === item.id ? 'hourglass' : 'checkmark-circle'} size={18} color="#FFFFFF" />
@@ -1059,7 +1070,7 @@ export default function DeliveriesScreen() {
         )}
       </View>
     );
-  }, [colors, actionLoading, handleAccept, handleRecusar, entregaEmAndamento, prazosDaVez, aoAcabarAVez]);
+  }, [colors, actionLoading, handleAccept, handleRecusar, activeDeliveries, prazosDaVez, aoAcabarAVez]);
 
   const renderMyDelivery = useCallback(({ item }: { item: any }) => {
     const order = item.order;
