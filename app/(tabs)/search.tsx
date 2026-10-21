@@ -617,7 +617,7 @@ export default function SearchScreen() {
   // a aba de busca mostra. Foi quebrada em cabecalho + lista para a lista virar
   // FlatList: a grade de categorias (10 itens fixos) e as promocoes (cortadas em
   // 6) viram header e footer, e so as lojas virtualizam.
-  function renderCategoriesGrid(categories: CategoryItem[], stores: any[]) {
+  function renderCategoriesGrid(categories: CategoryItem[], stores: any[], ofertas?: React.ReactNode) {
     return (
       <View>
         {/* Categories grid */}
@@ -635,6 +635,8 @@ export default function SearchScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {ofertas}
 
         {/* Titulo da lista — so quando ha loja para listar, como antes */}
         {stores.length > 0 && (
@@ -700,6 +702,53 @@ export default function SearchScreen() {
       </AnimatedListItem>
     );
   }
+
+  // Faixa "Ofertas do momento": entre as categorias e a lista de lojas.
+  // Ofertas ja filtradas pelo tipo de loja da aba.
+  const faixaDeOfertas = (
+      <View style={{ marginTop: 20 }}>
+    {/* Promotions highlight */}
+    {promotions.length > 0 && (
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Ofertas do momento</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {promotions.slice(0, 6).map((promo: any, index: number) => {
+            const discount = promo.product?.price && promo.promotionalPrice
+              ? Math.round((1 - promo.promotionalPrice / promo.product.price) * 100) : 0;
+            return (
+              <AnimatedListItem key={promo.id} index={index}>
+              <AnimatedPressable
+                style={[styles.promoCard, { backgroundColor: colors.card }]}
+                onPress={() => router.push(`/promotion/${promo.id}`)}
+              >
+                {(promo.product?.imageUrl || promo.imageUrl) ? (
+                  <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy={imageCachePolicy} />
+                ) : (
+                  <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                    <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
+                  </View>
+                )}
+                {discount > 0 && (
+                  <View style={styles.promoBadge}>
+                    <Text style={styles.promoBadgeText}>-{discount}%</Text>
+                  </View>
+                )}
+                <View style={styles.promoInfo}>
+                  <Text style={[styles.promoName, { color: colors.text }]} numberOfLines={1}>{promo.title}</Text>
+                  <Text style={[styles.promoStore, { color: colors.textLight }]} numberOfLines={1}>{promo.store?.name}</Text>
+                  {promo.promotionalPrice && (
+                    <Text style={[styles.promoPrice, { color: colors.primary }]}>{formatarReais(promo.promotionalPrice)}</Text>
+                  )}
+                </View>
+              </AnimatedPressable>
+              </AnimatedListItem>
+            );
+          })}
+        </ScrollView>
+      </View>
+    )}
+      </View>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -876,53 +925,9 @@ export default function SearchScreen() {
               onEndReachedThreshold={0.4}
               ListHeaderComponent={
                 <>
-                  {/* Ofertas no TOPO (antes ficavam no rodapé, depois de todas as
-                      lojas). Já filtradas pelo tipo de loja da aba. */}
-                  <View style={{ marginBottom: 8 }}>
-                {/* Promotions highlight */}
-                {promotions.length > 0 && (
-                  <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Ofertas do momento</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                      {promotions.slice(0, 6).map((promo: any, index: number) => {
-                        const discount = promo.product?.price && promo.promotionalPrice
-                          ? Math.round((1 - promo.promotionalPrice / promo.product.price) * 100) : 0;
-                        return (
-                          <AnimatedListItem key={promo.id} index={index}>
-                          <AnimatedPressable
-                            style={[styles.promoCard, { backgroundColor: colors.card }]}
-                            onPress={() => router.push(`/promotion/${promo.id}`)}
-                          >
-                            {(promo.product?.imageUrl || promo.imageUrl) ? (
-                              <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy={imageCachePolicy} />
-                            ) : (
-                              <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
-                                <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
-                              </View>
-                            )}
-                            {discount > 0 && (
-                              <View style={styles.promoBadge}>
-                                <Text style={styles.promoBadgeText}>-{discount}%</Text>
-                              </View>
-                            )}
-                            <View style={styles.promoInfo}>
-                              <Text style={[styles.promoName, { color: colors.text }]} numberOfLines={1}>{promo.title}</Text>
-                              <Text style={[styles.promoStore, { color: colors.textLight }]} numberOfLines={1}>{promo.store?.name}</Text>
-                              {promo.promotionalPrice && (
-                                <Text style={[styles.promoPrice, { color: colors.primary }]}>{formatarReais(promo.promotionalPrice)}</Text>
-                              )}
-                            </View>
-                          </AnimatedPressable>
-                          </AnimatedListItem>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
-                )}
-                  </View>
                   {activeTab === 'products'
-                    ? renderCategoriesGrid(PRODUCT_CATEGORIES, idleStores)
-                    : renderCategoriesGrid(SERVICE_CATEGORIES, idleStores)}
+                    ? renderCategoriesGrid(PRODUCT_CATEGORIES, idleStores, faixaDeOfertas)
+                    : renderCategoriesGrid(SERVICE_CATEGORIES, idleStores, faixaDeOfertas)}
                 </>
               }
               ListEmptyComponent={
