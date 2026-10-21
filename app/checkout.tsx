@@ -420,11 +420,19 @@ export default function CheckoutScreen() {
     }
   }, [pickupOnly]);
 
+  // Mesmas regras do createOrder na API:
+  //  - pagar na entrega só com entregador da PRÓPRIA loja ou retirada (o
+  //    entregador do app não cobra em dinheiro, e o repasse passa pela plataforma);
+  //  - loja sem conta de recebimento só aceita pagar na entrega.
+  // Antes, loja sem conta de recebimento oferecia "Na entrega" até com
+  // entregador do app: a pessoa escolhia e a API recusava no fim.
   const paymentOptions = ALL_PAYMENT_OPTIONS.filter((opt) => {
-    if (!ownerPaymentConnected) return opt.key === 'ON_DELIVERY';
     if (opt.requiresOwnDelivery && !storeHasOwnDelivery && !isPickup) return false;
+    if (!ownerPaymentConnected) return opt.key === 'ON_DELIVERY';
     return true;
   });
+  // Loja sem pagamento online e sem entregador próprio: só retirada.
+  const soRetirada = !isPickup && paymentOptions.length === 0;
 
   useEffect(() => {
     if (!paymentOptions.find((o) => o.key === paymentMethod)) {
@@ -878,6 +886,11 @@ export default function CheckoutScreen() {
             {/* Payment */}
             <View style={[styles.section, { backgroundColor: colors.white }]}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Forma de pagamento</Text>
+              {soRetirada && (
+                <Text style={{ color: colors.textLight, fontSize: fonts.small, marginBottom: 8 }}>
+                  Esta loja ainda não aceita pagamento pelo app. Escolha "Retirar no local" e pague na loja.
+                </Text>
+              )}
               {paymentOptions.map((option) => (
                 <TouchableOpacity
                   key={option.key}
@@ -993,13 +1006,15 @@ export default function CheckoutScreen() {
           O cliente confirmava um valor e o pedido era criado por outro — a
           conferencia so acontecia DEPOIS de o pedido ja existir. */}
       <TouchableOpacity
-        style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: colors.primary }, (loading || belowMinimum || (!isPickup && !coordsValidas) || (!isPickup && (feeLoading || !feeCalculated))) && styles.checkoutDisabled]}
+        style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: colors.primary }, (loading || soRetirada || belowMinimum || (!isPickup && !coordsValidas) || (!isPickup && (feeLoading || !feeCalculated))) && styles.checkoutDisabled]}
         onPress={() => handleCheckout()}
-        disabled={loading || belowMinimum || (!isPickup && !coordsValidas) || (!isPickup && (feeLoading || !feeCalculated))}
+        disabled={loading || soRetirada || belowMinimum || (!isPickup && !coordsValidas) || (!isPickup && (feeLoading || !feeCalculated))}
       >
         <Text style={styles.checkoutText}>
           {loading
             ? 'Finalizando...'
+            : soRetirada
+            ? 'Disponível só para retirada'
             : belowMinimum
             ? `Pedido minimo: ${formatarReais(effectiveMinimum)}`
             : !isPickup && !coordsValidas && !address.trim()

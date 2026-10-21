@@ -612,3 +612,10 @@ export const DESISTIR_DA_ENTREGA = gql`
     desistirDaEntrega(orderId: $orderId, motivo: $motivo)
   }
 `;
+
+// Entregador passa a vez exclusiva: a corrida vai na hora para o próximo.
+export const RECUSAR_OFERTA = gql`
+  mutation RecusarOferta($orderId: String!) {
+    recusarOferta(orderId: $orderId)
+  }
+`;

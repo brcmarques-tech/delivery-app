@@ -32,6 +32,7 @@ import {
   REGISTRAR_CODIGO_DO_CLIENTE,
   REGISTRAR_ENTREGA_SEM_CODIGO,
   DESISTIR_DA_ENTREGA,
+  RECUSAR_OFERTA,
 } from '../../src/lib/graphql/mutations';
 import { ModalDeCodigo } from '../../src/components/ModalDeCodigo';
 import { ModalEntregaSemCodigo } from '../../src/components/ModalEntregaSemCodigo';
@@ -117,36 +118,61 @@ const CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos
 // pai fazia a TELA INTEIRA (todos os cards) re-renderizar a cada segundo so para
 // esta barrinha andar. Agora o tick de 1s vive aqui dentro — apenas a barra
 // re-renderiza; os cards ficam estaveis.
-const OfferCountdownBar = React.memo(function OfferCountdownBar({
-  startedAt,
+//
+// A barra mostra a VEZ EXCLUSIVA que o servidor deu a este entregador. Antes ela
+// contava 60s a partir de quando o card APARECEU no celular, sem relação nenhuma
+// com a vez: chegava a 0s, travava lá, e a corrida continuava aceitável.
+//
+// `prazo` é um horário do PRÓPRIO celular: o instante em que a resposta chegou
+// mais os segundos que o servidor mandou. Assim um relógio errado no aparelho
+// não muda a contagem. No zero, `onAcabar` recarrega a lista — a corrida já foi
+// para o próximo entregador e some daqui.
+const VezExclusivaBar = React.memo(function VezExclusivaBar({
+  prazo,
+  total,
   colors,
+  onAcabar,
 }: {
-  startedAt: number;
+  prazo: number;
+  total: number;
   colors: any;
+  onAcabar: () => void;
 }) {
   const [, setTick] = useState(0);
+  const avisouRef = useRef(false);
   useEffect(() => {
+    avisouRef.current = false;
     const timer = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [prazo]);
 
-  const elapsed = Math.min((Date.now() - startedAt) / 1000, 60);
-  const remaining = Math.max(0, 60 - elapsed);
-  const progress = remaining / 60;
-  const barColor = remaining <= 10 ? colors.danger : remaining <= 30 ? colors.warning : colors.primary;
+  const restante = Math.max(0, Math.ceil((prazo - Date.now()) / 1000));
+  useEffect(() => {
+    if (restante === 0 && !avisouRef.current) {
+      avisouRef.current = true;
+      onAcabar();
+    }
+  }, [restante, onAcabar]);
+
+  const progress = Math.min(1, restante / total);
+  const barColor = restante <= 10 ? colors.danger : restante <= 30 ? colors.warning : colors.primary;
   return (
     <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Text style={{ fontSize: fonts.tiny, color: colors.textLight, fontWeight: '600' }}>Sua vez</Text>
         <View style={{ flex: 1, height: 4, backgroundColor: colors.grayLight, borderRadius: 2, overflow: 'hidden' }}>
           <View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: barColor, borderRadius: 2 }} />
         </View>
         <Text style={{ fontSize: fonts.tiny, color: barColor, fontWeight: '600', minWidth: 28 }}>
-          {Math.ceil(remaining)}s
+          {restante}s
         </Text>
       </View>
     </View>
   );
 });
+
+// Duração de cada vez no servidor (OFFER_TIMEOUT_MS da cascata).
+const DURACAO_DA_VEZ_S = 60;
 
 // Perf (F3): idem para o countdown de confirmacao do cliente ("Aguardando m:ss").
 // So este badge tica por segundo — e apenas enquanto ha espera de verdade.
@@ -331,6 +357,12 @@ export default function DeliveriesScreen() {
       devLog(`[APP-SOCKET] deliveryOffer received: orderId=${offer.orderId}, orderNumber=${offer.orderNumber}, fee=${offer.deliveryFee}, timeout=${offer.timeoutSeconds}s`);
       refetchAvailable();
       try { Vibration.vibrate([0, 500, 200, 500]); } catch {}
+    });
+
+    // A vez exclusiva acabou (tempo, recusa, ou outro aceitou): some da lista
+    // na hora, sem esperar a barra zerar.
+    socket.on('ofertaEncerrada', () => {
+      refetchAvailable();
     });
 
     // Listen for broadcast available deliveries
@@ -598,53 +630,24 @@ export default function DeliveriesScreen() {
     [currentLocation],
   );
 
-  // Track when each available order first appeared (for countdown timer)
-  const offerTimersRef = useRef<Record<string, number>>({});
   const availableOrders = useMemo(
     () => availableData?.availableDeliveries || [],
     [availableData?.availableDeliveries],
   );
 
-  // Initialize timers for new orders, clean up removed ones
-  useEffect(() => {
-    const now = Date.now();
-    const currentIds = new Set(availableOrders.map((o: any) => o.id));
-    // Add new orders
-    availableOrders.forEach((o: any) => {
-      if (!offerTimersRef.current[o.id]) {
-        offerTimersRef.current[o.id] = now;
-      }
-    });
-    // Clean up removed orders
-    Object.keys(offerTimersRef.current).forEach((id) => {
-      if (!currentIds.has(id)) delete offerTimersRef.current[id];
-    });
+  // Prazo da vez exclusiva de cada corrida, num horário DESTE celular: agora
+  // (a resposta acabou de chegar) + os segundos que o servidor mandou.
+  // Recalculado a cada resposta. Corrida aberta a todos não tem prazo.
+  const prazosDaVez = useMemo(() => {
+    const agora = Date.now();
+    const mapa: Record<string, number> = {};
+    for (const o of availableOrders) {
+      if (o.vezSegundosRestantes != null) mapa[o.id] = agora + o.vezSegundosRestantes * 1000;
+    }
+    return mapa;
   }, [availableOrders]);
 
-  // Perf (F3): o setInterval de 1s que re-renderizava a TELA INTEIRA por segundo
-  // foi removido — o countdown visual agora e o OfferCountdownBar (auto-ticante,
-  // module scope). Sobrou so a checagem de expiracao das ofertas, que nao faz
-  // setState e roda a cada 5s (granularidade suficiente pra repor oferta vencida).
-  useEffect(() => {
-    if (availableOrders.length === 0 || tab !== 'available') return;
-    const timer = setInterval(() => {
-      const now = Date.now();
-      const anyExpired = availableOrders.some((o: any) => {
-        const started = offerTimersRef.current[o.id];
-        return started && now - started >= 60000;
-      });
-      if (anyExpired) {
-        refetchAvailable();
-        availableOrders.forEach((o: any) => {
-          const started = offerTimersRef.current[o.id];
-          if (started && now - started >= 60000) {
-            offerTimersRef.current[o.id] = now;
-          }
-        });
-      }
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [availableOrders, tab, refetchAvailable]);
+  const aoAcabarAVez = useCallback(() => { refetchAvailable(); }, [refetchAvailable]);
 
   // Perf (F3): derivados memoizados — antes eram arrays novos a cada render, e o
   // data do FlatList ([...active, ...completed]) mudava de referencia sempre.
@@ -686,6 +689,22 @@ export default function DeliveriesScreen() {
   }, [activeDeliveries]);
 
   useDeliveryTracking(activeDeliveryForTracking);
+
+  // Recusar a vez: sem confirmação de propósito — é rápido como deve ser, e
+  // errar não custa nada (a corrida só vai para o próximo da fila).
+  const [recusarOfertaMut] = useMutation(RECUSAR_OFERTA);
+  const handleRecusar = useCallback(async (orderId: string) => {
+    if (actionLoading) return;
+    setActionLoading(orderId);
+    try {
+      await recusarOfertaMut({ variables: { orderId } });
+    } catch (e: any) {
+      devLog(`[APP-DECLINE] FAILED: ${e?.message}`);
+    } finally {
+      setActionLoading(null);
+      refetchAvailable();
+    }
+  }, [actionLoading, recusarOfertaMut, refetchAvailable]);
 
   const handleAccept = useCallback(async (orderId: string, orderNumber: string) => {
     if (actionLoading) return;
@@ -1002,24 +1021,45 @@ export default function DeliveriesScreen() {
             <Text style={[styles.feeLabel, { color: colors.textLight }]}>Taxa de entrega</Text>
             <Text style={[styles.feeValue, { color: colors.success }]}>{formatarReais(item.deliveryFee)}</Text>
           </View>
-          <TouchableOpacity
-            style={[
-              styles.acceptButton,
-              { backgroundColor: actionLoading || entregaEmAndamento ? colors.gray : colors.success },
-            ]}
-            onPress={() => handleAccept(item.id, item.orderNumber)}
-            disabled={!!actionLoading}
-          >
-            <Ionicons name={actionLoading === item.id ? 'hourglass' : 'checkmark-circle'} size={18} color="#FFFFFF" />
-            <Text style={styles.acceptButtonText}>{actionLoading === item.id ? 'Aceitando...' : 'Aceitar'}</Text>
-          </TouchableOpacity>
+          <View style={styles.offerActions}>
+            {/* Recusar só existe na vez exclusiva: passa a corrida na hora para
+                o próximo, em vez de segurar o pedido até o tempo acabar. */}
+            {prazosDaVez[item.id] != null && (
+              <TouchableOpacity
+                style={[styles.declineButton, { borderColor: colors.grayLight }]}
+                onPress={() => handleRecusar(item.id)}
+                disabled={!!actionLoading}
+              >
+                <Text style={[styles.declineButtonText, { color: colors.textLight }]}>Recusar</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[
+                styles.acceptButton,
+                { backgroundColor: actionLoading || entregaEmAndamento ? colors.gray : colors.success },
+              ]}
+              onPress={() => handleAccept(item.id, item.orderNumber)}
+              disabled={!!actionLoading}
+            >
+              <Ionicons name={actionLoading === item.id ? 'hourglass' : 'checkmark-circle'} size={18} color="#FFFFFF" />
+              <Text style={styles.acceptButtonText}>{actionLoading === item.id ? 'Aceitando...' : 'Aceitar'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Countdown timer bar — auto-ticante, so a barra re-renderiza (F3) */}
-        <OfferCountdownBar startedAt={offerTimersRef.current[item.id] || Date.now()} colors={colors} />
+        {/* Vez exclusiva: só aparece quando a corrida está reservada para
+            você. Corrida aberta a todos (cascata encerrada) não tem barra. */}
+        {prazosDaVez[item.id] != null && (
+          <VezExclusivaBar
+            prazo={prazosDaVez[item.id]}
+            total={DURACAO_DA_VEZ_S}
+            colors={colors}
+            onAcabar={aoAcabarAVez}
+          />
+        )}
       </View>
     );
-  }, [colors, actionLoading, handleAccept, entregaEmAndamento]);
+  }, [colors, actionLoading, handleAccept, handleRecusar, entregaEmAndamento, prazosDaVez, aoAcabarAVez]);
 
   const renderMyDelivery = useCallback(({ item }: { item: any }) => {
     const order = item.order;
@@ -1691,6 +1731,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   feeLabel: { fontSize: fonts.tiny },
+  offerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  declineButton: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1 },
+  declineButtonText: { fontSize: fonts.small, fontWeight: '600' },
   feeValue: { fontSize: fonts.large, fontWeight: 'bold' },
   acceptButton: {
     flexDirection: 'row',

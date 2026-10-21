@@ -595,6 +595,8 @@ export const GET_AVAILABLE_DELIVERIES = gql`
   query AvailableDeliveries {
     availableDeliveries {
       id
+      # Segundos que restam na SUA vez exclusiva (nulo = corrida aberta a todos).
+      vezSegundosRestantes
       orderNumber
       status
       total
