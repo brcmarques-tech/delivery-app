@@ -813,10 +813,15 @@ export default function OrderDetailScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.pixModalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
+            <View style={styles.pixModalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Pagar com PIX</Text>
-              <TouchableOpacity onPress={() => setPixModalVisible(false)}>
-                <Ionicons name="close" size={18} color={colors.text} />
+              <TouchableOpacity
+                style={styles.pixModalFechar}
+                onPress={() => setPixModalVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityLabel="Fechar"
+              >
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -1189,6 +1194,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalTitle: { fontSize: fonts.xlarge, fontWeight: 'bold' },
+  // O conteudo do modal do PIX centraliza os filhos: com o modalHeader comum
+  // a linha encolhia ate o tamanho do titulo e o X ficava colado nele.
+  pixModalHeader: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 32,
+    marginBottom: 8,
+  },
+  pixModalFechar: { position: 'absolute', right: 0, top: 0, padding: 4 },
   modalSubtitle: { fontSize: fonts.regular, marginBottom: 12 },
   reasonOption: {
     flexDirection: 'row',
