@@ -16,6 +16,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { devLog } from '../../src/lib/devLog'; // KAN-223
 import { socketBaseUrl } from '../../src/lib/apiHost'; // KAN-255
+import { telefoneParaDiscar } from '../../src/lib/telefone';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -973,9 +974,11 @@ export default function DeliveriesScreen() {
                     {order.store.street}, {order.store.number} - {order.store.neighborhood}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => Linking.openURL(`tel:${(order.store.phone || '').replace(/[^\d+\-]/g, '')}`)}>
-                  <Ionicons name="call" size={18} color={colors.primary} />
-                </TouchableOpacity>
+                {!!telefoneParaDiscar(order.store.phone) && (
+                  <TouchableOpacity onPress={() => Linking.openURL(`tel:${telefoneParaDiscar(order.store.phone)}`)}>
+                    <Ionicons name="call" size={18} color={colors.primary} />
+                  </TouchableOpacity>
+                )}
               </View>
               <View style={[styles.addressDivider, { borderLeftColor: colors.gray }]} />
               <View style={styles.addressRow}>
@@ -984,9 +987,11 @@ export default function DeliveriesScreen() {
                   <Text style={[styles.addressLabel, { color: colors.textLight }]}>Cliente: {order.customer.name}</Text>
                   <Text style={[styles.addressText, { color: colors.text }]}>{order.deliveryAddress}</Text>
                 </View>
-                <TouchableOpacity onPress={() => Linking.openURL(`tel:${(order.customer.phone || '').replace(/[^\d+\-]/g, '')}`)}>
-                  <Ionicons name="call" size={18} color={colors.success} />
-                </TouchableOpacity>
+                {!!telefoneParaDiscar(order.customer.phone) && (
+                  <TouchableOpacity onPress={() => Linking.openURL(`tel:${telefoneParaDiscar(order.customer.phone)}`)}>
+                    <Ionicons name="call" size={18} color={colors.success} />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
@@ -1122,7 +1127,7 @@ export default function DeliveriesScreen() {
       <ModalDeCodigo
         visivel={modalDeCodigo?.tipo === 'LOJA'}
         titulo="Código da loja"
-        explicacao={`Pedido #${modalDeCodigo?.orderNumber || ''}. Peça o código ao lojista e digite aqui. É isso que registra a coleta — não há botão de "coletei".`}
+        explicacao="Peça o código ao lojista."
         rotuloConfirmar="Registrar coleta"
         carregando={enviandoCodigo}
         erro={erroDoCodigo}
@@ -1133,7 +1138,7 @@ export default function DeliveriesScreen() {
       <ModalDeCodigo
         visivel={modalDeCodigo?.tipo === 'CLIENTE'}
         titulo="Código do cliente"
-        explicacao={`Pedido #${modalDeCodigo?.orderNumber || ''}. Peça o código ao cliente na entrega. Ao registrar, a entrega é concluída e o repasse é liberado.`}
+        explicacao="Peça o código ao cliente na entrega."
         rotuloConfirmar="Concluir entrega"
         carregando={enviandoCodigo}
         erro={erroDoCodigo}

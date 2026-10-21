@@ -67,11 +67,11 @@ export function CodigoDoEntregador({ orderId, codigoDaLojaJaRegistrado }: Codigo
         <Text style={[estilos.codigo, { color: colors.primary }]}>{codigo}</Text>
       )}
 
-      <Text style={[estilos.ajuda, { color: colors.textLight }]}>
-        {codigoDaLojaJaRegistrado
-          ? 'Você já registrou o código da loja. Falta o lojista digitar este, e a coleta fecha.'
-          : 'O lojista digita este código no painel dele. Você registra o código da loja aqui no app.'}
-      </Text>
+      {codigoDaLojaJaRegistrado && (
+        <Text style={[estilos.ajuda, { color: colors.textLight }]}>
+          Falta o lojista digitar este código.
+        </Text>
+      )}
 
       {!!error && (
         <Text style={[estilos.ajuda, { color: colors.danger }]}>

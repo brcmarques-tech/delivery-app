@@ -108,32 +108,58 @@ export function ModalDeCodigo({
         >
           <View style={[estilos.caixa, { backgroundColor: colors.card }]}>
             <View style={estilos.cabecalho}>
-              <Ionicons name="keypad" size={26} color={colors.primary} />
+              <View style={[estilos.icone, { backgroundColor: colors.primary + '1A' }]}>
+                <Ionicons name="keypad" size={26} color={colors.primary} />
+              </View>
               <Text style={[estilos.titulo, { color: colors.text }]}>{titulo}</Text>
             </View>
 
             <Text style={[estilos.explicacao, { color: colors.textLight }]}>{explicacao}</Text>
 
-            <TextInput
-              ref={inputRef}
-              value={codigo}
-              onChangeText={aoDigitar}
-              keyboardType="number-pad"
-              maxLength={TAMANHO}
-              editable={!carregando}
-              placeholder="000000"
-              placeholderTextColor={colors.gray}
-              style={[
-                estilos.campo,
-                {
-                  color: colors.text,
-                  backgroundColor: colors.inputBg,
-                  borderColor: erro ? colors.danger : completo ? colors.success : colors.border,
-                },
-              ]}
-              textAlign="center"
-              accessibilityLabel={titulo}
-            />
+            {/* Uma caixa por digito. O TextInput de verdade fica por cima, invisivel:
+                e ele que recebe o toque, o teclado numerico e o "colar" — as caixas
+                so desenham o que ja foi digitado. Antes era um campo unico com
+                textAlign como PROPRIEDADE, que o react-native-web ignora: na web os
+                numeros ficavam encostados a esquerda. */}
+            <View style={estilos.digitos}>
+              {Array.from({ length: TAMANHO }).map((_, i) => {
+                const digito = codigo[i];
+                const daVez = i === codigo.length && !completo;
+                const corBorda = erro
+                  ? colors.danger
+                  : completo
+                    ? colors.success
+                    : daVez
+                      ? colors.primary
+                      : digito
+                        ? colors.text + '55'
+                        : colors.border;
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      estilos.digito,
+                      { backgroundColor: colors.inputBg, borderColor: corBorda },
+                      daVez && estilos.digitoDaVez,
+                    ]}
+                  >
+                    <Text style={[estilos.digitoTexto, { color: colors.text }]}>{digito ?? ''}</Text>
+                  </View>
+                );
+              })}
+              <TextInput
+                ref={inputRef}
+                value={codigo}
+                onChangeText={aoDigitar}
+                keyboardType="number-pad"
+                // Sem maxLength: ele cortaria o texto COLADO antes da limpeza ("12 34 56"
+                // viraria "1234"). Quem limita a 6 digitos e o aoDigitar.
+                editable={!carregando}
+                caretHidden
+                style={estilos.campoInvisivel}
+                accessibilityLabel={titulo}
+              />
+            </View>
 
             {/* Contador de dígitos: diz quanto falta sem acusar erro de quem
                 ainda está digitando. A mensagem do servidor é outra coisa e
@@ -189,22 +215,36 @@ export function ModalDeCodigo({
 // `fontFamily: fonts.bold`, que não existe: renderizaria peso normal em
 // silêncio, sem erro nenhum para denunciar.
 //
-// O 30 do campo é literal de propósito: `fonts.title` é 22, e aqui o número
+// O 30 dos dígitos é literal de propósito: `fonts.title` é 22, e aqui o número
 // precisa ser lido de longe, com o celular na mão, na porta de alguém.
 const estilos = StyleSheet.create({
   fundo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
-  centro: { flexGrow: 1, justifyContent: 'center', padding: 20 },
-  caixa: { borderRadius: 16, padding: 22 },
-  cabecalho: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  titulo: { fontSize: fonts.xlarge, fontWeight: 'bold', flex: 1 },
-  explicacao: { fontSize: fonts.regular, lineHeight: 20, marginBottom: 18 },
-  campo: {
+  centro: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  caixa: { borderRadius: 20, padding: 24, width: '100%', maxWidth: 400 },
+  cabecalho: { alignItems: 'center', gap: 12, marginBottom: 8 },
+  icone: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  titulo: { fontSize: fonts.xlarge, fontWeight: 'bold', textAlign: 'center' },
+  explicacao: { fontSize: fonts.regular, lineHeight: 20, marginBottom: 20, textAlign: 'center' },
+  digitos: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  digito: {
+    flex: 1,
+    maxWidth: 48,
+    aspectRatio: 0.8,
     borderWidth: 2,
     borderRadius: 12,
-    paddingVertical: 14,
-    fontSize: 30,
-    fontWeight: 'bold',
-    letterSpacing: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  digitoDaVez: { borderWidth: 2.5 },
+  digitoTexto: { fontSize: 30, fontWeight: 'bold' },
+  campoInvisivel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0,
+    color: 'transparent',
   },
   contador: { fontSize: fonts.small, textAlign: 'center', marginTop: 8 },
   erroCaixa: {

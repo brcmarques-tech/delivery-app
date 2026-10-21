@@ -87,8 +87,7 @@ export function CodigoDoCliente({ orderId, ehOCliente }: CodigoDoClienteProps) {
       )}
 
       <Text style={[estilos.ajuda, { color: colors.textLight }]}>
-        Informe este código ao entregador só quando tiver o pedido em mãos. É ele que conclui a
-        entrega e libera o pagamento — então não passe antes de receber.
+        Só passe ao entregador depois de receber o pedido.
       </Text>
     </View>
   );
