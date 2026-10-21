@@ -18,6 +18,11 @@ export const REGISTER = gql`
         acceptedTermsAt
         emailVerified
         phoneVerified
+        # Mesmos campos do meApp. Sem paymentConnected aqui, o entregador
+        # recem-logado lia "conta nao conectada" e nao conseguia ficar online
+        # nem aceitar corrida ate reabrir o app.
+        paymentConnected
+        avatarUrl
       }
     }
   }
@@ -76,6 +81,11 @@ export const LOGIN = gql`
         acceptedTermsAt
         emailVerified
         phoneVerified
+        # Mesmos campos do meApp. Sem paymentConnected aqui, o entregador
+        # recem-logado lia "conta nao conectada" e nao conseguia ficar online
+        # nem aceitar corrida ate reabrir o app.
+        paymentConnected
+        avatarUrl
       }
     }
   }
@@ -311,6 +321,11 @@ export const GOOGLE_AUTH_APP = gql`
         id name email cpf phone role isDeliverer pendingRole
         rejectedAt rejectionReason acceptedTermsAt
         emailVerified phoneVerified
+        # Mesmos campos do meApp. Sem paymentConnected aqui, o entregador
+        # recem-logado lia "conta nao conectada" e nao conseguia ficar online
+        # nem aceitar corrida ate reabrir o app.
+        paymentConnected
+        avatarUrl
       }
     }
   }
@@ -459,6 +474,11 @@ export const REGISTER_APP_WITH_GOOGLE = gql`
         id name email cpf phone role isDeliverer pendingRole
         rejectedAt rejectionReason acceptedTermsAt
         emailVerified phoneVerified
+        # Mesmos campos do meApp. Sem paymentConnected aqui, o entregador
+        # recem-logado lia "conta nao conectada" e nao conseguia ficar online
+        # nem aceitar corrida ate reabrir o app.
+        paymentConnected
+        avatarUrl
       }
     }
   }
