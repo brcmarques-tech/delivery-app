@@ -605,3 +605,10 @@ export const REGISTRAR_ENTREGA_SEM_CODIGO = gql`
     }
   }
 `;
+
+// Entregador larga a corrida antes da coleta; o pedido volta para a fila.
+export const DESISTIR_DA_ENTREGA = gql`
+  mutation DesistirDaEntrega($orderId: String!, $motivo: String) {
+    desistirDaEntrega(orderId: $orderId, motivo: $motivo)
+  }
+`;

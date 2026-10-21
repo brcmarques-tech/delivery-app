@@ -634,6 +634,7 @@ export const GET_MY_DELIVERIES = gql`
         id
         orderNumber
         status
+        paymentMethod
         total
         deliveryFee
         deliveryAddress

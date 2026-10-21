@@ -48,7 +48,9 @@ function MemoryPressureHandler() {
     const sub = AppState.addEventListener('memoryWarning' as any, () => {
       ExpoImage.clearMemoryCache().catch(() => {});
     });
-    return () => sub.remove();
+    // Na web o react-native-web não tem 'memoryWarning' e devolve undefined:
+    // `sub.remove()` estourava ao desmontar e derrubava a árvore inteira.
+    return () => sub?.remove?.();
   }, []);
   return null;
 }
