@@ -196,6 +196,19 @@ export default function OrderDetailScreen() {
     }
   }, [pixModalVisible, pixTimeLeft]);
 
+  // Fecha o modal quando o PAGAMENTO chega. O status do pedido já atualizava
+  // ao vivo por trás, mas o modal só fechava ao expirar: a pessoa pagava no
+  // app do banco, voltava e continuava vendo o QR e o cronômetro — convite a
+  // pagar de novo.
+  useEffect(() => {
+    if (pixModalVisible && order?.status && order.status !== 'AWAITING_PAYMENT') {
+      setPixModalVisible(false);
+      if (order.status !== 'CANCELLED' && order.status !== 'EXPIRED') {
+        alerta('Pagamento confirmado', 'Recebemos o seu PIX. A loja já vai preparar o pedido.');
+      }
+    }
+  }, [pixModalVisible, order?.status]);
+
   const handleCopyPixCode = async () => {
     if (!order?.pixQrCode) return;
     await Clipboard.setStringAsync(order.pixQrCode);

@@ -17,6 +17,7 @@ import { useCart } from '../../src/contexts/CartContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as staticColors, fonts } from '../../src/theme';
+import { rotuloDoFrete } from '../../src/lib/frete';
 
 const { width } = Dimensions.get('window');
 
@@ -233,7 +234,7 @@ export default function PromotionScreen() {
                     <View style={styles.storeDetail}>
                       <Ionicons name="bicycle-outline" size={13} color={colors.gray} />
                       <Text style={[styles.storeDetailText, { color: colors.gray }]}>
-                        {promo.store.freeDelivery || Number(promo.store.deliveryFee) === 0 ? 'Gratis' : `R$ ${Number(promo.store.deliveryFee).toFixed(2)}`}
+                        {rotuloDoFrete(promo.store)}
                       </Text>
                     </View>
                     <View style={[styles.storeStatusDot, { backgroundColor: promo.store.isOpen ? staticColors.success : staticColors.danger }]} />

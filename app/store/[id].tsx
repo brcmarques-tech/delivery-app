@@ -15,7 +15,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery, useSubscription, useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
-import { GET_STORE, GET_STORE_PRODUCTS, IS_FOLLOWING_STORE, GET_FOLLOWER_COUNT } from '../../src/lib/graphql/queries';
+import { GET_STORE, GET_STORE_PRODUCTS, IS_FOLLOWING_STORE, GET_FOLLOWER_COUNT, CALCULATE_DELIVERY_FEE } from '../../src/lib/graphql/queries';
 import { FOLLOW_STORE, UNFOLLOW_STORE } from '../../src/lib/graphql/mutations';
 import { STORE_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useCart } from '../../src/contexts/CartContext';
@@ -27,6 +27,8 @@ import { fonts } from '../../src/theme';
 import { aplicarCoresDaLoja } from '../../src/coresDaLoja';
 import { imageCachePolicy } from '../../src/lib/deviceTier'; // Perf (F0)
 import { precoPorPeso } from '../../src/lib/precoPorPeso'; // KAN-282 item 6
+import { useLocation } from '../../src/contexts/LocationContext';
+import { rotuloDoFrete, rotuloDoFreteGratisAcima } from '../../src/lib/frete';
 
 // UX: fileira de chips de categoria com setinhas indicando que ha mais
 // conteudo para os lados. Componente isolado e memoizado de proposito: o
@@ -170,6 +172,19 @@ export default function StoreScreen() {
   }, [storeQuery]);
 
   const store = data?.store;
+
+  // Estimativa do frete pela posição atual — a mesma conta do checkout.
+  const { location: posicao } = useLocation();
+  const { data: freteData } = useQuery(CALCULATE_DELIVERY_FEE, {
+    variables: {
+      storeId: store?.id,
+      customerLatitude: posicao?.latitude,
+      customerLongitude: posicao?.longitude,
+    },
+    skip: !store?.id || !posicao || !!store?.freeDelivery,
+    fetchPolicy: 'cache-first',
+  });
+  const freteGratisAcima = rotuloDoFreteGratisAcima(store);
   const isServiceStoreEarly = store?.storeType === 'SERVICES';
 
   // Perf (F5/F6): catalogo paginado — 100 por pagina, proxima pagina no scroll
@@ -378,7 +393,8 @@ export default function StoreScreen() {
             <Text style={[styles.detailText, { color: colors.textLight }]}>{store.estimatedDeliveryMinutes} min</Text>
             <Text style={[styles.detailDot, { color: colors.gray }]}>•</Text>
             <Text style={[styles.detailText, { color: colors.textLight }]}>
-              {Number(store.deliveryFee) > 0 ? `R$ ${Number(store.deliveryFee).toFixed(2)}` : 'Entrega gratis'}
+              {rotuloDoFrete(store, freteData?.calculateDeliveryFee)}
+              {freteGratisAcima ? ` · ${freteGratisAcima}` : ''}
             </Text>
             {Number(store.minimumOrder) > 0 && (
               <>
