@@ -235,6 +235,7 @@ export const GET_ORDER = gql`
       id
       orderNumber
       status
+      cobrancaFeita
       subtotal
       deliveryFee
       total

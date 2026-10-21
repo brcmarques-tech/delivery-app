@@ -3,11 +3,12 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSecureItem, setSecureItem, deleteSecureItem } from '../lib/secureStorage';
 import { useApolloClient, useSubscription } from '@apollo/client';
-import { Alert, AppState } from 'react-native';
+import {  AppState } from 'react-native';
 import { router } from 'expo-router';
 import { LOGIN, REGISTER, GOOGLE_AUTH_APP, REGISTER_APP_WITH_GOOGLE, LOGOUT, UNREGISTER_PUSH_TOKEN } from '../lib/graphql/mutations';
 import { GET_ME } from '../lib/graphql/queries';
 import { SESSION_KICKED } from '../lib/graphql/subscriptions';
+import { alerta } from '../lib/alerta';
 
 interface User {
   id: string;
@@ -140,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (justLoggedInRef.current || kickedRef.current) return;
       kickedRef.current = true;
       forceLogout().then(() => {
-        Alert.alert(
+        alerta(
           'Sessao encerrada',
           'Sua conta foi conectada em outro dispositivo. Voce foi desconectado.',
           [{ text: 'OK', onPress: () => { kickedRef.current = false; router.replace('/auth/login'); } }],

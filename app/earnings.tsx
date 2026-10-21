@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Switch,
+  KeyboardAvoidingView, Platform, ActivityIndicator,  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MY_BALANCE, SIMULATE_ANTICIPATION } from '../src/lib/graphql/queries';
 import { REGISTER_RECIPIENT, REQUEST_ANTICIPATION, DISCONNECT_PAYMENT, TOGGLE_AUTO_ANTICIPATION } from '../src/lib/graphql/mutations';
+import { alerta } from '../src/lib/alerta';
 
 const BANKS = [
   { code: '001', name: 'Banco do Brasil' },
@@ -145,7 +146,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
     const corpo = sim.isEstimate
       ? `Nao conseguimos confirmar a taxa com o provedor agora.\n\nEstimativa: taxa de cerca de R$ ${sim.fee?.toFixed(2) || '0.00'} (~${sim.feePercentage || 0}%), voce receberia cerca de R$ ${sim.anticipatedAmount?.toFixed(2) || '0.00'}.\n\nO valor final e definido pelo provedor e pode ser diferente.`
       : `Sera cobrada uma taxa de R$ ${sim.fee?.toFixed(2) || '0.00'} (~${sim.feePercentage || 0}%).\n\nVoce recebera R$ ${sim.anticipatedAmount?.toFixed(2) || '0.00'}.`;
-    Alert.alert(
+    alerta(
       sim.isEstimate ? 'Antecipacao (valores estimados)' : 'Confirmar Antecipacao',
       corpo,
       [
@@ -158,11 +159,11 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             try {
               const { data } = await requestAnticipation();
               const r = data.requestAnticipation;
-              Alert.alert('Antecipacao Solicitada!', `Valor aprovado: R$ ${r.approvedAmount?.toFixed(2)}\nTaxa cobrada: R$ ${r.fee?.toFixed(2)}\nStatus: ${r.status}`);
+              alerta('Antecipacao Solicitada!', `Valor aprovado: R$ ${r.approvedAmount?.toFixed(2)}\nTaxa cobrada: R$ ${r.fee?.toFixed(2)}\nStatus: ${r.status}`);
               refetchBalance();
             } catch (err: any) {
               const msg = err.message?.includes('network') ? 'Sem conexao com a internet. Tente novamente.' : err.message || 'Erro ao solicitar antecipacao.';
-              Alert.alert('Erro', msg);
+              alerta('Erro', msg);
             } finally {
               anticipatingRef.current = false;
             }
@@ -173,7 +174,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
   }
 
   async function handleDisconnect() {
-    Alert.alert('Desconectar Conta', 'Ao desconectar, voce deixara de receber pagamentos automaticamente.\n\nTem certeza?', [
+    alerta('Desconectar Conta', 'Ao desconectar, voce deixara de receber pagamentos automaticamente.\n\nTem certeza?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Desconectar',
@@ -184,7 +185,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             refetchMe();
           } catch (err: any) {
             const msg = err.message?.includes('network') ? 'Sem conexao com a internet.' : err.message || 'Erro ao desconectar.';
-            Alert.alert('Erro', msg);
+            alerta('Erro', msg);
           }
         },
       },
@@ -498,29 +499,29 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
 
     // M7: Client-side validation of required fields before sending JSON to API
     if (!recipientData.document || recipientData.document.length < 11) {
-      Alert.alert('Erro', 'CPF invalido. Verifique o documento informado.');
+      alerta('Erro', 'CPF invalido. Verifique o documento informado.');
       return;
     }
     if (!recipientData.type || !['individual', 'corporation'].includes(recipientData.type)) {
-      Alert.alert('Erro', 'Tipo de conta invalido.');
+      alerta('Erro', 'Tipo de conta invalido.');
       return;
     }
     if (!recipientData.name?.trim()) {
-      Alert.alert('Erro', 'Nome e obrigatorio.');
+      alerta('Erro', 'Nome e obrigatorio.');
       return;
     }
     if (!recipientData.bankAccount?.bank || !recipientData.bankAccount?.branchNumber || !recipientData.bankAccount?.accountNumber) {
-      Alert.alert('Erro', 'Dados bancarios incompletos. Verifique banco, agencia e conta.');
+      alerta('Erro', 'Dados bancarios incompletos. Verifique banco, agencia e conta.');
       return;
     }
 
     try {
       await registerRecipient({ variables: { recipientData: JSON.stringify(recipientData) } });
-      Alert.alert('Tudo certo!', 'Seus dados foram cadastrados. Agora voce pode receber pagamentos!');
+      alerta('Tudo certo!', 'Seus dados foram cadastrados. Agora voce pode receber pagamentos!');
       onSuccess();
     } catch (err: any) {
       const msg = err.message || 'Erro ao cadastrar. Tente novamente.';
-      Alert.alert('Erro', msg);
+      alerta('Erro', msg);
     }
   }
 

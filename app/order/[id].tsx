@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking, ActivityIndicator, Alert, Modal, TextInput, Share } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking, ActivityIndicator,  Modal, TextInput, Share } from 'react-native';
 import { Image } from 'expo-image';
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -14,6 +14,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { fonts } from '../../src/theme';
+import { alerta } from '../../src/lib/alerta';
+
+// O que acontece com o dinheiro de um pedido cancelado. Um texto so, usado no
+// alerta do cancelamento e no aviso da tela: antes eram dois textos que
+// decidiam so pela FORMA de pagamento e se contradiziam (PIX: "24h" num,
+// "7 dias uteis" no outro), e prometiam estorno ate para PIX que nunca foi
+// pago. `cobrancaFeita` vem da API.
+function textoDoEstorno(order?: { cobrancaFeita?: boolean | null; paymentMethod?: string | null } | null): string {
+  if (!order?.cobrancaFeita) return 'Nenhuma cobrança foi feita.';
+  if (order.paymentMethod === 'CREDIT_CARD') return 'O estorno aparece no seu cartão em até 7 dias úteis.';
+  return 'O valor do PIX volta para a sua conta em até 24h.';
+}
 
 // M9: AWAITING_PAYMENT added as first status step
 const statusSteps = [
@@ -177,7 +189,7 @@ export default function OrderDetailScreen() {
   useEffect(() => {
     if (pixModalVisible && pixTimeLeft === 0) {
       setPixModalVisible(false);
-      Alert.alert(
+      alerta(
         'PIX expirado',
         'O prazo deste PIX terminou. Faça o pedido novamente para gerar um novo código.',
       );
@@ -201,7 +213,7 @@ export default function OrderDetailScreen() {
 
   // M10: Confirmation dialog before confirming receipt
   const handleConfirmReceipt = async () => {
-    Alert.alert(
+    alerta(
       'Confirmar recebimento?',
       'Ao confirmar, o pagamento sera liberado ao entregador.',
       [
@@ -211,10 +223,10 @@ export default function OrderDetailScreen() {
           onPress: async () => {
             try {
               await confirmReceipt({ variables: { orderId: id } });
-              Alert.alert('Confirmado!', 'Recebimento confirmado com sucesso.');
+              alerta('Confirmado!', 'Recebimento confirmado com sucesso.');
               refetch();
             } catch (err: any) {
-              Alert.alert('Erro', err.message);
+              alerta('Erro', err.message);
             }
           },
         },
@@ -225,7 +237,7 @@ export default function OrderDetailScreen() {
   const handleDenyDelivery = async () => {
     const reason = selectedDenyReason === 'Outro' ? customDenyReason.trim() : selectedDenyReason;
     if (!reason) {
-      Alert.alert('Erro', 'Selecione ou digite um motivo.');
+      alerta('Erro', 'Selecione ou digite um motivo.');
       return;
     }
     try {
@@ -233,10 +245,10 @@ export default function OrderDetailScreen() {
       setDenyModalVisible(false);
       setSelectedDenyReason(null);
       setCustomDenyReason('');
-      Alert.alert('Enviado', 'Sua contestação foi registrada.');
+      alerta('Enviado', 'Sua contestação foi registrada.');
       refetch();
     } catch (err: any) {
-      Alert.alert('Erro', err.message);
+      alerta('Erro', err.message);
     }
   };
 
@@ -252,10 +264,10 @@ export default function OrderDetailScreen() {
     confirmingRef.current = true;
     try {
       await confirmPickup({ variables: { deliveryId: order.delivery.id } });
-      Alert.alert('Confirmado!', 'Retirada confirmada.');
+      alerta('Confirmado!', 'Retirada confirmada.');
       refetch();
     } catch (err: any) {
-      Alert.alert('Erro', err.message);
+      alerta('Erro', err.message);
     } finally {
       confirmingRef.current = false;
     }
@@ -267,17 +279,17 @@ export default function OrderDetailScreen() {
     confirmingRef.current = true;
     try {
       await confirmDelivery({ variables: { deliveryId: order.delivery.id } });
-      Alert.alert('Confirmado!', 'Entrega confirmada.');
+      alerta('Confirmado!', 'Entrega confirmada.');
       refetch();
     } catch (err: any) {
-      Alert.alert('Erro', err.message);
+      alerta('Erro', err.message);
     } finally {
       confirmingRef.current = false;
     }
   };
 
   const handleCancelOrder = () => {
-    Alert.alert(
+    alerta(
       'Cancelar pedido',
       'Tem certeza que deseja cancelar este pedido?',
       [
@@ -289,15 +301,10 @@ export default function OrderDetailScreen() {
             try {
               await cancelOrder({ variables: { orderId: id } });
               // M8: Show payment-method-specific refund message
-              const refundMsg = order?.paymentMethod === 'PIX'
-                ? 'O reembolso via PIX sera processado em ate 24h.'
-                : order?.paymentMethod === 'CREDIT_CARD'
-                ? 'O estorno sera processado em ate 7 dias uteis.'
-                : 'Nenhuma cobranca foi efetuada.';
-              Alert.alert('Cancelado', `Pedido cancelado. ${refundMsg}`);
+              alerta('Cancelado', `Pedido cancelado. ${textoDoEstorno(order)}`);
               refetch();
             } catch (err: any) {
-              Alert.alert('Erro', err.message);
+              alerta('Erro', err.message);
             }
           },
         },
@@ -308,7 +315,7 @@ export default function OrderDetailScreen() {
   const handleDisputeCompleted = async () => {
     const reason = selectedDisputeReason === 'Outro' ? customDisputeReason.trim() : selectedDisputeReason;
     if (!reason) {
-      Alert.alert('Erro', 'Selecione ou digite um motivo.');
+      alerta('Erro', 'Selecione ou digite um motivo.');
       return;
     }
     try {
@@ -316,10 +323,10 @@ export default function OrderDetailScreen() {
       setDisputeModalVisible(false);
       setSelectedDisputeReason(null);
       setCustomDisputeReason('');
-      Alert.alert('Enviado', 'Sua reclamação foi registrada. Analisaremos em breve.');
+      alerta('Enviado', 'Sua reclamação foi registrada. Analisaremos em breve.');
       refetch();
     } catch (err: any) {
-      Alert.alert('Erro', err.message);
+      alerta('Erro', err.message);
     }
   };
 
@@ -410,7 +417,7 @@ export default function OrderDetailScreen() {
             const restante = segundosRestantesPix();
             setPixTimeLeft(restante);
             if (restante <= 0) {
-              Alert.alert(
+              alerta(
                 'PIX expirado',
                 'O prazo deste PIX terminou. Faça o pedido novamente para gerar um novo código.',
               );
@@ -472,14 +479,14 @@ export default function OrderDetailScreen() {
                   style={{ backgroundColor: colors.success, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginLeft: 8 }}
                   disabled={cancellingDispute}
                   onPress={() => {
-                    Alert.alert('Cancelar reclamação', 'Tem certeza que deseja cancelar a reclamação? O pedido voltará para "Finalizado".', [
+                    alerta('Cancelar reclamação', 'Tem certeza que deseja cancelar a reclamação? O pedido voltará para "Finalizado".', [
                       { text: 'Não', style: 'cancel' },
                       { text: 'Sim, cancelar', onPress: async () => {
                         try {
                           await cancelDisputeMutation({ variables: { orderId: id } });
                           refetch();
                         } catch (err: any) {
-                          Alert.alert('Erro', err?.message || 'Não foi possível cancelar a reclamação.');
+                          alerta('Erro', err?.message || 'Não foi possível cancelar a reclamação.');
                         }
                       }},
                     ]);
@@ -517,9 +524,7 @@ export default function OrderDetailScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.terminalBannerTitle, { color: isDark ? '#FCA5A5' : '#721C24' }]}>Pedido cancelado</Text>
             <Text style={[styles.terminalBannerSub, { color: isDark ? '#FCA5A5' : '#721C24' }]}>
-              {order.paymentMethod === 'ON_DELIVERY'
-                ? 'Nenhuma cobrança foi feita.'
-                : 'O estorno será processado no seu meio de pagamento em até 7 dias úteis.'}
+              {textoDoEstorno(order)}
             </Text>
           </View>
         </View>

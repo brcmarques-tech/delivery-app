@@ -7,7 +7,7 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
-  Alert,
+  
   Linking,
   Clipboard,
 } from 'react-native';
@@ -28,6 +28,7 @@ import {
   REJECT_QUOTE,
   RATE_SERVICE,
 } from '../../src/lib/graphql/mutations';
+import { alerta } from '../../src/lib/alerta';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pendente',
@@ -136,7 +137,7 @@ export default function AppointmentDetailScreen() {
   const canRate = apt.status === 'COMPLETED' && !existingRating;
 
   const handleCancel = () => {
-    Alert.alert('Cancelar agendamento', 'Tem certeza?', [
+    alerta('Cancelar agendamento', 'Tem certeza?', [
       { text: 'Nao', style: 'cancel' },
       { text: 'Sim, cancelar', style: 'destructive', onPress: () => cancelAppointment({ variables: { id } }) },
     ]);
