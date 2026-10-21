@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Image,
-  Alert,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -197,7 +196,17 @@ export default function LoginScreen() {
     } catch (err: any) {
       const msg = err?.message || '';
       if (msg.includes('ACTIVE_SESSION')) {
-        Alert.alert(
+        // Usa o alerta DO APP (AlertContext), nao o Alert nativo.
+        //
+        // O `Alert` do react-native nao existe no react-native-web: a chamada
+        // vira um no-op SILENCIOSO. Quem abre o app no navegador clica em
+        // Entrar, o servidor recusa com ACTIVE_SESSION (sessao unica, KAN-84) e
+        // a tela nao mostra absolutamente nada — nem a pergunta, nem erro.
+        // Parece botao quebrado.
+        //
+        // Esta tela ja usava o alerta do app nos outros avisos; so este ponto
+        // tinha ficado com o nativo.
+        alert(
           'Sessao ativa',
           'Esta conta ja esta logada em outro dispositivo. Deseja desconectar o outro e entrar aqui?',
           [
@@ -205,6 +214,10 @@ export default function LoginScreen() {
             { text: 'Sim, entrar aqui', onPress: () => handleLogin(true) },
           ],
         );
+      } else if (/network|timeout|failed to fetch|abort|status code 5[0-9][0-9]|response not successful/i.test(msg)) {
+        // Rede fora do ar nao e credencial errada. Dizer "email ou senha
+        // invalidos" aqui manda a pessoa trocar a senha por causa do Wi-Fi.
+        setLoginError('Nao consegui falar com o servidor. Verifique sua conexao.');
       } else {
         setLoginError('Email ou senha invalidos');
       }
