@@ -446,9 +446,24 @@ export default function CheckoutScreen() {
   // sem a pessoa saber que precisava corrigir o endereço.
   const [buscaDoEndereco, setBuscaDoEndereco] = useState<'ociosa' | 'buscando' | 'nao_achou'>('ociosa');
 
+  // Coordenada que ja pertence ao texto atual (endereco salvo, confirmado no
+  // mapa, ou GPS). Lida por ref para o efeito abaixo nao depender dela.
+  const parDasCoordsRef = useRef<{ coords: typeof coords; texto: string | null }>({ coords: null, texto: null });
+  parDasCoordsRef.current = { coords, texto: enderecoDasCoords };
+
   // Geocode address
   useEffect(() => {
     if (!address.trim() || !storeId) {
+      setBuscaDoEndereco('ociosa');
+      return;
+    }
+    // Ja ha coordenada para ESTE texto: nao geocodificar por cima. O endereco
+    // salvo vem com o ponto que o cliente confirmou no mapa; o geocode do texto
+    // (Nominatim) cai em outro lugar e, chegando depois, o sobrescrevia — o
+    // mesmo endereco saia com frete R$ 0,98 num pedido e R$ 1,09 no seguinte, e
+    // o entregador era mandado para o ponto do geocode.
+    const par = parDasCoordsRef.current;
+    if (par.coords && par.texto === address) {
       setBuscaDoEndereco('ociosa');
       return;
     }

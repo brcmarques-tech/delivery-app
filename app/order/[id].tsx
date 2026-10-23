@@ -122,7 +122,12 @@ export default function OrderDetailScreen() {
   const isDeliverer = user?.role === 'DELIVERER' || user?.isDeliverer;
 
   // Countdown timer for delivery confirmation (customer)
-  const needsCustomerAction = order?.status === 'DELIVERER_CONFIRMED_DELIVERY';
+  // DELIVERED = retirada no balcão ou frota própria, fechada pelo lojista. O
+  // servidor aceita a confirmação do cliente aqui também (e confirma sozinho em
+  // ~10 min), mas o botão só existia no fluxo do entregador do app.
+  const needsCustomerAction =
+    order?.status === 'DELIVERER_CONFIRMED_DELIVERY' ||
+    (order?.status === 'DELIVERED' && !order?.customerConfirmedAt);
   const delivererConfirmedAt = order?.delivererConfirmedDeliveryAt;
 
   useEffect(() => {
@@ -230,7 +235,11 @@ export default function OrderDetailScreen() {
   const handleConfirmReceipt = async () => {
     alerta(
       'Confirmar recebimento?',
-      'Ao confirmar, o pagamento sera liberado ao entregador.',
+      order?.paymentMethod === 'ON_DELIVERY'
+        ? 'Confirme que recebeu o seu pedido.'
+        : order?.status === 'DELIVERED'
+          ? 'Ao confirmar, o pagamento é liberado para a loja.'
+          : 'Ao confirmar, o pagamento sera liberado ao entregador.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -708,10 +717,14 @@ export default function OrderDetailScreen() {
         <View style={[styles.confirmCard, { backgroundColor: colors.card, borderColor: colors.success }]}>
           <View style={styles.confirmHeader}>
             <Ionicons name="checkmark-circle" size={26} color={colors.success} />
-            <Text style={[styles.confirmTitle, { color: colors.text }]}>Pedido entregue!</Text>
+            <Text style={[styles.confirmTitle, { color: colors.text }]}>
+              {order.isPickup ? 'Pedido retirado!' : 'Pedido entregue!'}
+            </Text>
           </View>
           <Text style={[styles.confirmSubtitle, { color: colors.textLight }]}>
-            Confirme que recebeu seu pedido para liberar o pagamento ao entregador.
+            {order.status === 'DELIVERED'
+              ? 'Confirme que está tudo certo com o seu pedido.'
+              : 'Confirme que recebeu seu pedido para liberar o pagamento ao entregador.'}
           </Text>
           {timeLeft !== null && timeLeft > 0 && (
             <Text style={[styles.confirmTimer, { color: colors.primary }]}>
@@ -742,14 +755,18 @@ export default function OrderDetailScreen() {
               </>
             )}
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.denyButton, { borderColor: colors.danger }]}
-            onPress={() => setDenyModalVisible(true)}
-            disabled={denying}
-          >
-            <Ionicons name="close-circle-outline" size={18} color={colors.danger} />
-            <Text style={[styles.denyButtonText, { color: colors.danger }]}>Não recebi o pedido</Text>
-          </TouchableOpacity>
+          {/* "Não recebi" só vale contra o entregador do app (o servidor recusa
+              fora de DELIVERER_CONFIRMED_DELIVERY). */}
+          {order.status === 'DELIVERER_CONFIRMED_DELIVERY' && (
+            <TouchableOpacity
+              style={[styles.denyButton, { borderColor: colors.danger }]}
+              onPress={() => setDenyModalVisible(true)}
+              disabled={denying}
+            >
+              <Ionicons name="close-circle-outline" size={18} color={colors.danger} />
+              <Text style={[styles.denyButtonText, { color: colors.danger }]}>Não recebi o pedido</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 

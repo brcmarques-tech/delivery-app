@@ -343,6 +343,14 @@ export default function DeliveriesScreen() {
       latitude = current.coords.latitude;
       longitude = current.coords.longitude;
     }
+    // A trava de 200m da coleta lê `currentLocation`, que só o watch abaixo
+    // preenchia — e o watch só dispara quando a posição MUDA. Parado na porta
+    // da loja depois de reabrir o app, o entregador ficava em "Aproxime-se da
+    // loja" sem conseguir registrar a coleta.
+    if (latitude || longitude) {
+      setCurrentLocation({ latitude, longitude });
+      lastLocationRef.current = { latitude, longitude };
+    }
 
     // KAN-224/255: envia o token no handshake. Este socket ficava sem
     // autenticacao nenhuma — qualquer cliente podia emitir `delivererOnline`
@@ -1029,8 +1037,12 @@ export default function DeliveriesScreen() {
 
         <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
           <View>
-            <Text style={[styles.feeLabel, { color: colors.textLight }]}>Taxa de entrega</Text>
-            <Text style={[styles.feeValue, { color: colors.success }]}>{formatarReais(item.deliveryFee)}</Text>
+            {/* O líquido (frete menos a comissão de entrega), não o frete
+                bruto: é o que de fato cai para ele. */}
+            <Text style={[styles.feeLabel, { color: colors.textLight }]}>Você recebe</Text>
+            <Text style={[styles.feeValue, { color: colors.success }]}>
+              {formatarReais(item.ganhoDoEntregador ?? item.deliveryFee)}
+            </Text>
           </View>
           <View style={styles.offerActions}>
             {/* Recusar só existe na vez exclusiva: passa a corrida na hora para
@@ -1164,10 +1176,14 @@ export default function DeliveriesScreen() {
                   taxa — o mesmo valor que a oferta mostrava. */}
               <View>
                 <Text style={[styles.feeLabel, { color: colors.textLight }]}>
-                  {order.paymentMethod === 'ON_DELIVERY' ? 'Receber do cliente' : 'Taxa de entrega'}
+                  {order.paymentMethod === 'ON_DELIVERY' ? 'Receber do cliente' : 'Você recebe'}
                 </Text>
                 <Text style={[styles.totalText, { color: colors.text }]}>
-                  {formatarReais(order.paymentMethod === 'ON_DELIVERY' ? order.total : order.deliveryFee)}
+                  {formatarReais(
+                    order.paymentMethod === 'ON_DELIVERY'
+                      ? order.total
+                      : order.ganhoDoEntregador ?? order.deliveryFee,
+                  )}
                 </Text>
               </View>
               {(order.status === 'READY' || order.status === 'VENDOR_CONFIRMED_PICKUP') && (() => {
@@ -1271,7 +1287,13 @@ export default function DeliveriesScreen() {
           <View style={styles.completedSection}>
             <View style={styles.completedInfo}>
               <Text style={[styles.completedText, { color: colors.textLight }]}>
-                {order.customer?.name ? `${order.customer.name} • ` : ''}{order.items.length} {order.items.length === 1 ? 'item' : 'itens'} - {formatarReais(order.total)}
+                {/* O que ele ganhou, não o total que o cliente pagou (que
+                    parecia o ganho). O total só importa no pagamento na
+                    entrega, quando foi ele quem cobrou. */}
+                {order.customer?.name ? `${order.customer.name} • ` : ''}
+                {order.paymentMethod === 'ON_DELIVERY' || order.ganhoDoEntregador == null
+                  ? `Cobrado do cliente ${formatarReais(order.total)}`
+                  : `Você recebeu ${formatarReais(order.ganhoDoEntregador)}`}
               </Text>
               <Text style={[styles.completedDate, { color: colors.gray }]}>
                 {/* Entrega de pedido cancelado não tem deliveredAt: new Date(null)

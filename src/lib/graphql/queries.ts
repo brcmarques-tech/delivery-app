@@ -235,6 +235,7 @@ export const GET_ORDER = gql`
       id
       orderNumber
       status
+      isPickup
       cobrancaFeita
       subtotal
       deliveryFee
@@ -601,6 +602,7 @@ export const GET_AVAILABLE_DELIVERIES = gql`
       status
       total
       deliveryFee
+      ganhoDoEntregador
       deliveryAddress
       createdAt
       store {
@@ -640,6 +642,7 @@ export const GET_MY_DELIVERIES = gql`
         paymentMethod
         total
         deliveryFee
+        ganhoDoEntregador
         deliveryAddress
         notes
         deliveryLatitude
