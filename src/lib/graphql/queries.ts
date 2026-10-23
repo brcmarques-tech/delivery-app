@@ -930,3 +930,17 @@ export const MINHA_FIDELIDADE = gql`
     }
   }
 `;
+
+// Repasse semanal do entregador: fretes do PIX pagos toda quarta.
+export const MEU_SALDO_DE_ENTREGAS = gql`
+  query MeuSaldoDeEntregas {
+    meuSaldoDeEntregas {
+      aReceberCents
+      proximoPagamento
+      proximoPagamentoCents
+      chavePix
+      entregas { orderNumber loja cents concluidoEm pagamentoPrevisto }
+      pagos { id totalCents quantidade pagoEm chavePix }
+    }
+  }
+`;

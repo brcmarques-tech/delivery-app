@@ -15,6 +15,7 @@ import { MY_BALANCE, SIMULATE_ANTICIPATION } from '../src/lib/graphql/queries';
 import { REGISTER_RECIPIENT, REQUEST_ANTICIPATION, DISCONNECT_PAYMENT, TOGGLE_AUTO_ANTICIPATION } from '../src/lib/graphql/mutations';
 import { alerta } from '../src/lib/alerta';
 import { formatarReais } from '../src/lib/dinheiro';
+import { RepasseSemanal } from '../src/components/RepasseSemanal';
 
 const BANKS = [
   { code: '001', name: 'Banco do Brasil' },
@@ -111,6 +112,8 @@ export default function EarningsScreen() {
 // ===== EARNINGS DASHBOARD =====
 function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () => void }) {
   const { isDark } = useTheme();
+  const { user } = useAuth();
+  const ehEntregador = user?.role === 'DELIVERER';
   // L4: Use useAlert instead of Alert.alert where available
   const { alert: showAlert } = useAlert();
   const { data: balanceData, loading, error: balanceError, refetch: refetchBalance } = useQuery(MY_BALANCE, { fetchPolicy: 'network-only' });
@@ -219,6 +222,14 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 40 }}>
+      {/* Frete dos pedidos PIX: saldo que cai toda quarta (modelo iFood). */}
+      {ehEntregador && <RepasseSemanal colors={colors} />}
+
+      {ehEntregador && (
+        <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textSecondary, marginBottom: 6 }}>
+          Pedidos pagos no cartão · direto na sua conta do Pagar.me
+        </Text>
+      )}
       {/* Balance Cards */}
       <View style={{ gap: 6, marginBottom: 12 }}>
         <View style={[styles.balanceCard, { backgroundColor: isDark ? '#14532d' : '#dcfce7', borderColor: isDark ? '#166534' : '#bbf7d0' }]}>

@@ -619,3 +619,9 @@ export const RECUSAR_OFERTA = gql`
     recusarOferta(orderId: $orderId)
   }
 `;
+
+export const SALVAR_CHAVE_PIX = gql`
+  mutation SalvarChavePix($chave: String!) {
+    salvarChavePix(chave: $chave)
+  }
+`;
