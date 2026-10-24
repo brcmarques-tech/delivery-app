@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Switch,
+  KeyboardAvoidingView, Platform, ActivityIndicator,  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -13,6 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MY_BALANCE, SIMULATE_ANTICIPATION } from '../src/lib/graphql/queries';
 import { REGISTER_RECIPIENT, REQUEST_ANTICIPATION, DISCONNECT_PAYMENT, TOGGLE_AUTO_ANTICIPATION } from '../src/lib/graphql/mutations';
+import { alerta } from '../src/lib/alerta';
+import { formatarReais } from '../src/lib/dinheiro';
+import { RepasseSemanal } from '../src/components/RepasseSemanal';
 
 const BANKS = [
   { code: '001', name: 'Banco do Brasil' },
@@ -109,6 +112,8 @@ export default function EarningsScreen() {
 // ===== EARNINGS DASHBOARD =====
 function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () => void }) {
   const { isDark } = useTheme();
+  const { user } = useAuth();
+  const ehEntregador = user?.role === 'DELIVERER';
   // L4: Use useAlert instead of Alert.alert where available
   const { alert: showAlert } = useAlert();
   const { data: balanceData, loading, error: balanceError, refetch: refetchBalance } = useQuery(MY_BALANCE, { fetchPolicy: 'network-only' });
@@ -139,9 +144,15 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
 
   async function handleAnticipate() {
     if (!sim) return;
-    Alert.alert(
-      'Confirmar Antecipacao',
-      `Sera cobrada uma taxa de R$ ${sim.fee?.toFixed(2) || '0.00'} (~${sim.feePercentage || 0}%).\n\nVoce recebera R$ ${sim.anticipatedAmount?.toFixed(2) || '0.00'}.`,
+    // Quando os valores sao ESTIMATIVA nossa (o provedor nao respondeu a
+    // simulacao), a confirmacao nao pode prometer numero. Antes o texto dizia
+    // "Voce recebera R$ X" com um X que o nosso proprio codigo inventou.
+    const corpo = sim.isEstimate
+      ? `Nao conseguimos confirmar a taxa com o provedor agora.\n\nEstimativa: taxa de cerca de ${formatarReais(sim.fee)} (~${sim.feePercentage || 0}%), voce receberia cerca de ${formatarReais(sim.anticipatedAmount)}.\n\nO valor final e definido pelo provedor e pode ser diferente.`
+      : `Sera cobrada uma taxa de ${formatarReais(sim.fee)} (~${sim.feePercentage || 0}%).\n\nVoce recebera ${formatarReais(sim.anticipatedAmount)}.`;
+    alerta(
+      sim.isEstimate ? 'Antecipacao (valores estimados)' : 'Confirmar Antecipacao',
+      corpo,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -152,11 +163,11 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             try {
               const { data } = await requestAnticipation();
               const r = data.requestAnticipation;
-              Alert.alert('Antecipacao Solicitada!', `Valor aprovado: R$ ${r.approvedAmount?.toFixed(2)}\nTaxa cobrada: R$ ${r.fee?.toFixed(2)}\nStatus: ${r.status}`);
+              alerta('Antecipacao Solicitada!', `Valor aprovado: ${formatarReais(r.approvedAmount)}\nTaxa cobrada: ${formatarReais(r.fee)}\nStatus: ${r.status}`);
               refetchBalance();
             } catch (err: any) {
               const msg = err.message?.includes('network') ? 'Sem conexao com a internet. Tente novamente.' : err.message || 'Erro ao solicitar antecipacao.';
-              Alert.alert('Erro', msg);
+              alerta('Erro', msg);
             } finally {
               anticipatingRef.current = false;
             }
@@ -167,7 +178,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
   }
 
   async function handleDisconnect() {
-    Alert.alert('Desconectar Conta', 'Ao desconectar, voce deixara de receber pagamentos automaticamente.\n\nTem certeza?', [
+    alerta('Desconectar Conta', 'Ao desconectar, voce deixara de receber pagamentos automaticamente.\n\nTem certeza?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Desconectar',
@@ -178,7 +189,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             refetchMe();
           } catch (err: any) {
             const msg = err.message?.includes('network') ? 'Sem conexao com a internet.' : err.message || 'Erro ao desconectar.';
-            Alert.alert('Erro', msg);
+            alerta('Erro', msg);
           }
         },
       },
@@ -211,6 +222,14 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 40 }}>
+      {/* Frete dos pedidos PIX: saldo que cai toda quarta (modelo iFood). */}
+      {ehEntregador && <RepasseSemanal colors={colors} />}
+
+      {ehEntregador && (
+        <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textSecondary, marginBottom: 6 }}>
+          Pedidos pagos no cartão · direto na sua conta do Pagar.me
+        </Text>
+      )}
       {/* Balance Cards */}
       <View style={{ gap: 6, marginBottom: 12 }}>
         <View style={[styles.balanceCard, { backgroundColor: isDark ? '#14532d' : '#dcfce7', borderColor: isDark ? '#166534' : '#bbf7d0' }]}>
@@ -221,7 +240,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             <Text style={{ fontSize: 10, color: isDark ? '#bbf7d0' : '#166534' }}>Disponivel para saque</Text>
           </View>
           <Text style={{ fontSize: 28, fontWeight: 'bold', color: isDark ? '#86efac' : '#166534', marginTop: 4 }}>
-            R$ {(balance?.availableAmount || 0).toFixed(2)}
+            {formatarReais((balance?.availableAmount || 0))}
           </Text>
         </View>
 
@@ -232,7 +251,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             </View>
             <Text style={{ fontSize: 10, color: isDark ? '#fed7aa' : '#9a3412', marginTop: 6 }}>A receber</Text>
             <Text style={{ fontSize: 20, fontWeight: 'bold', color: isDark ? '#fdba74' : '#9a3412' }}>
-              R$ {(balance?.waitingFundsAmount || 0).toFixed(2)}
+              {formatarReais((balance?.waitingFundsAmount || 0))}
             </Text>
           </View>
 
@@ -242,7 +261,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             </View>
             <Text style={{ fontSize: 10, color: isDark ? '#bfdbfe' : '#1e40af', marginTop: 6 }}>Ja transferido</Text>
             <Text style={{ fontSize: 20, fontWeight: 'bold', color: isDark ? '#93c5fd' : '#1e40af' }}>
-              R$ {(balance?.transferredAmount || 0).toFixed(2)}
+              {formatarReais((balance?.transferredAmount || 0))}
             </Text>
           </View>
         </View>
@@ -259,19 +278,37 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
             Receba seus valores pendentes agora, com uma pequena taxa.
           </Text>
 
+          {/* O servidor marca `isEstimate` quando nao conseguiu cotar com o
+              provedor e caiu numa estimativa de ~3,5% feita por nos. Sem este
+              aviso, o numero estimado aparecia identico a uma cotacao real — e
+              em destaque, no "Voce recebe". */}
+          {sim.isEstimate && (
+            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start', marginBottom: 12 }}>
+              <Ionicons name="alert-circle-outline" size={14} color="#f59e0b" />
+              <Text style={{ fontSize: 10, color: '#f59e0b', flex: 1 }}>
+                Nao conseguimos confirmar a taxa com o provedor agora. Os valores
+                abaixo sao uma estimativa e o valor final pode ser diferente.
+              </Text>
+            </View>
+          )}
+
           <View style={[styles.simBox, { backgroundColor: colors.background }]}>
             <View style={styles.simRow}>
               <Text style={{ fontSize: 10, color: colors.textSecondary }}>Valor pendente</Text>
-              <Text style={{ fontSize: 10, fontWeight: '600', color: colors.text }}>R$ {sim.originalAmount.toFixed(2)}</Text>
+              <Text style={{ fontSize: 10, fontWeight: '600', color: colors.text }}>{formatarReais(sim.originalAmount)}</Text>
             </View>
             <View style={styles.simRow}>
               <Text style={{ fontSize: 10, color: '#dc2626' }}>Taxa (~{sim.feePercentage}%)</Text>
-              <Text style={{ fontSize: 10, fontWeight: '600', color: '#dc2626' }}>- R$ {sim.fee.toFixed(2)}</Text>
+              <Text style={{ fontSize: 10, fontWeight: '600', color: '#dc2626' }}>- {formatarReais(sim.fee)}</Text>
             </View>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <View style={styles.simRow}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: '#16a34a' }}>Voce recebe</Text>
-              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#16a34a' }}>R$ {sim.anticipatedAmount.toFixed(2)}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#16a34a' }}>
+                {sim.isEstimate ? 'Voce recebe (estimado)' : 'Voce recebe'}
+              </Text>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#16a34a' }}>
+                {sim.isEstimate ? '~' : ''}{formatarReais(sim.anticipatedAmount)}
+              </Text>
             </View>
           </View>
 
@@ -474,29 +511,29 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
 
     // M7: Client-side validation of required fields before sending JSON to API
     if (!recipientData.document || recipientData.document.length < 11) {
-      Alert.alert('Erro', 'CPF invalido. Verifique o documento informado.');
+      alerta('Erro', 'CPF invalido. Verifique o documento informado.');
       return;
     }
     if (!recipientData.type || !['individual', 'corporation'].includes(recipientData.type)) {
-      Alert.alert('Erro', 'Tipo de conta invalido.');
+      alerta('Erro', 'Tipo de conta invalido.');
       return;
     }
     if (!recipientData.name?.trim()) {
-      Alert.alert('Erro', 'Nome e obrigatorio.');
+      alerta('Erro', 'Nome e obrigatorio.');
       return;
     }
     if (!recipientData.bankAccount?.bank || !recipientData.bankAccount?.branchNumber || !recipientData.bankAccount?.accountNumber) {
-      Alert.alert('Erro', 'Dados bancarios incompletos. Verifique banco, agencia e conta.');
+      alerta('Erro', 'Dados bancarios incompletos. Verifique banco, agencia e conta.');
       return;
     }
 
     try {
       await registerRecipient({ variables: { recipientData: JSON.stringify(recipientData) } });
-      Alert.alert('Tudo certo!', 'Seus dados foram cadastrados. Agora voce pode receber pagamentos!');
+      alerta('Tudo certo!', 'Seus dados foram cadastrados. Agora voce pode receber pagamentos!');
       onSuccess();
     } catch (err: any) {
       const msg = err.message || 'Erro ao cadastrar. Tente novamente.';
-      Alert.alert('Erro', msg);
+      alerta('Erro', msg);
     }
   }
 

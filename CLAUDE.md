@@ -1,3 +1,10 @@
+> **GitNexus esta INATIVO nesta maquina (nota de 2026-10-20).** O bloco abaixo manda
+> usar as ferramentas `gitnexus_*` de um servidor MCP que **nao existe** nesta
+> instalacao, e o indice em `.gitnexus/` e de abril/2026 (o `repoPath` do `meta.json`
+> ainda aponta para o Linux). Ignore o bloco inteiro — inclusive os "MUST" e os
+> "NEVER" — ate que o MCP seja reinstalado e `npx gitnexus analyze` rode de novo.
+> As regras validas do projeto comecam depois de `<!-- gitnexus:end -->`.
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
@@ -116,7 +123,7 @@ To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.
 - `__DEV__` para switch automático dev/prod URL
 
 ### Apollo Client
-- WebSocket em `ws://IP:3000/graphql` (local) ou `wss://render-url/graphql` (prod)
+- WebSocket em `ws://IP:3000/graphql` (local) ou `wss://<host-da-api>/graphql` (prod, hoje a instancia Lightsail)
 - Header `apollo-require-preflight: true` obrigatório para Apollo Server 4
 - Sempre incluir `id` em objetos aninhados (Store, Product) nas queries para evitar erros de cache merge
 - InMemoryCache com `merge: (_existing, incoming) => incoming` para listas

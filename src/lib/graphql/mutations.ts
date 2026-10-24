@@ -18,6 +18,11 @@ export const REGISTER = gql`
         acceptedTermsAt
         emailVerified
         phoneVerified
+        # Mesmos campos do meApp. Sem paymentConnected aqui, o entregador
+        # recem-logado lia "conta nao conectada" e nao conseguia ficar online
+        # nem aceitar corrida ate reabrir o app.
+        paymentConnected
+        avatarUrl
       }
     }
   }
@@ -76,6 +81,11 @@ export const LOGIN = gql`
         acceptedTermsAt
         emailVerified
         phoneVerified
+        # Mesmos campos do meApp. Sem paymentConnected aqui, o entregador
+        # recem-logado lia "conta nao conectada" e nao conseguia ficar online
+        # nem aceitar corrida ate reabrir o app.
+        paymentConnected
+        avatarUrl
       }
     }
   }
@@ -311,6 +321,11 @@ export const GOOGLE_AUTH_APP = gql`
         id name email cpf phone role isDeliverer pendingRole
         rejectedAt rejectionReason acceptedTermsAt
         emailVerified phoneVerified
+        # Mesmos campos do meApp. Sem paymentConnected aqui, o entregador
+        # recem-logado lia "conta nao conectada" e nao conseguia ficar online
+        # nem aceitar corrida ate reabrir o app.
+        paymentConnected
+        avatarUrl
       }
     }
   }
@@ -459,6 +474,11 @@ export const REGISTER_APP_WITH_GOOGLE = gql`
         id name email cpf phone role isDeliverer pendingRole
         rejectedAt rejectionReason acceptedTermsAt
         emailVerified phoneVerified
+        # Mesmos campos do meApp. Sem paymentConnected aqui, o entregador
+        # recem-logado lia "conta nao conectada" e nao conseguia ficar online
+        # nem aceitar corrida ate reabrir o app.
+        paymentConnected
+        avatarUrl
       }
     }
   }
@@ -536,5 +556,72 @@ export const RATE_SERVICE = gql`
       comment
       createdAt
     }
+  }
+`;
+
+// ─── Garantia de entrega por CÓDIGOS ─────────────────────────────────────
+//
+// Cada mutation registra UM código, digitado por quem NÃO é o dono dele. O
+// servidor valida posse, ordem e tentativas; aqui só se envia.
+//
+// O GPS vai junto nas duas que o ENTREGADOR dispara, e é de propósito: é a
+// evidência que sustenta a contestação de chargeback. Recuperar repasse já
+// feito é impossível (KAN-303), então a defesa da plataforma é a prova de
+// onde a pessoa estava quando digitou.
+//
+// Nenhuma delas devolve código nenhum na resposta — nem o que acabou de ser
+// digitado. Pedir `codigo` de volta aqui seria o começo de um vazamento.
+
+export const REGISTRAR_CODIGO_DA_LOJA = gql`
+  mutation RegistrarCodigoDaLoja($orderId: String!, $codigo: String!, $latitude: Float, $longitude: Float) {
+    registrarCodigoDaLoja(orderId: $orderId, codigo: $codigo, latitude: $latitude, longitude: $longitude) {
+      id
+      status
+      usaCodigoDeEntrega
+      codigoDaLojaJaRegistrado
+    }
+  }
+`;
+
+export const REGISTRAR_CODIGO_DO_CLIENTE = gql`
+  mutation RegistrarCodigoDoCliente($orderId: String!, $codigo: String!, $latitude: Float, $longitude: Float) {
+    registrarCodigoDoCliente(orderId: $orderId, codigo: $codigo, latitude: $latitude, longitude: $longitude) {
+      id
+      status
+      completedAt
+    }
+  }
+`;
+
+// Entrega sem o código do cliente: ausente, dormindo, ou que se recusa a
+// informar. Abre janela de contestação em vez de pagar no escuro — e o
+// cliente é avisado com o prazo. O motivo exige 10 caracteres porque é o que
+// a plataforma vai ler se houver disputa: "nao atendeu" não sustenta decisão.
+export const REGISTRAR_ENTREGA_SEM_CODIGO = gql`
+  mutation RegistrarEntregaSemCodigo($orderId: String!, $motivo: String!, $latitude: Float, $longitude: Float) {
+    registrarEntregaSemCodigo(orderId: $orderId, motivo: $motivo, latitude: $latitude, longitude: $longitude) {
+      id
+      status
+    }
+  }
+`;
+
+// Entregador larga a corrida antes da coleta; o pedido volta para a fila.
+export const DESISTIR_DA_ENTREGA = gql`
+  mutation DesistirDaEntrega($orderId: String!, $motivo: String) {
+    desistirDaEntrega(orderId: $orderId, motivo: $motivo)
+  }
+`;
+
+// Entregador passa a vez exclusiva: a corrida vai na hora para o próximo.
+export const RECUSAR_OFERTA = gql`
+  mutation RecusarOferta($orderId: String!) {
+    recusarOferta(orderId: $orderId)
+  }
+`;
+
+export const SALVAR_CHAVE_PIX = gql`
+  mutation SalvarChavePix($chave: String!) {
+    salvarChavePix(chave: $chave)
   }
 `;

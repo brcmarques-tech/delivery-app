@@ -7,7 +7,7 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
-  Alert,
+  
   Linking,
   Clipboard,
 } from 'react-native';
@@ -28,12 +28,14 @@ import {
   REJECT_QUOTE,
   RATE_SERVICE,
 } from '../../src/lib/graphql/mutations';
+import { alerta } from '../../src/lib/alerta';
+import { formatarReais } from '../../src/lib/dinheiro';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pendente',
   CONFIRMED: 'Confirmado',
   CANCELLED: 'Cancelado',
-  COMPLETED: 'Concluido',
+  COMPLETED: 'Concluído',
   NO_SHOW: 'Nao compareceu',
   QUOTE_REQUESTED: 'Orcamento solicitado',
   QUOTED: 'Orcamento recebido',
@@ -136,7 +138,7 @@ export default function AppointmentDetailScreen() {
   const canRate = apt.status === 'COMPLETED' && !existingRating;
 
   const handleCancel = () => {
-    Alert.alert('Cancelar agendamento', 'Tem certeza?', [
+    alerta('Cancelar agendamento', 'Tem certeza?', [
       { text: 'Nao', style: 'cancel' },
       { text: 'Sim, cancelar', style: 'destructive', onPress: () => cancelAppointment({ variables: { id } }) },
     ]);
@@ -211,7 +213,7 @@ export default function AppointmentDetailScreen() {
             <View style={s.row}>
               <Ionicons name="cash-outline" size={16} color={colors.textSecondary} />
               <Text style={[s.rowText, { color: colors.text, fontWeight: '600' }]}>
-                R$ {Number(apt.price).toFixed(2)}
+                {formatarReais(apt.price)}
               </Text>
             </View>
           ) : null}

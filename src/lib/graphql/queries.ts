@@ -1,8 +1,26 @@
 import { gql } from '@apollo/client';
 
+// Perf (F6): a vitrine de lojas era SEM argumento — baixava a tabela de lojas
+// ativas inteira e a tela filtrava tudo no cliente (nome, tipo, aberto, frete
+// gratis). Agora os filtros e a paginacao vao para o servidor. Todos os
+// argumentos sao opcionais; sem nenhum, a resposta e a de antes.
 export const GET_STORES = gql`
-  query Stores {
-    stores {
+  query Stores(
+    $limit: Int
+    $offset: Int
+    $search: String
+    $storeType: String
+    $onlyOpen: Boolean
+    $onlyFreeDelivery: Boolean
+  ) {
+    stores(
+      limit: $limit
+      offset: $offset
+      search: $search
+      storeType: $storeType
+      onlyOpen: $onlyOpen
+      onlyFreeDelivery: $onlyFreeDelivery
+    ) {
       id
       name
       description
@@ -66,6 +84,11 @@ export const GET_STORE = gql`
       description
       logoUrl
       bannerUrl
+      # KAN-13: a identidade visual escolhida pela loja. Nulo = tema do app.
+      primaryColor
+      backgroundColor
+      textColor
+      productLayout
       isOpen
       hasOwnDelivery
       ownerPaymentConnected
@@ -212,6 +235,8 @@ export const GET_ORDER = gql`
       id
       orderNumber
       status
+      isPickup
+      cobrancaFeita
       subtotal
       deliveryFee
       total
@@ -227,6 +252,11 @@ export const GET_ORDER = gql`
       completedAt
       disputedAt
       disputeReason
+      # O FATO de usar código, nunca o valor. Decide se a tela mostra o cartão
+      # do código ao cliente e se os botões antigos do entregador aparecem —
+      # eles são recusados pelo servidor em pedido com código.
+      usaCodigoDeEntrega
+      codigoDaLojaJaRegistrado
       estimatedDeliveryEta
       rejectedAt
       rejectionReason
@@ -266,8 +296,45 @@ export const GET_ORDER = gql`
 `;
 
 export const GET_ACTIVE_PROMOTIONS = gql`
-  query ActivePromotions {
-    activePromotions {
+  query ActivePromotions($limit: Int, $offset: Int) {
+    activePromotions(limit: $limit, offset: $offset) {
+      id
+      title
+      description
+      imageUrl
+      startDate
+      endDate
+      promotionalPrice
+      product {
+        id
+        name
+        imageUrl
+        price
+        description
+      }
+      store {
+        id
+        name
+        logoUrl
+        deliveryFee
+        estimatedDeliveryMinutes
+        freeDelivery
+        isOpen
+        verificationLevel
+        storeType
+      }
+    }
+  }
+`;
+// Perf (F6): UMA promocao por id. A tela de detalhe (promotion/[id].tsx) baixava
+// a lista INTEIRA de promocoes ativas e fazia `.find(p => p.id === id)` no
+// cliente. Alem do desperdicio, isso impedia paginar a lista: no momento em que
+// activePromotions ganhasse limite, a tela pararia de achar promocao fora da
+// primeira pagina. O servidor aplica o mesmo filtro da vitrine, entao o que era
+// invisivel continua invisivel.
+export const GET_PROMOTION = gql`
+  query Promotion($id: String!) {
+    promotion(id: $id) {
       id
       title
       description
@@ -295,6 +362,7 @@ export const GET_ACTIVE_PROMOTIONS = gql`
     }
   }
 `;
+
 
 export const CALCULATE_DELIVERY_FEE = gql`
   query CalculateDeliveryFee($storeId: String!, $customerLatitude: Float!, $customerLongitude: Float!) {
@@ -528,10 +596,13 @@ export const GET_AVAILABLE_DELIVERIES = gql`
   query AvailableDeliveries {
     availableDeliveries {
       id
+      # Segundos que restam na SUA vez exclusiva (nulo = corrida aberta a todos).
+      vezSegundosRestantes
       orderNumber
       status
       total
       deliveryFee
+      ganhoDoEntregador
       deliveryAddress
       createdAt
       store {
@@ -568,8 +639,10 @@ export const GET_MY_DELIVERIES = gql`
         id
         orderNumber
         status
+        paymentMethod
         total
         deliveryFee
+        ganhoDoEntregador
         deliveryAddress
         notes
         deliveryLatitude
@@ -579,6 +652,20 @@ export const GET_MY_DELIVERIES = gql`
         completedAt
         disputedAt
         disputeReason
+        # Metadados dos códigos: o FATO, nunca o VALOR.
+        #
+        # usaCodigoDeEntrega decide se a tela mostra o fluxo de códigos ou os
+        # botões antigos — pedido criado antes do deploy não tem código e só
+        # fecha pelos antigos.
+        #
+        # codigoDaLojaJaRegistrado separa "preciso coletar" de "já coletei,
+        # falta a loja confirmar o meu código". Sem ele os dois estados ficam
+        # iguais na tela e o entregador não sabe o que fazer na porta da loja.
+        #
+        # (sem acento grave nestes comentários: ele fecharia o template literal
+        # do gql e quebraria o arquivo — foi o que aconteceu na primeira versão)
+        usaCodigoDeEntrega
+        codigoDaLojaJaRegistrado
         store {
           id
           name
@@ -628,6 +715,10 @@ export const SIMULATE_ANTICIPATION = gql`
       anticipatedAmount
       fee
       feePercentage
+      # true = os valores NAO vieram do Pagar.me, sao estimativa nossa. A tela
+      # tem de deixar isso visivel: antes o numero estimado era exibido com a
+      # mesma cara de uma cotacao real.
+      isEstimate
     }
   }
 `;
@@ -767,5 +858,89 @@ export const SERVICE_RATINGS = gql`
 export const AVERAGE_STORE_RATING = gql`
   query AverageStoreRating($storeId: String!) {
     averageStoreRating(storeId: $storeId)
+  }
+`;
+
+// ─── Códigos de entrega: cada parte lê SÓ o seu ──────────────────────────
+//
+// Três queries separadas, uma por parte, em vez de um campo no tipo Order.
+// Isso não é preciosismo: se o código fosse campo do pedido, a consulta do
+// ENTREGADOR traria o código do CLIENTE de carona — e é justamente esse o
+// segredo que ele tem de receber da pessoa na porta. Cada query valida posse
+// e devolve UM valor.
+//
+// Daí também os `fetchPolicy: 'network-only'` nas telas: código em cache é
+// código que pode aparecer na tela errada depois de um logout.
+
+/** O lojista lê o código DELE, para ditar ao entregador na coleta. */
+export const GET_CODIGO_DA_MINHA_LOJA = gql`
+  query CodigoDaMinhaLoja($orderId: String!) {
+    codigoDaMinhaLoja(orderId: $orderId)
+  }
+`;
+
+/** O entregador lê o código DELE, para o lojista digitar. */
+export const GET_MEU_CODIGO_DE_ENTREGADOR = gql`
+  query MeuCodigoDeEntregador($orderId: String!) {
+    meuCodigoDeEntregador(orderId: $orderId)
+  }
+`;
+
+/** O cliente lê o código DELE, para ditar ao entregador na entrega. */
+export const GET_MEU_CODIGO_DE_ENTREGA = gql`
+  query MeuCodigoDeEntrega($orderId: String!) {
+    meuCodigoDeEntrega(orderId: $orderId)
+  }
+`;
+
+// ─── Cliente fiel (KAN-12) ───
+//
+// Tudo do PROPRIO cliente: a query nao aceita id de usuario, de proposito.
+export const MINHA_FIDELIDADE = gql`
+  query MinhaFidelidade {
+    minhaFidelidade {
+      comprasNoTotal
+      lojasOndeSouFiel
+      descontoDisponivel
+      porLoja {
+        storeId
+        storeName
+        storeLogoUrl
+        comprasConcluidas
+        comprasNoMes
+        faltamParaOProximoPremio
+        proximoMarco
+        clienteFiel
+      }
+      cupons {
+        id
+        code
+        discountType
+        discountValue
+        maxUses
+        usesCount
+        isActive
+        expiresAt
+        origem
+        store {
+          id
+          name
+        }
+      }
+    }
+  }
+`;
+
+// Repasse semanal do entregador: fretes do PIX pagos toda quarta.
+export const MEU_SALDO_DE_ENTREGAS = gql`
+  query MeuSaldoDeEntregas {
+    meuSaldoDeEntregas {
+      aReceberCents
+      proximoPagamento
+      proximoPagamentoCents
+      chavePix
+      entregas { orderNumber loja cents concluidoEm pagamentoPrevisto }
+      pagos { id totalCents quantidade pagoEm chavePix }
+    }
   }
 `;

@@ -30,6 +30,7 @@ import { useAlert } from '../src/contexts/AlertContext';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../src/theme';
+import { textoDoEndereco } from '../src/lib/endereco';
 
 const ESTADOS_BR = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
@@ -263,11 +264,7 @@ export default function AddressesScreen() {
   }
 
   function formatAddress(addr: any) {
-    const parts = [addr.street, addr.number];
-    if (addr.complement) parts.push(addr.complement);
-    parts.push(addr.neighborhood);
-    parts.push(`${addr.city}/${addr.state}`);
-    return parts.join(', ');
+    return textoDoEndereco(addr);
   }
 
   const renderStateItem = useCallback(({ item: st }: { item: string }) => (

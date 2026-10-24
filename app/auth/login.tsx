@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Image,
-  Alert,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -23,6 +22,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { fonts } from '../../src/theme';
+import { consumirMotivo } from '../../src/lib/saidaDaSessao';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -75,6 +75,9 @@ export default function LoginScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+  // Sessão que caiu por ter sido aberta em outro aparelho: antes o app só
+  // jogava aqui, sem dizer por quê. Lido uma vez, na abertura da tela.
+  const [motivoDaSaida] = useState(() => consumirMotivo());
   const [transitioning, setTransitioning] = useState(false);
 
   // Transition animation values
@@ -197,7 +200,17 @@ export default function LoginScreen() {
     } catch (err: any) {
       const msg = err?.message || '';
       if (msg.includes('ACTIVE_SESSION')) {
-        Alert.alert(
+        // Usa o alerta DO APP (AlertContext), nao o Alert nativo.
+        //
+        // O `Alert` do react-native nao existe no react-native-web: a chamada
+        // vira um no-op SILENCIOSO. Quem abre o app no navegador clica em
+        // Entrar, o servidor recusa com ACTIVE_SESSION (sessao unica, KAN-84) e
+        // a tela nao mostra absolutamente nada — nem a pergunta, nem erro.
+        // Parece botao quebrado.
+        //
+        // Esta tela ja usava o alerta do app nos outros avisos; so este ponto
+        // tinha ficado com o nativo.
+        alert(
           'Sessao ativa',
           'Esta conta ja esta logada em outro dispositivo. Deseja desconectar o outro e entrar aqui?',
           [
@@ -205,6 +218,15 @@ export default function LoginScreen() {
             { text: 'Sim, entrar aqui', onPress: () => handleLogin(true) },
           ],
         );
+      } else if (/throttl|too many|status code 429/i.test(msg)) {
+        // A API aceita 8 tentativas por minuto. Na 9a dizia "email ou senha
+        // invalidos": a pessoa achava que errou, tentava de novo e continuava
+        // bloqueada.
+        setLoginError('Muitas tentativas seguidas. Aguarde um minuto e tente de novo.');
+      } else if (/network|timeout|failed to fetch|abort|status code 5[0-9][0-9]|response not successful/i.test(msg)) {
+        // Rede fora do ar nao e credencial errada. Dizer "email ou senha
+        // invalidos" aqui manda a pessoa trocar a senha por causa do Wi-Fi.
+        setLoginError('Nao consegui falar com o servidor. Verifique sua conexao.');
       } else {
         setLoginError('Email ou senha invalidos');
       }
@@ -245,6 +267,13 @@ export default function LoginScreen() {
         <OnceAnimated delay={50} fromY={30}>
           <View style={[styles.formCard, { backgroundColor: colors.white }]}>
             <View style={styles.form}>
+              {motivoDaSaida && (
+                <View style={styles.avisoSaida}>
+                  <Text style={styles.avisoSaidaTexto}>
+                    Sua conta foi aberta em outro aparelho. Entre de novo para continuar.
+                  </Text>
+                </View>
+              )}
               <OnceAnimated delay={100} fromX={30}>
                 <TextInput
                   style={[styles.input, { backgroundColor: colors.grayLight, color: colors.text }]}
@@ -438,6 +467,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 12,
   },
+  avisoSaida: {
+    backgroundColor: '#FFF7E6',
+    borderColor: '#F5C26B',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  avisoSaidaTexto: { color: '#8A5A00', fontSize: fonts.small, lineHeight: 18 },
   errorText: {
     color: '#ef4444',
     fontSize: fonts.small,

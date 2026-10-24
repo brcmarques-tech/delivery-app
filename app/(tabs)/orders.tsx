@@ -29,13 +29,14 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as staticColors, fonts } from '../../src/theme';
+import { formatarReais } from '../../src/lib/dinheiro';
 
 type ActiveTab = 'orders' | 'appointments';
 
 const appointmentStatusLabels: Record<string, { label: string; colorKey: string }> = {
   PENDING: { label: 'Pendente', colorKey: 'warning' },
   CONFIRMED: { label: 'Confirmado', colorKey: 'primary' },
-  COMPLETED: { label: 'Concluido', colorKey: 'success' },
+  COMPLETED: { label: 'Concluído', colorKey: 'success' },
   CANCELLED: { label: 'Cancelado', colorKey: 'gray' },
   NO_SHOW: { label: 'Nao compareceu', colorKey: 'danger' },
   QUOTE_REQUESTED: { label: 'Orcamento solicitado', colorKey: 'warning' },
@@ -118,7 +119,7 @@ export default function OrdersScreen() {
     DELIVERING: { label: 'A caminho', color: colors.success },
     DELIVERED: { label: 'Entregue', color: colors.grayDark },
     CANCELLED: { label: 'Cancelado', color: colors.danger },
-    COMPLETED: { label: 'Entregue', color: colors.success },
+    COMPLETED: { label: 'Concluído', color: colors.success },
     REJECTED: { label: 'Rejeitado', color: colors.danger },
     DISPUTED: { label: 'Em reclamacao', color: colors.warning },
     VENDOR_CONFIRMED_PICKUP: { label: 'Retirado', color: colors.primary },
@@ -238,7 +239,7 @@ export default function OrdersScreen() {
 
             <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
               {item.price ? (
-                <Text style={[styles.total, { color: colors.text }]}>R$ {Number(item.price).toFixed(2)}</Text>
+                <Text style={[styles.total, { color: colors.text }]}>{formatarReais(item.price)}</Text>
               ) : (
                 <Text style={{ fontSize: fonts.small, color: colors.textLight }}>Preco a definir</Text>
               )}
@@ -283,7 +284,7 @@ export default function OrdersScreen() {
             )}
           </View>
           <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
-            <Text style={[styles.total, { color: colors.text }]}>R$ {Number(item.total).toFixed(2)}</Text>
+            <Text style={[styles.total, { color: colors.text }]}>{formatarReais(item.total)}</Text>
             <Ionicons name="chevron-forward" size={18} color={colors.gray} />
           </View>
         </AnimatedPressable>

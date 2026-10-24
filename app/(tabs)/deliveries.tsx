@@ -16,13 +16,27 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { devLog } from '../../src/lib/devLog'; // KAN-223
 import { socketBaseUrl } from '../../src/lib/apiHost'; // KAN-255
+import { telefoneParaDiscar } from '../../src/lib/telefone';
+import { formatarReais } from '../../src/lib/dinheiro';
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import { io, Socket } from 'socket.io-client';
 import { GET_AVAILABLE_DELIVERIES, GET_MY_DELIVERIES } from '../../src/lib/graphql/queries';
-import { ACCEPT_DELIVERY, CONFIRM_PICKUP, CONFIRM_DELIVERY } from '../../src/lib/graphql/mutations';
+import {
+  ACCEPT_DELIVERY,
+  CONFIRM_PICKUP,
+  CONFIRM_DELIVERY,
+  REGISTRAR_CODIGO_DA_LOJA,
+  REGISTRAR_CODIGO_DO_CLIENTE,
+  REGISTRAR_ENTREGA_SEM_CODIGO,
+  DESISTIR_DA_ENTREGA,
+  RECUSAR_OFERTA,
+} from '../../src/lib/graphql/mutations';
+import { ModalDeCodigo } from '../../src/components/ModalDeCodigo';
+import { ModalEntregaSemCodigo } from '../../src/components/ModalEntregaSemCodigo';
+import { CodigoDoEntregador } from '../../src/components/CodigoDoEntregador';
 import { useDeliveryTracking } from '../../src/hooks/useDeliveryTracking';
 import { useAlert } from '../../src/contexts/AlertContext';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -38,6 +52,35 @@ if (Platform.OS !== 'web') {
   const maps = require('react-native-maps');
   MapView = maps.default;
   Marker = maps.Marker;
+}
+
+// Status em que o pedido acabou. Igual à lista do acceptDelivery na API.
+const PEDIDO_ENCERRADO = ['COMPLETED', 'CANCELLED', 'REJECTED', 'EXPIRED', 'DISPUTED'];
+
+function entregaEmCurso(d: any): boolean {
+  return !d.deliveredAt && !PEDIDO_ENCERRADO.includes(d.order?.status);
+}
+
+// Pode somar mais uma corrida às que já estão em curso? Só da MESMA loja e
+// enquanto todas ainda esperam coleta. Espelho de regras-de-acumulo.ts na API
+// — mesmos textos, para o aviso daqui e o erro de lá dizerem a mesma coisa.
+function motivoParaNaoSomar(ativas: any[], storeIdDaNova?: string): string | null {
+  if (ativas.length === 0) return null;
+  if (ativas.some((d) => d.order?.store?.id !== storeIdDaNova)) {
+    return 'Você já tem uma entrega de outra loja. Finalize-a antes de aceitar esta.';
+  }
+  if (ativas.some((d) => d.order?.status !== 'READY')) {
+    return 'Você já saiu da loja com uma entrega. Finalize-a antes de aceitar outra.';
+  }
+  return null;
+}
+
+// O erro do servidor, quando é uma regra de negócio (vem em português e diz o
+// que fazer). Falha de rede não tem nada útil para mostrar.
+function mensagemDoServidor(e: any): string | null {
+  const msg: string = e?.graphQLErrors?.[0]?.message || '';
+  if (!msg || /network|failed to fetch|timeout|status code/i.test(msg)) return null;
+  return msg;
 }
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -89,36 +132,61 @@ const CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos
 // pai fazia a TELA INTEIRA (todos os cards) re-renderizar a cada segundo so para
 // esta barrinha andar. Agora o tick de 1s vive aqui dentro — apenas a barra
 // re-renderiza; os cards ficam estaveis.
-const OfferCountdownBar = React.memo(function OfferCountdownBar({
-  startedAt,
+//
+// A barra mostra a VEZ EXCLUSIVA que o servidor deu a este entregador. Antes ela
+// contava 60s a partir de quando o card APARECEU no celular, sem relação nenhuma
+// com a vez: chegava a 0s, travava lá, e a corrida continuava aceitável.
+//
+// `prazo` é um horário do PRÓPRIO celular: o instante em que a resposta chegou
+// mais os segundos que o servidor mandou. Assim um relógio errado no aparelho
+// não muda a contagem. No zero, `onAcabar` recarrega a lista — a corrida já foi
+// para o próximo entregador e some daqui.
+const VezExclusivaBar = React.memo(function VezExclusivaBar({
+  prazo,
+  total,
   colors,
+  onAcabar,
 }: {
-  startedAt: number;
+  prazo: number;
+  total: number;
   colors: any;
+  onAcabar: () => void;
 }) {
   const [, setTick] = useState(0);
+  const avisouRef = useRef(false);
   useEffect(() => {
+    avisouRef.current = false;
     const timer = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [prazo]);
 
-  const elapsed = Math.min((Date.now() - startedAt) / 1000, 60);
-  const remaining = Math.max(0, 60 - elapsed);
-  const progress = remaining / 60;
-  const barColor = remaining <= 10 ? colors.danger : remaining <= 30 ? colors.warning : colors.primary;
+  const restante = Math.max(0, Math.ceil((prazo - Date.now()) / 1000));
+  useEffect(() => {
+    if (restante === 0 && !avisouRef.current) {
+      avisouRef.current = true;
+      onAcabar();
+    }
+  }, [restante, onAcabar]);
+
+  const progress = Math.min(1, restante / total);
+  const barColor = restante <= 10 ? colors.danger : restante <= 30 ? colors.warning : colors.primary;
   return (
     <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Text style={{ fontSize: fonts.tiny, color: colors.textLight, fontWeight: '600' }}>Sua vez</Text>
         <View style={{ flex: 1, height: 4, backgroundColor: colors.grayLight, borderRadius: 2, overflow: 'hidden' }}>
           <View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: barColor, borderRadius: 2 }} />
         </View>
         <Text style={{ fontSize: fonts.tiny, color: barColor, fontWeight: '600', minWidth: 28 }}>
-          {Math.ceil(remaining)}s
+          {restante}s
         </Text>
       </View>
     </View>
   );
 });
+
+// Duração de cada vez no servidor (OFFER_TIMEOUT_MS da cascata).
+const DURACAO_DA_VEZ_S = 60;
 
 // Perf (F3): idem para o countdown de confirmacao do cliente ("Aguardando m:ss").
 // So este badge tica por segundo — e apenas enquanto ha espera de verdade.
@@ -204,7 +272,7 @@ interface AcceptedStore {
 export default function DeliveriesScreen() {
   const insets = useSafeAreaInsets();
   const { alert } = useAlert();
-  const { user, token } = useAuth(); // KAN-224/255: token autentica o socket
+  const { user, token, loading: authLoading } = useAuth(); // KAN-224/255: token autentica o socket
   const { colors, isDark } = useTheme();
   const [tab, setTab] = useState<Tab>('available');
   const [isOnline, setIsOnline] = useState(false);
@@ -229,7 +297,7 @@ export default function DeliveriesScreen() {
     DELIVERING: { label: 'A caminho', color: colors.primary },
     DELIVERER_CONFIRMED_DELIVERY: { label: 'Aguardando cliente', color: colors.warning },
     DELIVERED: { label: 'Entregue', color: colors.success },
-    COMPLETED: { label: 'Concluido', color: colors.success },
+    COMPLETED: { label: 'Concluído', color: colors.success },
     DISPUTED: { label: 'Disputado', color: colors.danger },
     CANCELLED: { label: 'Cancelado', color: colors.danger },
   }), [colors]);
@@ -275,6 +343,14 @@ export default function DeliveriesScreen() {
       latitude = current.coords.latitude;
       longitude = current.coords.longitude;
     }
+    // A trava de 200m da coleta lê `currentLocation`, que só o watch abaixo
+    // preenchia — e o watch só dispara quando a posição MUDA. Parado na porta
+    // da loja depois de reabrir o app, o entregador ficava em "Aproxime-se da
+    // loja" sem conseguir registrar a coleta.
+    if (latitude || longitude) {
+      setCurrentLocation({ latitude, longitude });
+      lastLocationRef.current = { latitude, longitude };
+    }
 
     // KAN-224/255: envia o token no handshake. Este socket ficava sem
     // autenticacao nenhuma — qualquer cliente podia emitir `delivererOnline`
@@ -303,6 +379,12 @@ export default function DeliveriesScreen() {
       devLog(`[APP-SOCKET] deliveryOffer received: orderId=${offer.orderId}, orderNumber=${offer.orderNumber}, fee=${offer.deliveryFee}, timeout=${offer.timeoutSeconds}s`);
       refetchAvailable();
       try { Vibration.vibrate([0, 500, 200, 500]); } catch {}
+    });
+
+    // A vez exclusiva acabou (tempo, recusa, ou outro aceitou): some da lista
+    // na hora, sem esperar a barra zerar.
+    socket.on('ofertaEncerrada', () => {
+      refetchAvailable();
     });
 
     // Listen for broadcast available deliveries
@@ -389,7 +471,14 @@ export default function DeliveriesScreen() {
   }, [isOnline, user, connectSocket, togglingOnline]);
 
   // Clear online status on logout
+  //
+  // Só em LOGOUT de verdade (`loading` já false). No boot o AuthContext ainda
+  // está lendo a sessão e `user` passa um instante como null: este efeito
+  // tratava isso como logout e gravava "offline" antes de a restauração ler o
+  // valor — todo recarregamento derrubava o entregador para Offline, mesmo com
+  // corrida em andamento.
   useEffect(() => {
+    if (authLoading) return;
     if (!user) {
       if (socketRef.current) {
         socketRef.current.disconnect();
@@ -403,7 +492,7 @@ export default function DeliveriesScreen() {
       isOnlineRef.current = false;
       AsyncStorage.setItem('deliverer_online', 'false');
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   // Auto-reconnect: restore online status on mount
   useEffect(() => {
@@ -515,63 +604,86 @@ export default function DeliveriesScreen() {
   const [confirmDeliveryMut] = useMutation(CONFIRM_DELIVERY);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Track when each available order first appeared (for countdown timer)
-  const offerTimersRef = useRef<Record<string, number>>({});
+  // ─── Garantia de entrega por CÓDIGOS ───────────────────────────────────
+  //
+  // A tela passa a ter DOIS fluxos, e quem escolhe é `order.usaCodigoDeEntrega`:
+  //
+  //  - pedido COM código: os botões abrem modal de digitação. As mutations
+  //    antigas (confirmPickup/confirmDelivery) são RECUSADAS pelo servidor
+  //    nesses pedidos, de propósito — era por elas que se contornavam os
+  //    códigos. Sem este fluxo, o entregador não conseguia concluir entrega
+  //    nenhuma: apertava o botão e levava erro.
+  //  - pedido SEM código: segue nos botões antigos. Não é código morto — é o
+  //    caminho de todo pedido criado ANTES do deploy dos códigos, que vai
+  //    chegar na porta do cliente sem código nenhum.
+  const [registrarCodigoDaLoja] = useMutation(REGISTRAR_CODIGO_DA_LOJA);
+  const [registrarCodigoDoCliente] = useMutation(REGISTRAR_CODIGO_DO_CLIENTE);
+  const [registrarEntregaSemCodigo] = useMutation(REGISTRAR_ENTREGA_SEM_CODIGO);
+
+  // Um estado só para os três modais: qual está aberto, de qual pedido, e o
+  // erro que o servidor devolveu. Três `useState` separados abririam a porta
+  // para dois modais visíveis ao mesmo tempo.
+  const [modalDeCodigo, setModalDeCodigo] = useState<{
+    tipo: 'LOJA' | 'CLIENTE' | 'SEM_CODIGO';
+    orderId: string;
+    orderNumber: string;
+  } | null>(null);
+  const [erroDoCodigo, setErroDoCodigo] = useState<string | null>(null);
+  const [enviandoCodigo, setEnviandoCodigo] = useState(false);
+
+  const fecharModalDeCodigo = useCallback(() => {
+    setModalDeCodigo(null);
+    setErroDoCodigo(null);
+    setEnviandoCodigo(false);
+  }, []);
+
+  // O GPS acompanha as duas digitações do entregador porque é a evidência que
+  // sustenta contestação de chargeback — recuperar repasse já feito é
+  // impossível, então a prova de onde a pessoa estava é a defesa.
+  //
+  // `currentLocation` pode ser null (permissão negada, GPS desligado). Mando
+  // null e o servidor aceita: travar a entrega por falta de GPS puniria o
+  // entregador por uma configuração do aparelho dele.
+  const gpsAtual = useCallback(
+    () => ({
+      latitude: currentLocation ? currentLocation.latitude : null,
+      longitude: currentLocation ? currentLocation.longitude : null,
+    }),
+    [currentLocation],
+  );
+
   const availableOrders = useMemo(
     () => availableData?.availableDeliveries || [],
     [availableData?.availableDeliveries],
   );
 
-  // Initialize timers for new orders, clean up removed ones
-  useEffect(() => {
-    const now = Date.now();
-    const currentIds = new Set(availableOrders.map((o: any) => o.id));
-    // Add new orders
-    availableOrders.forEach((o: any) => {
-      if (!offerTimersRef.current[o.id]) {
-        offerTimersRef.current[o.id] = now;
-      }
-    });
-    // Clean up removed orders
-    Object.keys(offerTimersRef.current).forEach((id) => {
-      if (!currentIds.has(id)) delete offerTimersRef.current[id];
-    });
+  // Prazo da vez exclusiva de cada corrida, num horário DESTE celular: agora
+  // (a resposta acabou de chegar) + os segundos que o servidor mandou.
+  // Recalculado a cada resposta. Corrida aberta a todos não tem prazo.
+  const prazosDaVez = useMemo(() => {
+    const agora = Date.now();
+    const mapa: Record<string, number> = {};
+    for (const o of availableOrders) {
+      if (o.vezSegundosRestantes != null) mapa[o.id] = agora + o.vezSegundosRestantes * 1000;
+    }
+    return mapa;
   }, [availableOrders]);
 
-  // Perf (F3): o setInterval de 1s que re-renderizava a TELA INTEIRA por segundo
-  // foi removido — o countdown visual agora e o OfferCountdownBar (auto-ticante,
-  // module scope). Sobrou so a checagem de expiracao das ofertas, que nao faz
-  // setState e roda a cada 5s (granularidade suficiente pra repor oferta vencida).
-  useEffect(() => {
-    if (availableOrders.length === 0 || tab !== 'available') return;
-    const timer = setInterval(() => {
-      const now = Date.now();
-      const anyExpired = availableOrders.some((o: any) => {
-        const started = offerTimersRef.current[o.id];
-        return started && now - started >= 60000;
-      });
-      if (anyExpired) {
-        refetchAvailable();
-        availableOrders.forEach((o: any) => {
-          const started = offerTimersRef.current[o.id];
-          if (started && now - started >= 60000) {
-            offerTimersRef.current[o.id] = now;
-          }
-        });
-      }
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [availableOrders, tab, refetchAvailable]);
+  const aoAcabarAVez = useCallback(() => { refetchAvailable(); }, [refetchAvailable]);
 
   // Perf (F3): derivados memoizados — antes eram arrays novos a cada render, e o
   // data do FlatList ([...active, ...completed]) mudava de referencia sempre.
   const myDeliveries = useMemo(() => myData?.myDeliveries || [], [myData?.myDeliveries]);
+  // "Em andamento" = sem deliveredAt E com o pedido vivo — a mesma regra da
+  // API no aceite. Pedido cancelado/expirado deixa a entrega sem deliveredAt
+  // para sempre; contada como ativa, ela aparecia no topo de "Minhas" com
+  // botões de ligar, e o app achava que o entregador ainda estava ocupado.
   const activeDeliveries = useMemo(
-    () => myDeliveries.filter((d: any) => !d.deliveredAt),
+    () => myDeliveries.filter((d: any) => entregaEmCurso(d)),
     [myDeliveries],
   );
   const completedDeliveries = useMemo(
-    () => myDeliveries.filter((d: any) => d.deliveredAt),
+    () => myDeliveries.filter((d: any) => !entregaEmCurso(d)),
     [myDeliveries],
   );
   const myListData = useMemo(
@@ -599,12 +711,44 @@ export default function DeliveriesScreen() {
 
   useDeliveryTracking(activeDeliveryForTracking);
 
-  const handleAccept = useCallback(async (orderId: string, orderNumber: string) => {
+  // Recusar a vez: sem confirmação de propósito — é rápido como deve ser, e
+  // errar não custa nada (a corrida só vai para o próximo da fila).
+  const [recusarOfertaMut] = useMutation(RECUSAR_OFERTA);
+  const handleRecusar = useCallback(async (orderId: string) => {
+    if (actionLoading) return;
+    setActionLoading(orderId);
+    try {
+      await recusarOfertaMut({ variables: { orderId } });
+    } catch (e: any) {
+      devLog(`[APP-DECLINE] FAILED: ${e?.message}`);
+    } finally {
+      setActionLoading(null);
+      refetchAvailable();
+    }
+  }, [actionLoading, recusarOfertaMut, refetchAvailable]);
+
+  const handleAccept = useCallback(async (orderId: string, orderNumber: string, storeId?: string) => {
     if (actionLoading) return;
     devLog(`[APP-ACCEPT] orderId=${orderId}, orderNumber=${orderNumber}`);
     if (!paymentConnected) {
       devLog(`[APP-ACCEPT] BLOCKED: payment not connected`);
       alert('Conta nao conectada', 'Conecte sua conta de pagamento para aceitar entregas.');
+      return;
+    }
+    // Várias corridas só da MESMA loja e antes de sair dela (regra da API,
+    // regras-de-acumulo.ts). Avisa antes de tentar, em vez de a API recusar.
+    const naoPode = motivoParaNaoSomar(activeDeliveries, storeId);
+    if (naoPode) {
+      alert('Não dá para somar esta corrida', naoPode);
+      return;
+    }
+    // Aceitar offline deixava o entregador sem localização: na porta da loja o
+    // botão dizia "Aproxime-se da loja" e não liberava a coleta.
+    if (!isOnline) {
+      alert('Você está offline', 'Fique online para aceitar entregas.', [
+        { text: 'Agora não', style: 'cancel' },
+        { text: 'Ficar online', onPress: () => { toggleOnline(); } },
+      ]);
       return;
     }
     alert('Aceitar entrega', `Aceitar pedido #${orderNumber}?`, [
@@ -636,18 +780,65 @@ export default function DeliveriesScreen() {
             }
           } catch (e: any) {
             console.error(`[APP-ACCEPT] FAILED:`, e?.message);
-            alert('Erro', 'Nao foi possivel aceitar a entrega.');
+            // A API explica o motivo ("já foi aceita por outro entregador",
+            // "você já tem uma entrega em andamento"...). Mostrar.
+            alert(
+              'Não deu para aceitar',
+              mensagemDoServidor(e) || 'Não foi possível aceitar a entrega. Verifique sua conexão.',
+            );
+            refetchAvailable();
           } finally {
             setActionLoading(null);
           }
         },
       },
     ]);
-  }, [actionLoading, paymentConnected, alert, acceptDelivery, refetchAvailable, refetchMy]);
+  }, [actionLoading, paymentConnected, alert, acceptDelivery, refetchAvailable, refetchMy, activeDeliveries, isOnline, toggleOnline]);
+
+  // Desistir da corrida — só antes da coleta. O pedido volta para a fila e a
+  // API gera um código novo para o próximo entregador.
+  const [desistirDaEntregaMut] = useMutation(DESISTIR_DA_ENTREGA);
+  const handleDesistir = useCallback((order: any) => {
+    if (actionLoading) return;
+    alert(
+      'Desistir da corrida?',
+      'O pedido volta para outros entregadores.',
+      [
+        { text: 'Continuar com ela', style: 'cancel' },
+        {
+          text: 'Desistir',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(order.id);
+            try {
+              await desistirDaEntregaMut({ variables: { orderId: order.id } });
+              await refetchMy();
+              refetchAvailable();
+              alert('Corrida liberada', 'Você já pode aceitar outra entrega.');
+            } catch (e: any) {
+              alert('Não deu para desistir', mensagemDoServidor(e) || 'Verifique sua conexão e tente de novo.');
+            } finally {
+              setActionLoading(null);
+            }
+          },
+        },
+      ],
+    );
+  }, [actionLoading, alert, desistirDaEntregaMut, refetchMy, refetchAvailable]);
 
   const handleConfirmPickup = useCallback(async (deliveryId: string, order?: any) => {
     if (actionLoading) return;
     devLog(`[APP-PICKUP] deliveryId=${deliveryId}, orderNumber=${order?.orderNumber || '?'}`);
+
+    // Pedido com código não coleta por botão: coleta digitando o código da
+    // loja. A mutation antiga é recusada pelo servidor aqui, e com razão — era
+    // por ela que se contornavam os códigos.
+    if (order?.usaCodigoDeEntrega) {
+      setErroDoCodigo(null);
+      setModalDeCodigo({ tipo: 'LOJA', orderId: order.id, orderNumber: order.orderNumber });
+      return;
+    }
+
     alert('Confirmar coleta', 'Voce ja retirou o pedido na loja?', [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -682,9 +873,18 @@ export default function DeliveriesScreen() {
     ]);
   }, [actionLoading, alert, confirmPickup, refetchMy]);
 
-  const handleConfirmDelivery = useCallback(async (deliveryId: string) => {
+  const handleConfirmDelivery = useCallback(async (deliveryId: string, order?: any) => {
     if (actionLoading) return;
     devLog(`[APP-DELIVERY] deliveryId=${deliveryId}`);
+
+    // Pedido com código: a entrega se fecha com o código DO CLIENTE, e é esse
+    // registro que LIBERA O DINHEIRO. Daí o modal em vez de um "sim, entreguei".
+    if (order?.usaCodigoDeEntrega) {
+      setErroDoCodigo(null);
+      setModalDeCodigo({ tipo: 'CLIENTE', orderId: order.id, orderNumber: order.orderNumber });
+      return;
+    }
+
     alert('Confirmar entrega', 'O pedido foi entregue ao cliente?', [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -708,6 +908,93 @@ export default function DeliveriesScreen() {
       },
     ]);
   }, [actionLoading, alert, confirmDeliveryMut, refetchMy, refetchAvailable]);
+
+  // ─── Envio dos códigos ─────────────────────────────────────────────────
+  //
+  // A mensagem de erro do SERVIDOR vai para dentro do modal, literal. Isso é
+  // deliberado e diferente do resto desta tela, que traduz tudo para "Nao foi
+  // possivel...". Aqui as mensagens são a informação de que a pessoa precisa
+  // para agir, e cada uma pede uma ação diferente:
+  //
+  //   "Código incorreto. Restam 3 tentativas."
+  //   "Muitas tentativas erradas. Tente novamente em 15 minutos."
+  //   "Confirme a coleta na loja pelos dois códigos antes de registrar a entrega."
+  //
+  // Trocar as três por "Erro ao registrar" deixaria o entregador na porta do
+  // cliente sem saber se insiste, se espera, ou se volta para a loja.
+  const enviarCodigo = useCallback(
+    async (codigo: string) => {
+      if (!modalDeCodigo || enviandoCodigo) return;
+      const { tipo, orderId } = modalDeCodigo;
+      setEnviandoCodigo(true);
+      setErroDoCodigo(null);
+      try {
+        const variables = { orderId, codigo, ...gpsAtual() };
+        if (tipo === 'LOJA') {
+          await registrarCodigoDaLoja({ variables });
+          devLog(`[APP-CODIGO] codigo da loja registrado | order=${orderId}`);
+        } else {
+          await registrarCodigoDoCliente({ variables });
+          devLog(`[APP-CODIGO] codigo do cliente registrado | order=${orderId}`);
+        }
+        fecharModalDeCodigo();
+        await refetchMy();
+        refetchAvailable();
+      } catch (e: any) {
+        const msg = e?.graphQLErrors?.[0]?.message || e?.message || 'Não deu para registrar o código.';
+        devLog(`[APP-CODIGO] recusado: ${msg}`);
+        setErroDoCodigo(msg);
+        setEnviandoCodigo(false);
+      }
+    },
+    [
+      modalDeCodigo,
+      enviandoCodigo,
+      gpsAtual,
+      registrarCodigoDaLoja,
+      registrarCodigoDoCliente,
+      fecharModalDeCodigo,
+      refetchMy,
+      refetchAvailable,
+    ],
+  );
+
+  const enviarEntregaSemCodigo = useCallback(
+    async (motivo: string) => {
+      if (!modalDeCodigo || enviandoCodigo) return;
+      const { orderId, orderNumber } = modalDeCodigo;
+      setEnviandoCodigo(true);
+      setErroDoCodigo(null);
+      try {
+        await registrarEntregaSemCodigo({ variables: { orderId, motivo, ...gpsAtual() } });
+        devLog(`[APP-CODIGO] entrega SEM codigo registrada | order=${orderId}`);
+        fecharModalDeCodigo();
+        await refetchMy();
+        refetchAvailable();
+        // Aviso explícito do que acontece a seguir. Sem isto a pessoa sai da
+        // tela achando que foi paga, e o valor só sai depois da janela.
+        alert(
+          'Registrado',
+          `O pedido #${orderNumber} foi registrado como entregue sem o código. O cliente foi avisado e tem um prazo para contestar; passado o prazo sem contestação, o repasse é liberado.`,
+        );
+      } catch (e: any) {
+        const msg = e?.graphQLErrors?.[0]?.message || e?.message || 'Não deu para registrar.';
+        devLog(`[APP-CODIGO] sem-codigo recusado: ${msg}`);
+        setErroDoCodigo(msg);
+        setEnviandoCodigo(false);
+      }
+    },
+    [
+      modalDeCodigo,
+      enviandoCodigo,
+      gpsAtual,
+      registrarEntregaSemCodigo,
+      fecharModalDeCodigo,
+      refetchMy,
+      refetchAvailable,
+      alert,
+    ],
+  );
 
   const renderAvailableOrder = useCallback(({ item }: { item: any }) => {
     return (
@@ -750,29 +1037,57 @@ export default function DeliveriesScreen() {
 
         <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
           <View>
-            <Text style={[styles.feeLabel, { color: colors.textLight }]}>Taxa de entrega</Text>
-            <Text style={[styles.feeValue, { color: colors.success }]}>R$ {Number(item.deliveryFee).toFixed(2)}</Text>
+            {/* O líquido (frete menos a comissão de entrega), não o frete
+                bruto: é o que de fato cai para ele. */}
+            <Text style={[styles.feeLabel, { color: colors.textLight }]}>Você recebe</Text>
+            <Text style={[styles.feeValue, { color: colors.success }]}>
+              {formatarReais(item.ganhoDoEntregador ?? item.deliveryFee)}
+            </Text>
           </View>
-          <TouchableOpacity
-            style={[styles.acceptButton, { backgroundColor: actionLoading ? colors.gray : colors.success }]}
-            onPress={() => handleAccept(item.id, item.orderNumber)}
-            disabled={!!actionLoading}
-          >
-            <Ionicons name={actionLoading === item.id ? 'hourglass' : 'checkmark-circle'} size={18} color="#FFFFFF" />
-            <Text style={styles.acceptButtonText}>{actionLoading === item.id ? 'Aceitando...' : 'Aceitar'}</Text>
-          </TouchableOpacity>
+          <View style={styles.offerActions}>
+            {/* Recusar só existe na vez exclusiva: passa a corrida na hora para
+                o próximo, em vez de segurar o pedido até o tempo acabar. */}
+            {prazosDaVez[item.id] != null && (
+              <TouchableOpacity
+                style={[styles.declineButton, { borderColor: colors.grayLight }]}
+                onPress={() => handleRecusar(item.id)}
+                disabled={!!actionLoading}
+              >
+                <Text style={[styles.declineButtonText, { color: colors.textLight }]}>Recusar</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[
+                styles.acceptButton,
+                { backgroundColor: actionLoading || motivoParaNaoSomar(activeDeliveries, item.store?.id) ? colors.gray : colors.success },
+              ]}
+              onPress={() => handleAccept(item.id, item.orderNumber, item.store?.id)}
+              disabled={!!actionLoading}
+            >
+              <Ionicons name={actionLoading === item.id ? 'hourglass' : 'checkmark-circle'} size={18} color="#FFFFFF" />
+              <Text style={styles.acceptButtonText}>{actionLoading === item.id ? 'Aceitando...' : 'Aceitar'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Countdown timer bar — auto-ticante, so a barra re-renderiza (F3) */}
-        <OfferCountdownBar startedAt={offerTimersRef.current[item.id] || Date.now()} colors={colors} />
+        {/* Vez exclusiva: só aparece quando a corrida está reservada para
+            você. Corrida aberta a todos (cascata encerrada) não tem barra. */}
+        {prazosDaVez[item.id] != null && (
+          <VezExclusivaBar
+            prazo={prazosDaVez[item.id]}
+            total={DURACAO_DA_VEZ_S}
+            colors={colors}
+            onAcabar={aoAcabarAVez}
+          />
+        )}
       </View>
     );
-  }, [colors, actionLoading, handleAccept]);
+  }, [colors, actionLoading, handleAccept, handleRecusar, activeDeliveries, prazosDaVez, aoAcabarAVez]);
 
   const renderMyDelivery = useCallback(({ item }: { item: any }) => {
     const order = item.order;
     const status = statusLabels[order.status] || { label: order.status, color: colors.gray };
-    const isActive = !item.deliveredAt;
+    const isActive = entregaEmCurso(item);
 
     const handleCardPress = () => {
       const lat = Number(order.deliveryLatitude);
@@ -809,9 +1124,11 @@ export default function DeliveriesScreen() {
                     {order.store.street}, {order.store.number} - {order.store.neighborhood}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => Linking.openURL(`tel:${(order.store.phone || '').replace(/[^\d+\-]/g, '')}`)}>
-                  <Ionicons name="call" size={18} color={colors.primary} />
-                </TouchableOpacity>
+                {!!telefoneParaDiscar(order.store.phone) && (
+                  <TouchableOpacity onPress={() => Linking.openURL(`tel:${telefoneParaDiscar(order.store.phone)}`)}>
+                    <Ionicons name="call" size={18} color={colors.primary} />
+                  </TouchableOpacity>
+                )}
               </View>
               <View style={[styles.addressDivider, { borderLeftColor: colors.gray }]} />
               <View style={styles.addressRow}>
@@ -820,9 +1137,11 @@ export default function DeliveriesScreen() {
                   <Text style={[styles.addressLabel, { color: colors.textLight }]}>Cliente: {order.customer.name}</Text>
                   <Text style={[styles.addressText, { color: colors.text }]}>{order.deliveryAddress}</Text>
                 </View>
-                <TouchableOpacity onPress={() => Linking.openURL(`tel:${(order.customer.phone || '').replace(/[^\d+\-]/g, '')}`)}>
-                  <Ionicons name="call" size={18} color={colors.success} />
-                </TouchableOpacity>
+                {!!telefoneParaDiscar(order.customer.phone) && (
+                  <TouchableOpacity onPress={() => Linking.openURL(`tel:${telefoneParaDiscar(order.customer.phone)}`)}>
+                    <Ionicons name="call" size={18} color={colors.success} />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
@@ -835,22 +1154,86 @@ export default function DeliveriesScreen() {
               ))}
             </View>
 
+            {/* O código que o entregador DITA ao lojista, visível só enquanto a
+                coleta não fechou. Depois dela ele não serve mais e só ocuparia
+                espaço numa tela que a pessoa usa em movimento.
+
+                Este é o único ponto do app que depende do TERCEIRO código. Se a
+                decisão for ficar em dois (entregador só recolhendo), é esta
+                linha que sai — ver o comentário em CodigoDoEntregador.tsx. */}
+            {!!order.usaCodigoDeEntrega &&
+              (order.status === 'READY' || order.status === 'VENDOR_CONFIRMED_PICKUP') && (
+                <CodigoDoEntregador
+                  orderId={order.id}
+                  codigoDaLojaJaRegistrado={!!order.codigoDaLojaJaRegistrado}
+                />
+              )}
+
             <View style={[styles.cardFooter, { borderTopColor: colors.grayLight }]}>
-              <Text style={[styles.totalText, { color: colors.text }]}>R$ {Number(order.total).toFixed(2)}</Text>
+              {/* Antes era o TOTAL do pedido, sem rótulo: parecia o ganho do
+                  entregador. Ele só precisa do total quando vai cobrar do
+                  cliente (pagamento na entrega); no resto, o que é dele é a
+                  taxa — o mesmo valor que a oferta mostrava. */}
+              <View>
+                <Text style={[styles.feeLabel, { color: colors.textLight }]}>
+                  {order.paymentMethod === 'ON_DELIVERY' ? 'Receber do cliente' : 'Você recebe'}
+                </Text>
+                <Text style={[styles.totalText, { color: colors.text }]}>
+                  {formatarReais(
+                    order.paymentMethod === 'ON_DELIVERY'
+                      ? order.total
+                      : order.ganhoDoEntregador ?? order.deliveryFee,
+                  )}
+                </Text>
+              </View>
               {(order.status === 'READY' || order.status === 'VENDOR_CONFIRMED_PICKUP') && (() => {
                 const storeLat = Number(order.store.latitude);
                 const storeLng = Number(order.store.longitude);
                 const nearStore = currentLocation
                   ? haversineDistance(currentLocation.latitude, currentLocation.longitude, storeLat, storeLng) <= 200
                   : false;
+                const comCodigo = !!order.usaCodigoDeEntrega;
+                // Já digitou o código da loja e o pedido continua em READY:
+                // falta o LOJISTA digitar o código do entregador. Oferecer
+                // "Digitar código da loja" de novo aqui seria convidar a pessoa
+                // a gastar tentativa num código que ela já acertou.
+                const esperandoALoja = comCodigo && order.codigoDaLojaJaRegistrado;
+                if (esperandoALoja) {
+                  return (
+                    <View style={[styles.actionButton, { backgroundColor: colors.warning }]}>
+                      <Ionicons name="hourglass" size={18} color="#FFFFFF" />
+                      <Text style={styles.actionButtonText}>Aguardando a loja</Text>
+                    </View>
+                  );
+                }
                 return nearStore ? (
                   <TouchableOpacity
                     style={[styles.actionButton, { backgroundColor: actionLoading ? colors.gray : colors.primary }]}
                     onPress={() => handleConfirmPickup(item.id, order)}
                     disabled={!!actionLoading}
                   >
-                    <Ionicons name={actionLoading === item.id ? 'hourglass' : 'bag-check'} size={18} color="#FFFFFF" />
-                    <Text style={styles.actionButtonText}>{actionLoading === item.id ? 'Confirmando...' : 'Coletei'}</Text>
+                    <Ionicons
+                      name={actionLoading === item.id ? 'hourglass' : comCodigo ? 'keypad' : 'bag-check'}
+                      size={18}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.actionButtonText}>
+                      {actionLoading === item.id
+                        ? 'Confirmando...'
+                        : comCodigo
+                          ? 'Código da loja'
+                          : 'Coletei'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : !isOnline ? (
+                  // Offline não há localização: "Aproxime-se da loja" aparecia
+                  // com o entregador na porta dela. O que falta é ficar online.
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: colors.primary }]}
+                    onPress={() => { toggleOnline(); }}
+                  >
+                    <Ionicons name="radio-button-on" size={18} color="#FFFFFF" />
+                    <Text style={styles.actionButtonText}>Ficar online</Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={[styles.actionButton, { backgroundColor: colors.gray }]}>
@@ -862,14 +1245,41 @@ export default function DeliveriesScreen() {
               {(order.status === 'PICKED_UP' || order.status === 'DELIVERING') && (
                 <TouchableOpacity
                   style={[styles.actionButton, { backgroundColor: actionLoading ? colors.gray : colors.success }]}
-                  onPress={() => handleConfirmDelivery(item.id)}
+                  onPress={() => handleConfirmDelivery(item.id, order)}
                   disabled={!!actionLoading}
                 >
-                  <Ionicons name={actionLoading === item.id ? 'hourglass' : 'checkmark-done'} size={18} color="#FFFFFF" />
-                  <Text style={styles.actionButtonText}>{actionLoading === item.id ? 'Confirmando...' : 'Confirmar entrega'}</Text>
+                  <Ionicons
+                    name={
+                      actionLoading === item.id
+                        ? 'hourglass'
+                        : order.usaCodigoDeEntrega
+                          ? 'keypad'
+                          : 'checkmark-done'
+                    }
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.actionButtonText}>
+                    {actionLoading === item.id
+                      ? 'Confirmando...'
+                      : order.usaCodigoDeEntrega
+                        ? 'Código do cliente'
+                        : 'Confirmar entrega'}
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
+
+            {/* Só antes da coleta: depois dela o pedido está com ele. */}
+            {order.status === 'READY' && (
+              <TouchableOpacity
+                style={styles.desistirButton}
+                onPress={() => handleDesistir(order)}
+                disabled={!!actionLoading}
+              >
+                <Text style={[styles.desistirText, { color: colors.danger }]}>Desistir da corrida</Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
 
@@ -877,10 +1287,18 @@ export default function DeliveriesScreen() {
           <View style={styles.completedSection}>
             <View style={styles.completedInfo}>
               <Text style={[styles.completedText, { color: colors.textLight }]}>
-                {order.customer?.name ? `${order.customer.name} • ` : ''}{order.items.length} {order.items.length === 1 ? 'item' : 'itens'} - R$ {Number(order.total).toFixed(2)}
+                {/* O que ele ganhou, não o total que o cliente pagou (que
+                    parecia o ganho). O total só importa no pagamento na
+                    entrega, quando foi ele quem cobrou. */}
+                {order.customer?.name ? `${order.customer.name} • ` : ''}
+                {order.paymentMethod === 'ON_DELIVERY' || order.ganhoDoEntregador == null
+                  ? `Cobrado do cliente ${formatarReais(order.total)}`
+                  : `Você recebeu ${formatarReais(order.ganhoDoEntregador)}`}
               </Text>
               <Text style={[styles.completedDate, { color: colors.gray }]}>
-                {new Date(item.deliveredAt).toLocaleDateString('pt-BR')}
+                {/* Entrega de pedido cancelado não tem deliveredAt: new Date(null)
+                    virava 31/12/1969. */}
+                {new Date(item.deliveredAt || item.createdAt).toLocaleDateString('pt-BR')}
               </Text>
             </View>
             {/* Badge auto-ticante — so ele re-renderiza durante a espera (F3) */}
@@ -889,12 +1307,61 @@ export default function DeliveriesScreen() {
         )}
       </TouchableOpacity>
     );
-  }, [colors, statusLabels, actionLoading, currentLocation, handleConfirmPickup, handleConfirmDelivery]);
+  }, [colors, statusLabels, actionLoading, currentLocation, handleConfirmPickup, handleConfirmDelivery, handleDesistir, isOnline, toggleOnline]);
 
   const isAvailableTab = tab === 'available';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* ─── Códigos de entrega ───────────────────────────────────────────
+          Um modal por vez, decidido por `modalDeCodigo.tipo`. O de digitação
+          serve às duas digitações do entregador (loja e cliente) com textos
+          diferentes, porque a consequência é diferente: a do cliente LIBERA O
+          DINHEIRO, e quem está na porta tem de saber disso antes de apertar. */}
+      <ModalDeCodigo
+        visivel={modalDeCodigo?.tipo === 'LOJA'}
+        titulo="Código da loja"
+        explicacao="Peça o código ao lojista."
+        rotuloConfirmar="Registrar coleta"
+        carregando={enviandoCodigo}
+        erro={erroDoCodigo}
+        onConfirmar={enviarCodigo}
+        onFechar={fecharModalDeCodigo}
+      />
+
+      <ModalDeCodigo
+        visivel={modalDeCodigo?.tipo === 'CLIENTE'}
+        titulo="Código do cliente"
+        explicacao="Peça o código ao cliente na entrega."
+        rotuloConfirmar="Concluir entrega"
+        carregando={enviandoCodigo}
+        erro={erroDoCodigo}
+        acaoSecundaria={{
+          rotulo: 'Não consegui o código do cliente',
+          onPress: () => {
+            setErroDoCodigo(null);
+            setModalDeCodigo((m) => (m ? { ...m, tipo: 'SEM_CODIGO' } : m));
+          },
+        }}
+        onConfirmar={enviarCodigo}
+        onFechar={fecharModalDeCodigo}
+      />
+
+      <ModalEntregaSemCodigo
+        visivel={modalDeCodigo?.tipo === 'SEM_CODIGO'}
+        numeroDoPedido={modalDeCodigo?.orderNumber}
+        temGps={!!currentLocation}
+        carregando={enviandoCodigo}
+        erro={erroDoCodigo}
+        onConfirmar={enviarEntregaSemCodigo}
+        onFechar={() => {
+          // "Voltar e tentar o código" volta ao modal de digitação, não fecha
+          // tudo: a pessoa está na porta e pode ser que o cliente apareça.
+          setErroDoCodigo(null);
+          setModalDeCodigo((m) => (m ? { ...m, tipo: 'CLIENTE' } : m));
+        }}
+      />
+
       {/* Modal: Store map after accepting delivery */}
       <Modal visible={!!acceptedStore} transparent animationType="slide">
         <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} onPress={() => setAcceptedStore(null)}>
@@ -1297,6 +1764,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   feeLabel: { fontSize: fonts.tiny },
+  offerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  declineButton: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1 },
+  declineButtonText: { fontSize: fonts.small, fontWeight: '600' },
   feeValue: { fontSize: fonts.large, fontWeight: 'bold' },
   acceptButton: {
     flexDirection: 'row',
@@ -1308,6 +1778,8 @@ const styles = StyleSheet.create({
   },
   acceptButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: fonts.regular },
   totalText: { fontSize: fonts.large, fontWeight: 'bold' },
+  desistirButton: { alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 16, marginTop: 2 },
+  desistirText: { fontSize: fonts.small, fontWeight: '600', textDecorationLine: 'underline' },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',

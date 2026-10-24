@@ -12,11 +12,13 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
-import { GET_ACTIVE_PROMOTIONS } from '../../src/lib/graphql/queries';
+import { GET_PROMOTION } from '../../src/lib/graphql/queries';
 import { useCart } from '../../src/contexts/CartContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as staticColors, fonts } from '../../src/theme';
+import { rotuloDoFrete } from '../../src/lib/frete';
+import { formatarReais } from '../../src/lib/dinheiro';
 
 const { width } = Dimensions.get('window');
 
@@ -25,9 +27,13 @@ export default function PromotionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
   const { addItem, itemCount } = useCart();
-  const { data, loading } = useQuery(GET_ACTIVE_PROMOTIONS);
+  // Perf (F6): era `useQuery(GET_ACTIVE_PROMOTIONS)` + `.find(p => p.id === id)`
+  // — baixava TODAS as promocoes ativas para mostrar uma. E, pior, isso impedia
+  // paginar aquela lista: com limite, a tela pararia de achar promocao fora da
+  // primeira pagina. Agora pede exatamente a que vai mostrar.
+  const { data, loading } = useQuery(GET_PROMOTION, { variables: { id } });
 
-  const promo = (data?.activePromotions || []).find((p: any) => p.id === id);
+  const promo = data?.promotion;
 
   // BUGFIX: `loading` nao era lido — no primeiro render `data` e undefined,
 
@@ -149,11 +155,11 @@ export default function PromotionScreen() {
           <View style={[styles.priceCard, { backgroundColor: colors.card }]}>
             <View style={styles.priceLeft}>
               {originalPrice > 0 && (
-                <Text style={[styles.originalPrice, { color: colors.gray }]}>De R$ {originalPrice.toFixed(2)}</Text>
+                <Text style={[styles.originalPrice, { color: colors.gray }]}>De {formatarReais(originalPrice)}</Text>
               )}
-              <Text style={styles.promoPrice}>R$ {promoPrice.toFixed(2)}</Text>
+              <Text style={styles.promoPrice}>{formatarReais(promoPrice)}</Text>
               {savings > 0 && (
-                <Text style={styles.savingsText}>Voce economiza R$ {savings.toFixed(2)}</Text>
+                <Text style={styles.savingsText}>Voce economiza {formatarReais(savings)}</Text>
               )}
             </View>
             {discount > 0 && (
@@ -189,9 +195,9 @@ export default function PromotionScreen() {
                     <Text style={[styles.productDesc, { color: colors.textLight }]} numberOfLines={2}>{promo.product.description}</Text>
                   ) : null}
                   <View style={styles.productPriceRow}>
-                    <Text style={[styles.productPriceOld, { color: colors.gray }]}>R$ {originalPrice.toFixed(2)}</Text>
+                    <Text style={[styles.productPriceOld, { color: colors.gray }]}>{formatarReais(originalPrice)}</Text>
                     <Ionicons name="arrow-forward" size={14} color={staticColors.primary} />
-                    <Text style={styles.productPriceNew}>R$ {promoPrice.toFixed(2)}</Text>
+                    <Text style={styles.productPriceNew}>{formatarReais(promoPrice)}</Text>
                   </View>
                 </View>
               </View>
@@ -229,7 +235,7 @@ export default function PromotionScreen() {
                     <View style={styles.storeDetail}>
                       <Ionicons name="bicycle-outline" size={13} color={colors.gray} />
                       <Text style={[styles.storeDetailText, { color: colors.gray }]}>
-                        {promo.store.freeDelivery || Number(promo.store.deliveryFee) === 0 ? 'Gratis' : `R$ ${Number(promo.store.deliveryFee).toFixed(2)}`}
+                        {rotuloDoFrete(promo.store)}
                       </Text>
                     </View>
                     <View style={[styles.storeStatusDot, { backgroundColor: promo.store.isOpen ? staticColors.success : staticColors.danger }]} />
@@ -252,7 +258,7 @@ export default function PromotionScreen() {
         <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: insets.bottom + 16 }]}>
           <TouchableOpacity style={styles.addButton} onPress={handleAddToCart}>
             <Ionicons name="cart-outline" size={18} color="#FFF" />
-            <Text style={styles.addButtonText}>Adicionar ao carrinho - R$ {promoPrice.toFixed(2)}</Text>
+            <Text style={styles.addButtonText}>Adicionar ao carrinho - {formatarReais(promoPrice)}</Text>
           </TouchableOpacity>
         </View>
       )}

@@ -6,6 +6,7 @@ import { ADD_TO_CART, UPDATE_CART_ITEM, REMOVE_FROM_CART, CLEAR_CART } from '../
 import { GET_MY_CART } from '../lib/graphql/queries';
 import { onProductUpdated, onProductDeleted } from '../lib/productEvents';
 import { useAuth } from './AuthContext';
+import { alerta } from '../lib/alerta';
 // Chave unica, declarada em lib/apollo. Tres lugares apagam o carrinho (aqui, o
 // forceLogout do AuthContext e o errorLink do Apollo); com uma copia local em
 // cada um, bastava alguem renomear num deles para o carrinho de um usuario
@@ -189,7 +190,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem = useCallback((info: AddItemInfo, quantity: number, notes?: string, weightGrams?: number) => {
     if (!user) {
-      Alert.alert('Erro', 'Faça login para adicionar itens ao carrinho.');
+      alerta('Erro', 'Faça login para adicionar itens ao carrinho.');
       return;
     }
 
@@ -281,7 +282,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           saveLocal(serverItems);
         }
       });
-      Alert.alert('Erro', 'Não foi possível adicionar ao carrinho.');
+      alerta('Erro', 'Não foi possível adicionar ao carrinho.');
     });
   }, [user, updateItems, addToCartMutation, refetch, saveLocal]);
 

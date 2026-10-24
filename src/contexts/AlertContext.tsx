@@ -14,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts } from '../theme';
+import { registrarAlerta } from '../lib/alerta';
 
 type AlertButton = {
   text: string;
@@ -86,6 +87,10 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
   // Perf: a API (alert/showAlert) e estavel, mas o value era um objeto novo a cada
   // abertura/fechamento de alerta — re-renderizava todo consumidor de useAlert.
   const contextValue = useMemo(() => ({ alert, showAlert }), [alert, showAlert]);
+
+  // Ponte para quem chama `alerta()` fora de componente ou acima deste
+  // provider (ver src/lib/alerta.ts).
+  useEffect(() => registrarAlerta(alert), [alert]);
 
   function handlePress(button: AlertButton) {
     setVisible(false);

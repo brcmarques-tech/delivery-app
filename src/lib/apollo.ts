@@ -11,6 +11,7 @@ import { fetchWithTimeout, DEFAULT_TIMEOUT_MS } from './fetchWithTimeout';
 import { httpBaseUrl, wsBaseUrl } from './apiHost';
 import { Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
+import { registrarSessaoEncerrada, anotarUsuario } from './saidaDaSessao';
 
 // KAN-255: montagem da URL centralizada em src/lib/apiHost.ts (era duplicada em
 // tres arquivos, dois deles com IP de LAN hardcoded e desatualizado).
@@ -103,19 +104,39 @@ const errorLink = onError(({ graphQLErrors, networkError, operation }) => {
   );
   if (sessionExpired && !sessionExpiredHandled) {
     sessionExpiredHandled = true;
+    // O login explica por que a pessoa saiu e devolve ela para esta tela.
+    //
+    // Lê o usuário salvo ANTES de limpar: ao reabrir o app, a tela aberta
+    // (um pedido, por ex.) consulta a API antes de o AuthContext terminar de
+    // carregar a sessão — sem isto, a volta era registrada sem dono e se
+    // perdia.
+    //
+    // Sem usuário salvo não havia sessão nenhuma (um visitante abrindo um link
+    // de pedido, por ex.): aí não é "sua conta foi aberta em outro aparelho".
+    const prepararVolta = AsyncStorage.getItem('user')
+      .then((u) => {
+        let id: string | undefined;
+        try { id = JSON.parse(u || 'null')?.id; } catch {}
+        if (!id) return;
+        anotarUsuario(id);
+        registrarSessaoEncerrada();
+      })
+      .catch(() => {});
+
     // Silent logout — the subscription handles the user-facing alert.
     // A limpeza completa passa pelo AuthContext (que tambem zera o estado em
     // memoria e o cache do Apollo). O fallback cobre o caso de o errorLink
     // disparar antes de o provider ter montado.
-    const limpar = limpezaDeSessao
-      ? Promise.resolve(limpezaDeSessao())
-      : Promise.all([
-          deleteSecureItem('token'),
-          AsyncStorage.removeItem('user'),
-          AsyncStorage.removeItem(CART_STORAGE_KEY),
-        ]).then(() => undefined);
-
-    limpar
+    prepararVolta
+      .then(() =>
+        limpezaDeSessao
+          ? Promise.resolve(limpezaDeSessao())
+          : Promise.all([
+              deleteSecureItem('token'),
+              AsyncStorage.removeItem('user'),
+              AsyncStorage.removeItem(CART_STORAGE_KEY),
+            ]).then(() => undefined),
+      )
       .catch(() => {})
       .then(() => {
         sessionExpiredHandled = false;
@@ -165,10 +186,21 @@ const cache = new InMemoryCache({
         myAppointments: { keyArgs: false, merge: offsetMerge },
         // Perf (F5/F6): uma lista por (loja, busca); paginas encaixam por offset.
         storeProducts: { keyArgs: ['storeId', 'search', 'categoryId'], merge: offsetMerge },
+        // Perf (F6): uma lista por combinacao de filtro. A vitrine paginada da aba
+        // de busca e a busca de lojas do autocomplete sao a MESMA query com
+        // variaveis diferentes — sem keyArgs elas se sobrescreveriam no cache.
+        stores: {
+          keyArgs: ['search', 'storeType', 'onlyOpen', 'onlyFreeDelivery'],
+          merge: offsetMerge,
+        },
         availableDeliveries: { merge: (_existing, incoming) => incoming },
         storeOrders: { merge: (_existing, incoming) => incoming },
         popularProducts: { merge: (_existing, incoming) => incoming },
-        activePromotions: { merge: (_existing, incoming) => incoming },
+        // Perf (F6): uma lista por TAMANHO DE PAGINA. A home pede 10 e a aba de
+        // busca pede 6 — como o offsetMerge TRUNCA no offset 0, sem o keyArgs a
+        // segunda tela a responder encurtaria a lista da primeira. `offset` fica
+        // fora da chave de proposito: e ele que o merge usa para encaixar.
+        activePromotions: { keyArgs: ['limit'], merge: offsetMerge },
       },
     },
   },

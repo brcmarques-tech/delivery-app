@@ -25,6 +25,7 @@ import { AnimatedListItem } from '../../src/components/AnimatedListItem';
 import { AnimatedPressable } from '../../src/components/AnimatedPressable';
 import { AnimatedItem } from '../../src/components/AnimatedItem';
 import ReAnimated, { FadeIn, FadeOut, FadeInDown, FadeInRight, FadeOutRight } from 'react-native-reanimated';
+import { formatarReais } from '../../src/lib/dinheiro';
 
 type FilterType = 'all' | 'open' | 'free_delivery' | 'promo';
 type TabType = 'products' | 'services';
@@ -72,6 +73,23 @@ const SERVICE_CATEGORIES = [
 // de produto — categorias de servico (outros icones) nao passavam.
 type CategoryType = CategoryItem;
 
+// Perf (F6): tamanho da pagina da vitrine de lojas e da busca de lojas.
+const PAGINA_LOJAS = 20;
+// Quantas ofertas a tela baixa. NÃO é o tamanho do carrossel (ele corta em 6
+// na hora de desenhar): a BUSCA procura nesta lista. Com o limite em 6, a 7ª
+// oferta em diante nunca casava com termo nenhum — buscar "coca" não achava a
+// oferta da Coca-Cola, que era a 8ª.
+const LIMITE_PROMOS_BUSCA = 50;
+
+// Produto com preço promocional vem antes; empate por nome. Antes era só
+// alfabético: o arroz em oferta ficava no meio dos outros arrozes.
+function emPromocao(p: any): boolean {
+  return !!p.promotionalPrice && Number(p.promotionalPrice) < Number(p.price);
+}
+function promocaoPrimeiro(a: any, b: any): number {
+  return Number(emPromocao(b)) - Number(emPromocao(a)) || a.name.localeCompare(b.name);
+}
+
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -87,8 +105,50 @@ export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
 
-  const { data: storesData } = useQuery(GET_STORES);
-  const { data: promosData } = useQuery(GET_ACTIVE_PROMOTIONS);
+  // O servidor le `storeType` nulo como PRODUCTS, igual a tela fazia com
+  // `s.storeType || 'PRODUCTS'`.
+  const tipoDaAba = activeTab === 'products' ? 'PRODUCTS' : 'SERVICES';
+
+  // Perf (F6): a vitrine agora vem paginada e filtrada por tipo NO SERVIDOR.
+  // Antes esta query baixava a tabela de lojas ativas inteira e a tela fazia
+  // todo o resto no cliente — cada loja nova entrava na carga de todo mundo,
+  // para sempre.
+  const { data: storesData, fetchMore: fetchMoreStores } = useQuery(GET_STORES, {
+    variables: { storeType: tipoDaAba, limit: PAGINA_LOJAS, offset: 0 },
+  });
+
+  // Busca de lojas do autocomplete: query propria, com os MESMOS criterios que o
+  // filtro client-side aplicava (nome ou descricao, tipo da aba, e o chip de
+  // "aberto" / "frete gratis"). O `skip` enquanto nao ha termo reproduz o antigo
+  // `if (!debouncedQuery) return false`.
+  const { data: buscaLojasData } = useQuery(GET_STORES, {
+    variables: {
+      search: debouncedQuery,
+      storeType: tipoDaAba,
+      onlyOpen: activeFilter === 'open' ? true : undefined,
+      onlyFreeDelivery: activeFilter === 'free_delivery' ? true : undefined,
+      limit: PAGINA_LOJAS,
+      offset: 0,
+    },
+    skip: !debouncedQuery,
+  });
+  // Perf (F6): esta tela mostra no maximo 6 promocoes (o carrossel corta em 6),
+  // mas baixava a lista inteira de promocoes ativas. Agora pede 6.
+  //
+  // ATENCAO para quem mexer aqui: este limite tambem define quantas promocoes
+  // podem aparecer no overlay de busca, porque `matchingPromos` (abaixo)
+  // filtra ESTA lista — nao faz uma busca propria no servidor. Uma promocao
+  // fora destas 6 nao casa com o termo nem que exista. Se a busca por oferta
+  // virar importante, o certo e uma query de busca de promocao no servidor, e
+  // nao aumentar este numero (foi por baixar a lista inteira que o limite
+  // existe).
+  //
+  // KAN-297: antes, a promocao casada alimentava SO o `hasResults` e nao era
+  // desenhada em lugar nenhum — termo que casava so com promocao dava overlay
+  // em branco. Agora ela e um item do overlay (tipo 'promo').
+  const { data: promosData } = useQuery(GET_ACTIVE_PROMOTIONS, {
+    variables: { limit: LIMITE_PROMOS_BUSCA, offset: 0 },
+  });
   const [searchProducts, { data: productsData, loading: productsLoading }] = useLazyQuery(SEARCH_PRODUCTS);
   const [searchServices, { data: servicesData, loading: servicesLoading }] = useLazyQuery(SEARCH_SERVICES);
 
@@ -183,34 +243,38 @@ export default function SearchScreen() {
   // Agora cada derivado so recalcula quando seus inputs reais mudam, e os sorts
   // operam sobre copia dentro do useMemo (nada de mutacao durante o render).
 
-  // Stores split by type
-  const allStores = useMemo(() => storesData?.stores || [], [storesData?.stores]);
-  const productStores = useMemo(
-    () => allStores
-      .filter((s: any) => !s.storeType || s.storeType === 'PRODUCTS')
-      .sort((a: any, b: any) => a.name.localeCompare(b.name)),
-    [allStores],
-  );
-  const serviceStores = useMemo(
-    () => allStores
-      .filter((s: any) => s.storeType === 'SERVICES')
-      .sort((a: any, b: any) => a.name.localeCompare(b.name)),
-    [allStores],
-  );
+  // Perf (F6): a lista ja vem do servidor filtrada pelo tipo da aba e na ordem do
+  // ranking pago — o servidor rankeia o conjunto INTEIRO e devolve o recorte,
+  // entao paginar nao mexe em QUAL loja aparece primeiro. Isso e regra comercial
+  // (ver KAN-281), nao detalhe de implementacao, e por isso nao virou ORDER BY.
+  // Nao ha mais filtro nem sort de loja no cliente.
+  const idleStores = useMemo(() => storesData?.stores || [], [storesData?.stores]);
+
+  // Perf (F6): paginacao por scroll da vitrine. Mesmo padrao das outras telas
+  // (orders/deliveries/loja): o fim da lista vem do TAMANHO DA ULTIMA PAGINA
+  // recebida, nunca de `length % PAGINA === 0` — essa inferencia quebra quando a
+  // lista encolhe e faz requisicao infinita quando o total e multiplo exato.
+  const [temMaisLojas, setTemMaisLojas] = useState(true);
+  // Trocar de aba troca o conjunto: a paginacao recomeca.
+  useEffect(() => { setTemMaisLojas(true); }, [activeTab]);
+
+  const carregarMaisLojas = useCallback(() => {
+    if (!temMaisLojas || idleStores.length === 0) return;
+    fetchMoreStores({
+      variables: { storeType: tipoDaAba, limit: PAGINA_LOJAS, offset: idleStores.length },
+    })
+      .then((res: any) => {
+        if ((res?.data?.stores?.length ?? 0) < PAGINA_LOJAS) setTemMaisLojas(false);
+      })
+      .catch(() => {});
+  }, [temMaisLojas, idleStores.length, fetchMoreStores, tipoDaAba]);
 
   // Filter stores for search (by active tab context)
-  const filteredStores = useMemo(() => allStores.filter((s: any) => {
-    if (!debouncedQuery) return false;
-    const storeType = s.storeType || 'PRODUCTS';
-    if (activeTab === 'products' && storeType !== 'PRODUCTS') return false;
-    if (activeTab === 'services' && storeType !== 'SERVICES') return false;
-    const matchesQuery = s.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-      (s.description || '').toLowerCase().includes(debouncedQuery.toLowerCase());
-    if (!matchesQuery) return false;
-    if (activeFilter === 'open') return s.isOpen;
-    if (activeFilter === 'free_delivery') return s.freeDelivery;
-    return true;
-  }).sort((a: any, b: any) => a.name.localeCompare(b.name)), [allStores, debouncedQuery, activeTab, activeFilter]);
+  // Perf (F6): o servidor ja devolve filtrado (nome/descricao, tipo, chip) e
+  // ordenado por nome — a mesma ordem que o .sort() daqui produzia. De brinde, a
+  // busca do servidor usa unaccent, igual a de produtos: "acai" passou a achar
+  // "Acai" com cedilha e til, o que o includes() cru nao achava.
+  const filteredStores = useMemo(() => buscaLojasData?.stores || [], [buscaLojasData?.stores]);
 
   // Filter products (ordenado aqui — o .sort() que existia no JSX foi removido)
   const allProducts = useMemo(() => productsData?.searchProducts || [], [productsData?.searchProducts]);
@@ -223,7 +287,7 @@ export default function SearchScreen() {
           return keywords.some((kw: string) => catName.includes(kw.trim())) || catName.includes(activeCategory.label.toLowerCase());
         })
         .filter((p: any) => !query.trim() || p.name.toLowerCase().includes(query.trim().toLowerCase()))
-        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        .sort(promocaoPrimeiro);
     }
     return allProducts
       .filter((p: any) => {
@@ -233,8 +297,32 @@ export default function SearchScreen() {
         return true;
       })
       .slice()
-      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      .sort(promocaoPrimeiro);
   }, [allProducts, activeCategory, query, activeFilter]);
+
+  // Ofertas DA ABA: loja de produtos na aba Produtos, prestador na aba
+  // Serviços. Antes as mesmas ofertas apareciam nas duas — a aba Serviços
+  // mostrava a cesta do mercado.
+  const promotions = useMemo(
+    () =>
+      (promosData?.activePromotions || []).filter(
+        (p: any) => (p.store?.storeType || 'PRODUCTS') === tipoDaAba,
+      ),
+    [promosData?.activePromotions, tipoDaAba],
+  );
+
+  // Serviço não tem preço promocional: o "em oferta" dele é o prestador estar
+  // com uma oferta ativa. Esses vêm primeiro, como o produto em promoção.
+  const lojasComOferta = useMemo(
+    () => new Set(promotions.map((p: any) => p.store?.id).filter(Boolean)),
+    [promotions],
+  );
+  const ofertaPrimeiro = useCallback(
+    (a: any, b: any) =>
+      Number(lojasComOferta.has(b.store?.id)) - Number(lojasComOferta.has(a.store?.id)) ||
+      a.name.localeCompare(b.name),
+    [lojasComOferta],
+  );
 
   // Filter services (idem)
   const allServices = useMemo(() => servicesData?.searchServices || [], [servicesData?.searchServices]);
@@ -247,7 +335,7 @@ export default function SearchScreen() {
           return keywords.some((kw: string) => catName.includes(kw.trim())) || catName.includes(activeCategory.label.toLowerCase());
         })
         .filter((s: any) => !query.trim() || s.name.toLowerCase().includes(query.trim().toLowerCase()))
-        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        .sort(ofertaPrimeiro);
     }
     return allServices
       .filter((s: any) => {
@@ -255,23 +343,223 @@ export default function SearchScreen() {
         return true;
       })
       .slice()
-      .sort((a: any, b: any) => a.name.localeCompare(b.name));
-  }, [allServices, activeCategory, query, activeFilter]);
+      .sort(ofertaPrimeiro);
+  }, [allServices, activeCategory, query, activeFilter, ofertaPrimeiro]);
 
-  // Promotions matching search
-  const promotions = promosData?.activePromotions || [];
-  const matchingPromos = useMemo(() => (debouncedQuery ? promotions.filter((p: any) =>
-    p.title.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-    (p.product?.name || '').toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-    (p.store?.name || '').toLowerCase().includes(debouncedQuery.toLowerCase()),
-  ) : []), [promotions, debouncedQuery]);
+  // Quem busca "arroz" quer a OFERTA de arroz no topo. As que casam pelo
+  // produto ou pelo título vêm antes das que casam só pelo nome da loja — senão
+  // uma loja chamada "Arroz & Cia" punha a oferta de picanha dela na frente.
+  const matchingPromos = useMemo(() => {
+    if (!debouncedQuery) return [];
+    const termo = debouncedQuery.toLowerCase();
+    const peloProduto = (p: any) =>
+      p.title.toLowerCase().includes(termo) || (p.product?.name || '').toLowerCase().includes(termo);
+    const pelaLoja = (p: any) => (p.store?.name || '').toLowerCase().includes(termo);
+    return [
+      ...promotions.filter(peloProduto),
+      ...promotions.filter((p: any) => !peloProduto(p) && pelaLoja(p)),
+    ];
+  }, [promotions, debouncedQuery]);
 
   const isSearching = debouncedQuery.length >= 2;
   const isCategoryMode = activeCategory !== null;
   const categoryItems = activeTab === 'products' ? filteredProducts : filteredServices;
+
+  // Perf (F4): o overlay de autocomplete era um ScrollView com tres .map
+  // (lojas + produtos OU servicos). Com limit 100 em cada query davam ate ~200
+  // linhas montadas de uma vez, cada uma com imagem — na tela em que o usuario
+  // esta DIGITANDO, que e o pior lugar possivel para segurar a thread de JS.
+  //
+  // Para virtualizar com um FlatList so (e nao tres aninhados, que desligariam a
+  // virtualizacao), as tres secoes viram UMA lista heterogenea, com o tipo
+  // marcado em cada item (chaves promo-/prod-/svc-/store-). Ordem: ofertas,
+  // depois produtos ou servicos conforme a aba, e as lojas por ultimo.
+  type ItemAutocomplete =
+    | { tipo: 'promo'; key: string; dado: any }
+    | { tipo: 'store'; key: string; dado: any }
+    | { tipo: 'product'; key: string; dado: any }
+    | { tipo: 'service'; key: string; dado: any };
+
+  const autocompleteItems = useMemo<ItemAutocomplete[]>(() => {
+    // KAN-297: a promocao casada agora É RENDERIZADA.
+    //
+    // O bug: `matchingPromos` filtrava as promocoes pelo termo e alimentava SO
+    // o `hasResults`, que suprime o "Nenhum resultado". Promocao nao era
+    // desenhada em lugar nenhum do overlay. Quando o termo casava SO com uma
+    // promocao, dava tela em branco: lista vazia E mensagem suprimida. Alguem
+    // escreveu o filtro e ligou no hasResults, mas a secao nunca foi criada.
+    //
+    // Entram PRIMEIRO de proposito: promocao e canal pago (tem adCost), quem
+    // digita "picanha" quer ver a oferta de picanha, e o lojista esta pagando
+    // justamente por essa posicao.
+    // Nas duas abas: `matchingPromos` já vem filtrado pelo tipo da loja (ofertas
+    // de prestadores na aba Serviços).
+    const lista: ItemAutocomplete[] = matchingPromos.map((promo: any) => ({
+      tipo: 'promo' as const,
+      key: `promo-${promo.id}`,
+      dado: promo,
+    }));
+    // Depois das ofertas, os PRODUTOS (com os em promoção na frente) e só então
+    // as lojas: com as lojas no meio, a oferta de arroz ficava separada dos
+    // outros arrozes. O produto que já apareceu como oferta não se repete.
+    if (activeTab === 'products') {
+      const jaNaOferta = new Set(matchingPromos.map((promo: any) => promo.product?.id).filter(Boolean));
+      for (const product of filteredProducts) {
+        if (jaNaOferta.has(product.id)) continue;
+        lista.push({ tipo: 'product' as const, key: `prod-${product.id}`, dado: product });
+      }
+    } else {
+      for (const service of filteredServices) {
+        lista.push({ tipo: 'service' as const, key: `svc-${service.id}`, dado: service });
+      }
+    }
+    for (const store of filteredStores) {
+      lista.push({ tipo: 'store' as const, key: `store-${store.id}`, dado: store });
+    }
+    return lista;
+  }, [matchingPromos, filteredStores, filteredProducts, filteredServices, activeTab]);
+
+  const renderAutocompleteItem = useCallback(
+    ({ item, index }: { item: ItemAutocomplete; index: number }) => {
+      if (item.tipo === 'promo') {
+        const promo = item.dado;
+        const precoCheio = Number(promo.product?.price) || 0;
+        const precoPromo = Number(promo.promotionalPrice) || 0;
+        const desconto =
+          precoCheio > 0 && precoPromo > 0 ? Math.round((1 - precoPromo / precoCheio) * 100) : 0;
+        return (
+          <AnimatedListItem index={index}>
+            <AnimatedPressable
+              style={[styles.acItem, { backgroundColor: colors.card }]}
+              onPress={() => { setQuery(''); router.push(`/promotion/${promo.id}`); }}
+            >
+              {(promo.product?.imageUrl || promo.imageUrl) ? (
+                <Image
+                  source={promo.product?.imageUrl || promo.imageUrl}
+                  style={styles.acLogo}
+                  cachePolicy={imageCachePolicy}
+                />
+              ) : (
+                <View style={[styles.acLogo, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                  <Ionicons name="megaphone-outline" size={16} color="#FFFFFF" />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>
+                  {promo.title}
+                </Text>
+                <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>
+                  {/* Diz que é oferta: sem isto a linha some entre produtos e
+                      lojas, e o cliente não entende por que ela está no topo. */}
+                  Oferta{promo.store?.name ? ` · ${promo.store.name}` : ''}
+                </Text>
+              </View>
+              {desconto > 0 && (
+                <View style={styles.promoBadge}>
+                  <Text style={styles.promoBadgeText}>-{desconto}%</Text>
+                </View>
+              )}
+              {precoPromo > 0 && (
+                <Text style={{ fontSize: fonts.small, fontWeight: '700', color: colors.success, marginLeft: 8 }}>
+                  {formatarReais(precoPromo)}
+                </Text>
+              )}
+            </AnimatedPressable>
+          </AnimatedListItem>
+        );
+      }
+
+      if (item.tipo === 'store') {
+        const store = item.dado;
+        return (
+          <AnimatedListItem index={index}>
+            <AnimatedPressable
+              style={[styles.acItem, { backgroundColor: colors.card }]}
+              onPress={() => { setQuery(''); router.push(`/store/${store.id}`); }}
+            >
+              {store.logoUrl ? (
+                <Image source={store.logoUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
+              ) : (
+                <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
+                  <Ionicons name="storefront-outline" size={16} color={colors.gray} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{store.name}</Text>
+                <Text style={{ fontSize: fonts.tiny, color: colors.gray }}>
+                  {(store.storeType || 'PRODUCTS') === 'PRODUCTS' ? 'Loja' : 'Prestador'}
+                </Text>
+              </View>
+              <View style={[styles.acBadge, { backgroundColor: colors.primary + '20' }]}>
+                <Ionicons name="storefront" size={12} color={colors.primary} />
+              </View>
+            </AnimatedPressable>
+          </AnimatedListItem>
+        );
+      }
+
+      if (item.tipo === 'product') {
+        const product = item.dado;
+        const hasPromo = product.promotionalPrice && product.promotionalPrice < product.price;
+        return (
+          <AnimatedListItem index={index}>
+            <AnimatedPressable
+              style={[styles.acItem, { backgroundColor: colors.card }]}
+              onPress={() => { setQuery(''); router.push(`/store/${product.store?.id}`); }}
+            >
+              {product.imageUrl ? (
+                <Image source={product.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
+              ) : (
+                <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
+                  <Ionicons name="cube-outline" size={16} color={colors.gray} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{product.name}</Text>
+                <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{product.store?.name}</Text>
+              </View>
+              <Text style={{ fontSize: fonts.small, fontWeight: '700', color: hasPromo ? colors.success : colors.text }}>
+                {formatarReais(hasPromo ? product.promotionalPrice : product.price)}
+              </Text>
+            </AnimatedPressable>
+          </AnimatedListItem>
+        );
+      }
+
+      const service = item.dado;
+      return (
+        <AnimatedListItem index={index}>
+          <AnimatedPressable
+            style={[styles.acItem, { backgroundColor: colors.card }]}
+            onPress={() => { setQuery(''); router.push(`/store/${service.store?.id}`); }}
+          >
+            {service.imageUrl ? (
+              <Image source={service.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
+            ) : (
+              <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
+                <Ionicons name="construct-outline" size={16} color={colors.gray} />
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{service.name}</Text>
+              <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{service.store?.name}</Text>
+            </View>
+            {service.requiresQuote ? (
+              <Text style={{ fontSize: fonts.tiny, color: colors.primary, fontWeight: '600' }}>Orcamento</Text>
+            ) : service.price ? (
+              <Text style={{ fontSize: fonts.small, fontWeight: '700', color: colors.text }}>
+                {formatarReais(service.price)}
+              </Text>
+            ) : null}
+          </AnimatedPressable>
+        </AnimatedListItem>
+      );
+    },
+    [colors, router],
+  );
   const hasResults = activeTab === 'products'
     ? filteredStores.length > 0 || filteredProducts.length > 0 || matchingPromos.length > 0
-    : filteredStores.length > 0 || filteredServices.length > 0;
+    : filteredStores.length > 0 || filteredServices.length > 0 || matchingPromos.length > 0;
   const hasCategoryResults = categoryItems.length > 0;
 
   const tabHalfWidth = (screenWidth - 20) / 2;
@@ -323,7 +611,13 @@ export default function SearchScreen() {
     );
   }
 
-  function renderCategoriesAndStores(categories: CategoryItem[], stores: any[]) {
+  // Perf (F4): renderCategoriesAndStores montava TODAS as lojas da plataforma de
+  // uma vez (`stores.map`), cada card com logo, dentro de um ScrollView. Hoje sao
+  // dezenas; isso cresce com o cadastro e nunca encolhe, e e a primeira coisa que
+  // a aba de busca mostra. Foi quebrada em cabecalho + lista para a lista virar
+  // FlatList: a grade de categorias (10 itens fixos) e as promocoes (cortadas em
+  // 6) viram header e footer, e so as lojas virtualizam.
+  function renderCategoriesGrid(categories: CategoryItem[], stores: any[], ofertas?: React.ReactNode) {
     return (
       <View>
         {/* Categories grid */}
@@ -342,30 +636,33 @@ export default function SearchScreen() {
           ))}
         </View>
 
-        {/* Stores list */}
+        {ofertas}
+
+        {/* Titulo da lista — so quando ha loja para listar, como antes */}
         {stores.length > 0 && (
-          <View style={{ marginTop: 20, gap: 6 }}>
+          <View style={{ marginTop: 20 }}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               {categories === PRODUCT_CATEGORIES ? 'Lojas' : 'Prestadores'}
             </Text>
-            {stores.map((store: any, index: number) => renderStoreCard(store, index))}
           </View>
         )}
+      </View>
+    );
+  }
 
-        {stores.length === 0 && (
-          <View style={{ marginTop: 20, alignItems: 'center', gap: 6 }}>
-            <Ionicons
-              name={categories === PRODUCT_CATEGORIES ? 'storefront-outline' : 'construct-outline'}
-              size={40}
-              color={colors.gray}
-            />
-            <Text style={{ fontSize: fonts.small, color: colors.textLight, textAlign: 'center' }}>
-              {categories === PRODUCT_CATEGORIES
-                ? 'Nenhuma loja de produtos disponivel'
-                : 'Nenhum prestador de servicos disponivel'}
-            </Text>
-          </View>
-        )}
+  function renderSemLojas(categories: CategoryItem[]) {
+    return (
+      <View style={{ marginTop: 20, alignItems: 'center', gap: 6 }}>
+        <Ionicons
+          name={categories === PRODUCT_CATEGORIES ? 'storefront-outline' : 'construct-outline'}
+          size={40}
+          color={colors.gray}
+        />
+        <Text style={{ fontSize: fonts.small, color: colors.textLight, textAlign: 'center' }}>
+          {categories === PRODUCT_CATEGORIES
+            ? 'Nenhuma loja de produtos disponivel'
+            : 'Nenhum prestador de servicos disponivel'}
+        </Text>
       </View>
     );
   }
@@ -392,19 +689,66 @@ export default function SearchScreen() {
           </View>
           {isProduct ? (
             <Text style={{ fontSize: fonts.small, fontWeight: '700', color: hasPromo ? colors.success : colors.text }}>
-              R$ {Number(hasPromo ? item.promotionalPrice : item.price).toFixed(2)}
+              {formatarReais(hasPromo ? item.promotionalPrice : item.price)}
             </Text>
           ) : item.requiresQuote ? (
             <Text style={{ fontSize: fonts.tiny, color: colors.primary, fontWeight: '600' }}>Orcamento</Text>
           ) : item.price ? (
             <Text style={{ fontSize: fonts.small, fontWeight: '700', color: colors.text }}>
-              R$ {Number(item.price).toFixed(2)}
+              {formatarReais(item.price)}
             </Text>
           ) : null}
         </AnimatedPressable>
       </AnimatedListItem>
     );
   }
+
+  // Faixa "Ofertas do momento": entre as categorias e a lista de lojas.
+  // Ofertas ja filtradas pelo tipo de loja da aba.
+  const faixaDeOfertas = (
+      <View style={{ marginTop: 20 }}>
+    {/* Promotions highlight */}
+    {promotions.length > 0 && (
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Ofertas do momento</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {promotions.slice(0, 6).map((promo: any, index: number) => {
+            const discount = promo.product?.price && promo.promotionalPrice
+              ? Math.round((1 - promo.promotionalPrice / promo.product.price) * 100) : 0;
+            return (
+              <AnimatedListItem key={promo.id} index={index}>
+              <AnimatedPressable
+                style={[styles.promoCard, { backgroundColor: colors.card }]}
+                onPress={() => router.push(`/promotion/${promo.id}`)}
+              >
+                {(promo.product?.imageUrl || promo.imageUrl) ? (
+                  <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy={imageCachePolicy} />
+                ) : (
+                  <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                    <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
+                  </View>
+                )}
+                {discount > 0 && (
+                  <View style={styles.promoBadge}>
+                    <Text style={styles.promoBadgeText}>-{discount}%</Text>
+                  </View>
+                )}
+                <View style={styles.promoInfo}>
+                  <Text style={[styles.promoName, { color: colors.text }]} numberOfLines={1}>{promo.title}</Text>
+                  <Text style={[styles.promoStore, { color: colors.textLight }]} numberOfLines={1}>{promo.store?.name}</Text>
+                  {promo.promotionalPrice && (
+                    <Text style={[styles.promoPrice, { color: colors.primary }]}>{formatarReais(promo.promotionalPrice)}</Text>
+                  )}
+                </View>
+              </AnimatedPressable>
+              </AnimatedListItem>
+            );
+          })}
+        </ScrollView>
+      </View>
+    )}
+      </View>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -569,163 +913,62 @@ export default function SearchScreen() {
         ) : (
           <>
             {/* Idle: categories + stores + promos */}
-            <ScrollView contentContainerStyle={styles.idleContent} onScrollBeginDrag={() => { setShowRecent(false); }}>
-              {/* Categories + stores — based on active tab */}
-              {activeTab === 'products'
-                ? renderCategoriesAndStores(PRODUCT_CATEGORIES, productStores)
-                : renderCategoriesAndStores(SERVICE_CATEGORIES, serviceStores)
+            <FlatList
+              data={idleStores}
+              keyExtractor={(item: any) => item.id}
+              renderItem={({ item, index }) => renderStoreCard(item, index)}
+              contentContainerStyle={styles.idleList}
+              ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
+              onScrollBeginDrag={() => { setShowRecent(false); }}
+              {...listPerfProps}
+              onEndReached={carregarMaisLojas}
+              onEndReachedThreshold={0.4}
+              ListHeaderComponent={
+                <>
+                  {activeTab === 'products'
+                    ? renderCategoriesGrid(PRODUCT_CATEGORIES, idleStores, faixaDeOfertas)
+                    : renderCategoriesGrid(SERVICE_CATEGORIES, idleStores, faixaDeOfertas)}
+                </>
               }
-
-              {/* Promotions highlight */}
-              {promotions.length > 0 && (
-                <View style={styles.section}>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Ofertas do momento</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {promotions.slice(0, 6).map((promo: any, index: number) => {
-                      const discount = promo.product?.price && promo.promotionalPrice
-                        ? Math.round((1 - promo.promotionalPrice / promo.product.price) * 100) : 0;
-                      return (
-                        <AnimatedListItem key={promo.id} index={index}>
-                        <AnimatedPressable
-                          style={[styles.promoCard, { backgroundColor: colors.card }]}
-                          onPress={() => router.push(`/promotion/${promo.id}`)}
-                        >
-                          {(promo.product?.imageUrl || promo.imageUrl) ? (
-                            <Image source={promo.product?.imageUrl || promo.imageUrl} style={styles.promoImage} cachePolicy={imageCachePolicy} />
-                          ) : (
-                            <View style={[styles.promoImage, { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
-                              <Ionicons name="megaphone-outline" size={18} color="#FFFFFF" />
-                            </View>
-                          )}
-                          {discount > 0 && (
-                            <View style={styles.promoBadge}>
-                              <Text style={styles.promoBadgeText}>-{discount}%</Text>
-                            </View>
-                          )}
-                          <View style={styles.promoInfo}>
-                            <Text style={[styles.promoName, { color: colors.text }]} numberOfLines={1}>{promo.title}</Text>
-                            <Text style={[styles.promoStore, { color: colors.textLight }]} numberOfLines={1}>{promo.store?.name}</Text>
-                            {promo.promotionalPrice && (
-                              <Text style={[styles.promoPrice, { color: colors.primary }]}>R$ {Number(promo.promotionalPrice).toFixed(2)}</Text>
-                            )}
-                          </View>
-                        </AnimatedPressable>
-                        </AnimatedListItem>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              )}
-            </ScrollView>
+              ListEmptyComponent={
+                activeTab === 'products'
+                  ? renderSemLojas(PRODUCT_CATEGORIES)
+                  : renderSemLojas(SERVICE_CATEGORIES)
+              }
+            />
 
             {/* Autocomplete overlay — only for text search without category */}
             {isSearching && (
               <View style={[styles.autocompleteOverlay, { backgroundColor: colors.background }]}>
-                <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 10 }}>
-                  {(productsLoading || servicesLoading) && (
+                <FlatList
+                  data={autocompleteItems}
+                  keyExtractor={(item) => item.key}
+                  renderItem={renderAutocompleteItem}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={{ padding: 10 }}
+                  {...listPerfProps}
+                  ListHeaderComponent={(productsLoading || servicesLoading) ? (
                     <View style={styles.loadingRow}>
                       <ActivityIndicator size="small" color={colors.primary} />
                       <Text style={[styles.loadingText, { color: colors.textLight }]}>Buscando...</Text>
                     </View>
-                  )}
-
-                  {/* Stores first (ja ordenadas no useMemo — sort no JSX mutava o array memoizado) */}
-                  {filteredStores.map((store: any, index: number) => (
-                    <AnimatedListItem key={`store-${store.id}`} index={index}>
-                    <AnimatedPressable
-                      style={[styles.acItem, { backgroundColor: colors.card }]}
-                      onPress={() => { setQuery(''); router.push(`/store/${store.id}`); }}
-                    >
-                      {store.logoUrl ? (
-                        <Image source={store.logoUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
-                      ) : (
-                        <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                          <Ionicons name="storefront-outline" size={16} color={colors.gray} />
+                  ) : null}
+                  ListEmptyComponent={
+                    /* `hasResults` inclui as promocoes casadas, e agora elas
+                       ESTAO nesta lista (KAN-297) — logo, "nada a mostrar" e
+                       "nenhum resultado" voltaram a ser a mesma coisa, e nao
+                       existe mais o caso de overlay vazio e silencioso. */
+                    !(productsLoading || servicesLoading) && !hasResults && debouncedQuery.length >= 2 ? (
+                      <AnimatedItem delay={100} fromY={20}>
+                        <View style={styles.emptyContainer}>
+                          <Ionicons name="search-outline" size={56} color={colors.grayLight} />
+                          <Text style={[styles.emptyText, { color: colors.textLight }]}>Nenhum resultado para "{debouncedQuery}"</Text>
+                          <Text style={[styles.emptySubtext, { color: colors.gray }]}>Tente buscar com outras palavras</Text>
                         </View>
-                      )}
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{store.name}</Text>
-                        <Text style={{ fontSize: fonts.tiny, color: colors.gray }}>
-                          {(store.storeType || 'PRODUCTS') === 'PRODUCTS' ? 'Loja' : 'Prestador'}
-                        </Text>
-                      </View>
-                      <View style={[styles.acBadge, { backgroundColor: colors.primary + '20' }]}>
-                        <Ionicons name="storefront" size={12} color={colors.primary} />
-                      </View>
-                    </AnimatedPressable>
-                    </AnimatedListItem>
-                  ))}
-
-                  {/* Products (products tab) — ja ordenados no useMemo */}
-                  {activeTab === 'products' && filteredProducts
-                    .map((product: any, index: number) => {
-                      const hasPromo = product.promotionalPrice && product.promotionalPrice < product.price;
-                      return (
-                        <AnimatedListItem key={`prod-${product.id}`} index={filteredStores.length + index}>
-                        <AnimatedPressable
-                          style={[styles.acItem, { backgroundColor: colors.card }]}
-                          onPress={() => { setQuery(''); router.push(`/store/${product.store?.id}`); }}
-                        >
-                          {product.imageUrl ? (
-                            <Image source={product.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
-                          ) : (
-                            <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                              <Ionicons name="cube-outline" size={16} color={colors.gray} />
-                            </View>
-                          )}
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{product.name}</Text>
-                            <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{product.store?.name}</Text>
-                          </View>
-                          <Text style={{ fontSize: fonts.small, fontWeight: '700', color: hasPromo ? colors.success : colors.text }}>
-                            R$ {Number(hasPromo ? product.promotionalPrice : product.price).toFixed(2)}
-                          </Text>
-                        </AnimatedPressable>
-                        </AnimatedListItem>
-                      );
-                    })}
-
-                  {/* Services (services tab) — ja ordenados no useMemo */}
-                  {activeTab === 'services' && filteredServices
-                    .map((service: any, index: number) => (
-                      <AnimatedListItem key={`svc-${service.id}`} index={filteredStores.length + index}>
-                      <AnimatedPressable
-                        style={[styles.acItem, { backgroundColor: colors.card }]}
-                        onPress={() => { setQuery(''); router.push(`/store/${service.store?.id}`); }}
-                      >
-                        {service.imageUrl ? (
-                          <Image source={service.imageUrl} style={styles.acLogo} cachePolicy={imageCachePolicy} />
-                        ) : (
-                          <View style={[styles.acLogo, { backgroundColor: colors.grayLight, justifyContent: 'center', alignItems: 'center' }]}>
-                            <Ionicons name="construct-outline" size={16} color={colors.gray} />
-                          </View>
-                        )}
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.acName, { color: colors.text }]} numberOfLines={1}>{service.name}</Text>
-                          <Text style={{ fontSize: fonts.tiny, color: colors.gray }} numberOfLines={1}>{service.store?.name}</Text>
-                        </View>
-                        {service.requiresQuote ? (
-                          <Text style={{ fontSize: fonts.tiny, color: colors.primary, fontWeight: '600' }}>Orcamento</Text>
-                        ) : service.price ? (
-                          <Text style={{ fontSize: fonts.small, fontWeight: '700', color: colors.text }}>
-                            R$ {Number(service.price).toFixed(2)}
-                          </Text>
-                        ) : null}
-                      </AnimatedPressable>
-                      </AnimatedListItem>
-                    ))}
-
-                  {/* Empty state */}
-                  {!(productsLoading || servicesLoading) && !hasResults && debouncedQuery.length >= 2 && (
-                    <AnimatedItem delay={100} fromY={20}>
-                    <View style={styles.emptyContainer}>
-                      <Ionicons name="search-outline" size={56} color={colors.grayLight} />
-                      <Text style={[styles.emptyText, { color: colors.textLight }]}>Nenhum resultado para "{debouncedQuery}"</Text>
-                      <Text style={[styles.emptySubtext, { color: colors.gray }]}>Tente buscar com outras palavras</Text>
-                    </View>
-                    </AnimatedItem>
-                  )}
-                </ScrollView>
+                      </AnimatedItem>
+                    ) : null
+                  }
+                />
               </View>
             )}
           </>
@@ -815,7 +1058,11 @@ const styles = StyleSheet.create({
   },
 
   // Idle state
-  idleContent: { padding: 10, gap: 28 },
+  // Conteudo do idle. O ScrollView antigo usava `gap: 28` para separar os dois
+  // blocos (categorias+lojas e promocoes); com o FlatList (Perf F4) o
+  // espacamento entre cards vem do ItemSeparatorComponent (6, como era) e o dos
+  // blocos vem da margem do rodape (28, como era), entao aqui sobra o padding.
+  idleList: { padding: 10 },
   section: { gap: 6 },
   sectionTitle: { fontSize: fonts.large, fontWeight: '600' },
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking, ActivityIndicator, Alert, Modal, TextInput, Share } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Linking, ActivityIndicator,  Modal, TextInput, Share } from 'react-native';
 import { Image } from 'expo-image';
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -8,11 +8,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { devLog } from '../../src/lib/devLog'; // KAN-223
 import { GET_ORDER } from '../../src/lib/graphql/queries';
 import { CONFIRM_RECEIPT, CONFIRM_PICKUP, CONFIRM_DELIVERY, CUSTOMER_DENY_DELIVERY, CANCEL_ORDER, DISPUTE_COMPLETED_ORDER, CANCEL_DISPUTE } from '../../src/lib/graphql/mutations';
+import { CodigoDoCliente } from '../../src/components/CodigoDoCliente';
 import { ORDER_UPDATED, DELIVERY_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { fonts } from '../../src/theme';
+import { alerta } from '../../src/lib/alerta';
+import { telefoneParaDiscar } from '../../src/lib/telefone';
+import { formatarReais } from '../../src/lib/dinheiro';
+
+// O que acontece com o dinheiro de um pedido cancelado. Um texto so, usado no
+// alerta do cancelamento e no aviso da tela: antes eram dois textos que
+// decidiam so pela FORMA de pagamento e se contradiziam (PIX: "24h" num,
+// "7 dias uteis" no outro), e prometiam estorno ate para PIX que nunca foi
+// pago. `cobrancaFeita` vem da API.
+function textoDoEstorno(order?: { cobrancaFeita?: boolean | null; paymentMethod?: string | null } | null): string {
+  if (!order?.cobrancaFeita) return 'Nenhuma cobrança foi feita.';
+  if (order.paymentMethod === 'CREDIT_CARD') return 'O estorno aparece no seu cartão em até 7 dias úteis.';
+  return 'O valor do PIX volta para a sua conta em até 24h.';
+}
 
 // M9: AWAITING_PAYMENT added as first status step
 const statusSteps = [
@@ -26,7 +41,7 @@ const statusSteps = [
   { key: 'VENDOR_CONFIRMED_PICKUP', label: 'Saiu da loja', icon: 'storefront-outline' as const },
   { key: 'DELIVERING', label: 'A caminho', icon: 'navigate-outline' as const },
   { key: 'DELIVERER_CONFIRMED_DELIVERY', label: 'Entregue', icon: 'checkmark-done-outline' as const },
-  { key: 'COMPLETED', label: 'Finalizado', icon: 'checkmark-circle' as const },
+  { key: 'COMPLETED', label: 'Concluído', icon: 'checkmark-circle' as const },
 ];
 
 const terminalStatuses = ['REJECTED', 'DISPUTED', 'CANCELLED', 'EXPIRED'];
@@ -107,7 +122,12 @@ export default function OrderDetailScreen() {
   const isDeliverer = user?.role === 'DELIVERER' || user?.isDeliverer;
 
   // Countdown timer for delivery confirmation (customer)
-  const needsCustomerAction = order?.status === 'DELIVERER_CONFIRMED_DELIVERY';
+  // DELIVERED = retirada no balcão ou frota própria, fechada pelo lojista. O
+  // servidor aceita a confirmação do cliente aqui também (e confirma sozinho em
+  // ~10 min), mas o botão só existia no fluxo do entregador do app.
+  const needsCustomerAction =
+    order?.status === 'DELIVERER_CONFIRMED_DELIVERY' ||
+    (order?.status === 'DELIVERED' && !order?.customerConfirmedAt);
   const delivererConfirmedAt = order?.delivererConfirmedDeliveryAt;
 
   useEffect(() => {
@@ -176,12 +196,25 @@ export default function OrderDetailScreen() {
   useEffect(() => {
     if (pixModalVisible && pixTimeLeft === 0) {
       setPixModalVisible(false);
-      Alert.alert(
+      alerta(
         'PIX expirado',
         'O prazo deste PIX terminou. Faça o pedido novamente para gerar um novo código.',
       );
     }
   }, [pixModalVisible, pixTimeLeft]);
+
+  // Fecha o modal quando o PAGAMENTO chega. O status do pedido já atualizava
+  // ao vivo por trás, mas o modal só fechava ao expirar: a pessoa pagava no
+  // app do banco, voltava e continuava vendo o QR e o cronômetro — convite a
+  // pagar de novo.
+  useEffect(() => {
+    if (pixModalVisible && order?.status && order.status !== 'AWAITING_PAYMENT') {
+      setPixModalVisible(false);
+      if (order.status !== 'CANCELLED' && order.status !== 'EXPIRED') {
+        alerta('Pagamento confirmado', 'Recebemos o seu PIX. A loja já vai preparar o pedido.');
+      }
+    }
+  }, [pixModalVisible, order?.status]);
 
   const handleCopyPixCode = async () => {
     if (!order?.pixQrCode) return;
@@ -200,9 +233,13 @@ export default function OrderDetailScreen() {
 
   // M10: Confirmation dialog before confirming receipt
   const handleConfirmReceipt = async () => {
-    Alert.alert(
+    alerta(
       'Confirmar recebimento?',
-      'Ao confirmar, o pagamento sera liberado ao entregador.',
+      order?.paymentMethod === 'ON_DELIVERY'
+        ? 'Confirme que recebeu o seu pedido.'
+        : order?.status === 'DELIVERED'
+          ? 'Ao confirmar, o pagamento é liberado para a loja.'
+          : 'Ao confirmar, o pagamento sera liberado ao entregador.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -210,10 +247,10 @@ export default function OrderDetailScreen() {
           onPress: async () => {
             try {
               await confirmReceipt({ variables: { orderId: id } });
-              Alert.alert('Confirmado!', 'Recebimento confirmado com sucesso.');
+              alerta('Confirmado!', 'Recebimento confirmado com sucesso.');
               refetch();
             } catch (err: any) {
-              Alert.alert('Erro', err.message);
+              alerta('Erro', err.message);
             }
           },
         },
@@ -224,7 +261,7 @@ export default function OrderDetailScreen() {
   const handleDenyDelivery = async () => {
     const reason = selectedDenyReason === 'Outro' ? customDenyReason.trim() : selectedDenyReason;
     if (!reason) {
-      Alert.alert('Erro', 'Selecione ou digite um motivo.');
+      alerta('Erro', 'Selecione ou digite um motivo.');
       return;
     }
     try {
@@ -232,10 +269,10 @@ export default function OrderDetailScreen() {
       setDenyModalVisible(false);
       setSelectedDenyReason(null);
       setCustomDenyReason('');
-      Alert.alert('Enviado', 'Sua contestação foi registrada.');
+      alerta('Enviado', 'Sua contestação foi registrada.');
       refetch();
     } catch (err: any) {
-      Alert.alert('Erro', err.message);
+      alerta('Erro', err.message);
     }
   };
 
@@ -251,10 +288,10 @@ export default function OrderDetailScreen() {
     confirmingRef.current = true;
     try {
       await confirmPickup({ variables: { deliveryId: order.delivery.id } });
-      Alert.alert('Confirmado!', 'Retirada confirmada.');
+      alerta('Confirmado!', 'Retirada confirmada.');
       refetch();
     } catch (err: any) {
-      Alert.alert('Erro', err.message);
+      alerta('Erro', err.message);
     } finally {
       confirmingRef.current = false;
     }
@@ -266,17 +303,17 @@ export default function OrderDetailScreen() {
     confirmingRef.current = true;
     try {
       await confirmDelivery({ variables: { deliveryId: order.delivery.id } });
-      Alert.alert('Confirmado!', 'Entrega confirmada.');
+      alerta('Confirmado!', 'Entrega confirmada.');
       refetch();
     } catch (err: any) {
-      Alert.alert('Erro', err.message);
+      alerta('Erro', err.message);
     } finally {
       confirmingRef.current = false;
     }
   };
 
   const handleCancelOrder = () => {
-    Alert.alert(
+    alerta(
       'Cancelar pedido',
       'Tem certeza que deseja cancelar este pedido?',
       [
@@ -288,15 +325,10 @@ export default function OrderDetailScreen() {
             try {
               await cancelOrder({ variables: { orderId: id } });
               // M8: Show payment-method-specific refund message
-              const refundMsg = order?.paymentMethod === 'PIX'
-                ? 'O reembolso via PIX sera processado em ate 24h.'
-                : order?.paymentMethod === 'CREDIT_CARD'
-                ? 'O estorno sera processado em ate 7 dias uteis.'
-                : 'Nenhuma cobranca foi efetuada.';
-              Alert.alert('Cancelado', `Pedido cancelado. ${refundMsg}`);
+              alerta('Cancelado', `Pedido cancelado. ${textoDoEstorno(order)}`);
               refetch();
             } catch (err: any) {
-              Alert.alert('Erro', err.message);
+              alerta('Erro', err.message);
             }
           },
         },
@@ -307,7 +339,7 @@ export default function OrderDetailScreen() {
   const handleDisputeCompleted = async () => {
     const reason = selectedDisputeReason === 'Outro' ? customDisputeReason.trim() : selectedDisputeReason;
     if (!reason) {
-      Alert.alert('Erro', 'Selecione ou digite um motivo.');
+      alerta('Erro', 'Selecione ou digite um motivo.');
       return;
     }
     try {
@@ -315,10 +347,10 @@ export default function OrderDetailScreen() {
       setDisputeModalVisible(false);
       setSelectedDisputeReason(null);
       setCustomDisputeReason('');
-      Alert.alert('Enviado', 'Sua reclamação foi registrada. Analisaremos em breve.');
+      alerta('Enviado', 'Sua reclamação foi registrada. Analisaremos em breve.');
       refetch();
     } catch (err: any) {
-      Alert.alert('Erro', err.message);
+      alerta('Erro', err.message);
     }
   };
 
@@ -409,7 +441,7 @@ export default function OrderDetailScreen() {
             const restante = segundosRestantesPix();
             setPixTimeLeft(restante);
             if (restante <= 0) {
-              Alert.alert(
+              alerta(
                 'PIX expirado',
                 'O prazo deste PIX terminou. Faça o pedido novamente para gerar um novo código.',
               );
@@ -471,14 +503,14 @@ export default function OrderDetailScreen() {
                   style={{ backgroundColor: colors.success, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginLeft: 8 }}
                   disabled={cancellingDispute}
                   onPress={() => {
-                    Alert.alert('Cancelar reclamação', 'Tem certeza que deseja cancelar a reclamação? O pedido voltará para "Finalizado".', [
+                    alerta('Cancelar reclamação', 'Tem certeza que deseja cancelar a reclamação? O pedido voltará para "Concluído".', [
                       { text: 'Não', style: 'cancel' },
                       { text: 'Sim, cancelar', onPress: async () => {
                         try {
                           await cancelDisputeMutation({ variables: { orderId: id } });
                           refetch();
                         } catch (err: any) {
-                          Alert.alert('Erro', err?.message || 'Não foi possível cancelar a reclamação.');
+                          alerta('Erro', err?.message || 'Não foi possível cancelar a reclamação.');
                         }
                       }},
                     ]);
@@ -516,9 +548,7 @@ export default function OrderDetailScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.terminalBannerTitle, { color: isDark ? '#FCA5A5' : '#721C24' }]}>Pedido cancelado</Text>
             <Text style={[styles.terminalBannerSub, { color: isDark ? '#FCA5A5' : '#721C24' }]}>
-              {order.paymentMethod === 'ON_DELIVERY'
-                ? 'Nenhuma cobrança foi feita.'
-                : 'O estorno será processado no seu meio de pagamento em até 7 dias úteis.'}
+              {textoDoEstorno(order)}
             </Text>
           </View>
         </View>
@@ -585,15 +615,31 @@ export default function OrderDetailScreen() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.delivererName, { color: colors.text }]}>{order.delivery.deliverer.name}</Text>
             <Text style={[styles.delivererPhone, { color: colors.textLight }]}>
-              {order.status === 'DELIVERING' ? 'Saiu para entrega' : order.status === 'DELIVERER_CONFIRMED_DELIVERY' ? 'Entrega confirmada' : 'Entregador a caminho'}
+              {/* Antes, todo status fora desses dois caía em "Entregador a
+                  caminho" — inclusive pedido concluído ou cancelado. */}
+              {({
+                READY: 'Indo buscar na loja',
+                VENDOR_CONFIRMED_PICKUP: 'Retirando na loja',
+                PICKED_UP: 'Saiu para entrega',
+                DELIVERING: 'Saiu para entrega',
+                DELIVERER_CONFIRMED_DELIVERY: 'Entrega confirmada',
+                COMPLETED: 'Entregou o seu pedido',
+                DISPUTED: 'Entrega em análise',
+                CANCELLED: 'Entrega cancelada',
+              } as Record<string, string>)[order.status] || 'Entregador do pedido'}
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.callButton}
-            onPress={() => order.delivery.deliverer.phone && Linking.openURL(`https://wa.me/55${order.delivery.deliverer.phone.replace(/\D/g, '')}`)}
-          >
-            <Ionicons name="call" size={18} color={colors.primary} />
-          </TouchableOpacity>
+          {/* wa.me precisa de 55 + DDD + número, sem "+". Antes era "55" +
+              os dígitos crus: telefone já gravado com 55 virava 5555... e o
+              WhatsApp abria a conversa com outro número. */}
+          {!!telefoneParaDiscar(order.delivery.deliverer.phone) && (
+            <TouchableOpacity
+              style={styles.callButton}
+              onPress={() => Linking.openURL(`https://wa.me/${telefoneParaDiscar(order.delivery.deliverer.phone)!.slice(1)}`)}
+            >
+              <Ionicons name="call" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          )}
           {order.delivery.currentLatitude && order.delivery.currentLongitude && order.deliveryLatitude && order.deliveryLongitude && (
             <TouchableOpacity
               style={styles.callButton}
@@ -605,8 +651,34 @@ export default function OrderDetailScreen() {
         </View>
       )}
 
-      {/* Deliverer action buttons */}
-      {isDeliverer && order.status === 'VENDOR_CONFIRMED_PICKUP' && (
+      {/* O CÓDIGO DO CLIENTE.
+          `!isDeliverer` é a condição que importa aqui: esta tela serve ao
+          cliente E ao entregador, e o código do cliente na sessão do entregador
+          derrubaria o esquema inteiro. O componente também exige a prop e o
+          servidor valida a posse — três camadas, nenhuma confiando na outra. */}
+      {!!order.usaCodigoDeEntrega &&
+        !isDeliverer &&
+        ['ACCEPTED', 'PREPARING', 'READY', 'PICKED_UP', 'VENDOR_CONFIRMED_PICKUP', 'DELIVERING'].includes(
+          order.status,
+        ) && <CodigoDoCliente orderId={order.id} ehOCliente={!isDeliverer} />}
+
+      {/* Deliverer action buttons.
+          Em pedido COM código estes botões não aparecem: o servidor os recusa,
+          e o fluxo de códigos vive na aba de Entregas. A escolha de APONTAR em
+          vez de duplicar o fluxo aqui é deliberada — caminho de dinheiro em
+          duas telas é como as duas implementações começam a divergir. */}
+      {isDeliverer && !!order.usaCodigoDeEntrega &&
+        ['READY', 'VENDOR_CONFIRMED_PICKUP', 'PICKED_UP', 'DELIVERING'].includes(order.status) && (
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/(tabs)/deliveries')}
+        >
+          <Ionicons name="keypad-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.actionButtonText}>Confirmar por código (ir para Entregas)</Text>
+        </TouchableOpacity>
+      )}
+
+      {isDeliverer && !order.usaCodigoDeEntrega && order.status === 'VENDOR_CONFIRMED_PICKUP' && (
         <TouchableOpacity
           style={[styles.actionButton, { backgroundColor: colors.primary }]}
           onPress={handleConfirmPickup}
@@ -623,7 +695,7 @@ export default function OrderDetailScreen() {
         </TouchableOpacity>
       )}
 
-      {isDeliverer && order.status === 'DELIVERING' && (
+      {isDeliverer && !order.usaCodigoDeEntrega && order.status === 'DELIVERING' && (
         <TouchableOpacity
           style={[styles.actionButton, { backgroundColor: colors.success }]}
           onPress={handleConfirmDelivery}
@@ -645,10 +717,14 @@ export default function OrderDetailScreen() {
         <View style={[styles.confirmCard, { backgroundColor: colors.card, borderColor: colors.success }]}>
           <View style={styles.confirmHeader}>
             <Ionicons name="checkmark-circle" size={26} color={colors.success} />
-            <Text style={[styles.confirmTitle, { color: colors.text }]}>Pedido entregue!</Text>
+            <Text style={[styles.confirmTitle, { color: colors.text }]}>
+              {order.isPickup ? 'Pedido retirado!' : 'Pedido entregue!'}
+            </Text>
           </View>
           <Text style={[styles.confirmSubtitle, { color: colors.textLight }]}>
-            Confirme que recebeu seu pedido para liberar o pagamento ao entregador.
+            {order.status === 'DELIVERED'
+              ? 'Confirme que está tudo certo com o seu pedido.'
+              : 'Confirme que recebeu seu pedido para liberar o pagamento ao entregador.'}
           </Text>
           {timeLeft !== null && timeLeft > 0 && (
             <Text style={[styles.confirmTimer, { color: colors.primary }]}>
@@ -679,14 +755,18 @@ export default function OrderDetailScreen() {
               </>
             )}
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.denyButton, { borderColor: colors.danger }]}
-            onPress={() => setDenyModalVisible(true)}
-            disabled={denying}
-          >
-            <Ionicons name="close-circle-outline" size={18} color={colors.danger} />
-            <Text style={[styles.denyButtonText, { color: colors.danger }]}>Não recebi o pedido</Text>
-          </TouchableOpacity>
+          {/* "Não recebi" só vale contra o entregador do app (o servidor recusa
+              fora de DELIVERER_CONFIRMED_DELIVERY). */}
+          {order.status === 'DELIVERER_CONFIRMED_DELIVERY' && (
+            <TouchableOpacity
+              style={[styles.denyButton, { borderColor: colors.danger }]}
+              onPress={() => setDenyModalVisible(true)}
+              disabled={denying}
+            >
+              <Ionicons name="close-circle-outline" size={18} color={colors.danger} />
+              <Text style={[styles.denyButtonText, { color: colors.danger }]}>Não recebi o pedido</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -731,7 +811,7 @@ export default function OrderDetailScreen() {
             <View key={item.id} style={styles.itemRow}>
               <Text style={[styles.itemQty, { color: colors.textLight }]}>{weightLabel ? weightLabel : `${item.quantity}x`}</Text>
               <Text style={[styles.itemName, { color: colors.text }]}>{item.product?.name || 'Produto removido'}</Text>
-              <Text style={[styles.itemPrice, { color: colors.text }]}>R$ {Number(item.totalPrice).toFixed(2)}</Text>
+              <Text style={[styles.itemPrice, { color: colors.text }]}>{formatarReais(item.totalPrice)}</Text>
             </View>
           );
         })}
@@ -745,15 +825,15 @@ export default function OrderDetailScreen() {
       <View style={[styles.section, { backgroundColor: colors.card }]}>
         <View style={styles.totalRow}>
           <Text style={[styles.totalLabel, { color: colors.textLight }]}>Subtotal</Text>
-          <Text style={[styles.totalValue, { color: colors.text }]}>R$ {Number(order.subtotal).toFixed(2)}</Text>
+          <Text style={[styles.totalValue, { color: colors.text }]}>{formatarReais(order.subtotal)}</Text>
         </View>
         <View style={styles.totalRow}>
           <Text style={[styles.totalLabel, { color: colors.textLight }]}>Entrega</Text>
-          <Text style={[styles.totalValue, { color: colors.text }]}>R$ {Number(order.deliveryFee).toFixed(2)}</Text>
+          <Text style={[styles.totalValue, { color: colors.text }]}>{formatarReais(order.deliveryFee)}</Text>
         </View>
         <View style={[styles.totalRow, styles.grandTotal, { borderTopColor: colors.grayLight }]}>
           <Text style={[styles.grandTotalLabel, { color: colors.text }]}>Total</Text>
-          <Text style={[styles.grandTotalValue, { color: colors.primary }]}>R$ {Number(order.total).toFixed(2)}</Text>
+          <Text style={[styles.grandTotalValue, { color: colors.primary }]}>{formatarReais(order.total)}</Text>
         </View>
       </View>
 
@@ -786,10 +866,15 @@ export default function OrderDetailScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.pixModalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
+            <View style={styles.pixModalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Pagar com PIX</Text>
-              <TouchableOpacity onPress={() => setPixModalVisible(false)}>
-                <Ionicons name="close" size={18} color={colors.text} />
+              <TouchableOpacity
+                style={styles.pixModalFechar}
+                onPress={() => setPixModalVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityLabel="Fechar"
+              >
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -814,7 +899,7 @@ export default function OrderDetailScreen() {
 
             {/* Amount */}
             <Text style={[styles.pixAmount, { color: colors.text }]}>
-              R$ {Number(order?.total || 0).toFixed(2)}
+              {formatarReais(order?.total || 0)}
             </Text>
             <Text style={[styles.pixLabel, { color: colors.textLight }]}>
               Pedido #{order?.orderNumber}
@@ -1162,6 +1247,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalTitle: { fontSize: fonts.xlarge, fontWeight: 'bold' },
+  // O conteudo do modal do PIX centraliza os filhos: com o modalHeader comum
+  // a linha encolhia ate o tamanho do titulo e o X ficava colado nele.
+  pixModalHeader: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 32,
+    marginBottom: 8,
+  },
+  pixModalFechar: { position: 'absolute', right: 0, top: 0, padding: 4 },
   modalSubtitle: { fontSize: fonts.regular, marginBottom: 12 },
   reasonOption: {
     flexDirection: 'row',

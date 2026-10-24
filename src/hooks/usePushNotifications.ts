@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { Alert, Platform } from 'react-native';
+import {  Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { useMutation } from '@apollo/client';
 import { useAuth } from '../contexts/AuthContext';
 import { REGISTER_PUSH_TOKEN } from '../lib/graphql/mutations';
 import { devLog } from '../lib/devLog';
 import { router } from 'expo-router';
+import { alerta } from '../lib/alerta';
 
 let Notifications: any = null;
 let Device: any = null;
@@ -118,7 +119,7 @@ export function usePushNotifications() {
       const body = notification.request.content.body;
 
       if (data?.type === 'REQUEST_CANCEL_DISPUTE' && data?.orderId) {
-        Alert.alert(
+        alerta(
           title || 'Solicitação da loja',
           body || 'A loja pediu para você cancelar a reclamação.',
           [

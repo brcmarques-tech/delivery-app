@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,11 @@ import { colors as staticColors, fonts } from '../src/theme';
 import { AnimatedItem } from '../src/components/AnimatedItem';
 import { AnimatedListItem } from '../src/components/AnimatedListItem';
 import { AnimatedPressable } from '../src/components/AnimatedPressable';
+
+// KAN-282 (item 6): a soma crua do app divergia do servidor em centavos.
+// A formula do servidor agora vive em um lugar so.
+import { totalDaLinha } from '../src/lib/precoPorPeso';
+import { formatarReais } from '../src/lib/dinheiro';
 
 function formatWeight(grams: number) {
   if (grams >= 1000) {
@@ -47,9 +52,7 @@ const CartRow = React.memo(function CartRow({
   onRemove: (id: string) => void;
   onEdit: (item: CartItem) => void;
 }) {
-  const itemTotal = item.isVariableWeight
-    ? (item.price * (item.weightGrams || 0)) / 1000
-    : item.price * item.quantity;
+  const itemTotal = totalDaLinha(item);
 
   const qtyLabel = item.isVariableWeight
     ? formatWeight(item.weightGrams || 0)
@@ -80,7 +83,7 @@ const CartRow = React.memo(function CartRow({
 
         <View style={styles.itemInfo}>
           <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={2}>{item.name}</Text>
-          <Text style={[styles.itemPrice, { color: colors.primary }]}>R$ {itemTotal.toFixed(2)}</Text>
+          <Text style={[styles.itemPrice, { color: colors.primary }]}>{formatarReais(itemTotal)}</Text>
           {item.notes ? (
             <Text style={[styles.itemNotes, { color: colors.textLight }]} numberOfLines={1}>{item.notes}</Text>
           ) : null}
@@ -112,6 +115,48 @@ export default function CartScreen() {
   const { colors } = useTheme();
   const { items, updateQuantity, updateWeight, removeItem, clearCart } = useCart();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Seleção automática. Antes tudo chegava DESMARCADO: a pessoa tocava em "Ver
+  // carrinho" e via "0 itens · R$ 0,00" com o Comprar apagado.
+  //
+  // O checkout aceita uma loja por vez, então "marcar tudo" não serve com duas
+  // lojas no carrinho. Regra: ao abrir, marca a loja do último produto
+  // adicionado; depois, item novo DESSA loja já entra marcado. A seleção é por
+  // id, e o id troca quando o servidor confirma o item (o provisório
+  // `local-...` vira o definitivo) — por isso item "novo" de uma loja já
+  // marcada também entra, ou a confirmação desmarcaria o que a pessoa escolheu.
+  //
+  // A loja escolhida fica numa ref, e não só implícita nos ids marcados: ao
+  // abrir, os itens chegam em duas levas (os salvos no aparelho e depois os do
+  // servidor, com OUTROS ids). Sem a ref, a segunda leva apagava a seleção
+  // inteira e nada voltava a ser marcado.
+  const idsVistosRef = useRef<Set<string>>(new Set());
+  const lojaEscolhidaRef = useRef<string | null>(null);
+  useEffect(() => {
+    // Durante a sincronização com o servidor a lista fica vazia por um
+    // instante. Podar a seleção nesse momento apagava a escolha, e quando os
+    // MESMOS itens voltavam (já "vistos") nada era marcado de novo.
+    if (items.length === 0) return;
+    const novos = items.filter((i) => !idsVistosRef.current.has(i.id));
+    novos.forEach((i) => idsVistosRef.current.add(i.id));
+    setSelectedIds((prev) => {
+      const aindaExistem = new Set([...prev].filter((id) => items.some((i) => i.id === id)));
+      if (novos.length === 0 && aindaExistem.size === prev.size) return prev;
+      const lojaMarcada =
+        items.find((i) => aindaExistem.has(i.id))?.storeId ??
+        lojaEscolhidaRef.current ??
+        items[items.length - 1]?.storeId;
+      if (lojaMarcada) {
+        for (const i of novos) if (i.storeId === lojaMarcada) aindaExistem.add(i.id);
+      }
+      return aindaExistem;
+    });
+  }, [items]);
+  // Acompanha a escolha manual: marcar itens de outra loja muda a "loja da vez".
+  useEffect(() => {
+    const loja = items.find((i) => selectedIds.has(i.id))?.storeId;
+    if (loja) lojaEscolhidaRef.current = loja;
+  }, [items, selectedIds]);
 
   // Adjustment modal state
   const [editingItem, setEditingItem] = useState<CartItem | null>(null);
@@ -154,12 +199,7 @@ export default function CartScreen() {
   const selectedTotal = useMemo(() => {
     return items
       .filter((i) => selectedIds.has(i.id))
-      .reduce((sum, item) => {
-        if (item.isVariableWeight) {
-          return sum + (item.price * (item.weightGrams || 0)) / 1000;
-        }
-        return sum + item.price * item.quantity;
-      }, 0);
+      .reduce((sum, item) => sum + totalDaLinha(item), 0);
   }, [items, selectedIds]);
 
   const selectedCount = selectedIds.size;
@@ -347,7 +387,7 @@ export default function CartScreen() {
             <Text style={[styles.footerLabel, { color: colors.textLight }]}>
               {selectedCount} {selectedCount === 1 ? 'item' : 'itens'}
             </Text>
-            <Text style={[styles.footerTotal, { color: colors.text }]}>R$ {selectedTotal.toFixed(2)}</Text>
+            <Text style={[styles.footerTotal, { color: colors.text }]}>{formatarReais(selectedTotal)}</Text>
           </View>
           <TouchableOpacity
             style={[
@@ -393,7 +433,7 @@ export default function CartScreen() {
 
             {isWeight && editingItem && (
               <Text style={[styles.editorSubtext, { color: colors.textLight }]}>
-                R$ {((editingItem.price * editValue) / 1000).toFixed(2)}
+                {formatarReais(((editingItem.price * editValue) / 1000))}
               </Text>
             )}
 

@@ -31,6 +31,13 @@ import { imageCachePolicy } from '../../src/lib/deviceTier'; // Perf (F0)
 import { AnimatedListItem } from '../../src/components/AnimatedListItem';
 import { AnimatedPressable } from '../../src/components/AnimatedPressable';
 import { AnimatedItem } from '../../src/components/AnimatedItem';
+import { formatarReais } from '../../src/lib/dinheiro';
+
+// Perf (F6): teto do carrossel de Destaques. O carrossel e horizontal e o
+// usuario desliza alguns itens — montar a lista inteira de promocoes ativas
+// (cada uma com imagem) nunca teve retorno, e o custo crescia com cada
+// promocao vendida.
+const LIMITE_DESTAQUES = 10;
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -40,7 +47,14 @@ export default function HomeScreen() {
   const { height: screenHeight } = useWindowDimensions();
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
 
-  const { data: promosData, refetch: refetchPromos, loading: promosLoading } = useQuery(GET_ACTIVE_PROMOTIONS);
+  // Perf (F6): o carrossel de Destaques montava TODAS as promocoes ativas, cada
+  // uma com imagem, num ScrollView horizontal — crescia com cada promocao
+  // vendida e nunca encolhia. Agora pede um teto, e a tela corta no mesmo teto
+  // para nao depender do que houver no cache.
+  const { data: promosData, refetch: refetchPromos, loading: promosLoading } = useQuery(
+    GET_ACTIVE_PROMOTIONS,
+    { variables: { limit: LIMITE_DESTAQUES, offset: 0 } },
+  );
   const { data: popularData, refetch: refetchPopular } = useQuery(GET_POPULAR_PRODUCTS, {
     variables: { limit: 12 },
   });
@@ -70,7 +84,7 @@ export default function HomeScreen() {
     onData: () => { refetchPromos(); },
   });
 
-  const promotions = promosData?.activePromotions || [];
+  const promotions = (promosData?.activePromotions || []).slice(0, LIMITE_DESTAQUES);
   const popularProducts = popularData?.popularProducts || [];
   const reorderProducts = reorderData?.reorderSuggestions || [];
   const frequentStores = frequentData?.frequentStores || [];
@@ -136,15 +150,15 @@ export default function HomeScreen() {
             {hasPromo ? (
               <>
                 <Text style={{ fontSize: 10, color: colors.gray, textDecorationLine: 'line-through' }}>
-                  R$ {Number(product.price).toFixed(2)}
+                  {formatarReais(product.price)}
                 </Text>
                 <Text style={[styles.productPrice, { color: colors.success }]}>
-                  R$ {Number(product.promotionalPrice).toFixed(2)}
+                  {formatarReais(product.promotionalPrice)}
                 </Text>
               </>
             ) : (
               <Text style={[styles.productPrice, { color: colors.text }]}>
-                R$ {Number(product.price).toFixed(2)}
+                {formatarReais(product.price)}
               </Text>
             )}
           </View>
@@ -249,15 +263,15 @@ export default function HomeScreen() {
                       {promoPrice && originalPrice ? (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
                           <Text style={{ fontSize: fonts.tiny, color: colors.gray, textDecorationLine: 'line-through' }}>
-                            R$ {Number(originalPrice).toFixed(2)}
+                            {formatarReais(originalPrice)}
                           </Text>
                           <Text style={{ fontSize: fonts.regular, fontWeight: '700', color: colors.primary }}>
-                            R$ {Number(promoPrice).toFixed(2)}
+                            {formatarReais(promoPrice)}
                           </Text>
                         </View>
                       ) : promoPrice ? (
                         <Text style={{ fontSize: fonts.regular, fontWeight: '700', color: colors.primary, marginTop: 2 }}>
-                          R$ {Number(promoPrice).toFixed(2)}
+                          {formatarReais(promoPrice)}
                         </Text>
                       ) : null}
                     </View>

@@ -15,7 +15,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useQuery, useSubscription, useMutation } from '@apollo/client';
 import { Ionicons } from '@expo/vector-icons';
-import { GET_STORE, GET_STORE_PRODUCTS, IS_FOLLOWING_STORE, GET_FOLLOWER_COUNT } from '../../src/lib/graphql/queries';
+import { GET_STORE, GET_STORE_PRODUCTS, IS_FOLLOWING_STORE, GET_FOLLOWER_COUNT, CALCULATE_DELIVERY_FEE } from '../../src/lib/graphql/queries';
 import { FOLLOW_STORE, UNFOLLOW_STORE } from '../../src/lib/graphql/mutations';
 import { STORE_UPDATED } from '../../src/lib/graphql/subscriptions';
 import { useCart } from '../../src/contexts/CartContext';
@@ -24,7 +24,12 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../../src/theme';
+import { aplicarCoresDaLoja } from '../../src/coresDaLoja';
 import { imageCachePolicy } from '../../src/lib/deviceTier'; // Perf (F0)
+import { precoPorPeso } from '../../src/lib/precoPorPeso'; // KAN-282 item 6
+import { useLocation } from '../../src/contexts/LocationContext';
+import { rotuloDoFrete, rotuloDoFreteGratisAcima } from '../../src/lib/frete';
+import { formatarReais } from '../../src/lib/dinheiro';
 
 // UX: fileira de chips de categoria com setinhas indicando que ha mais
 // conteudo para os lados. Componente isolado e memoizado de proposito: o
@@ -92,10 +97,19 @@ const CategoryChips = React.memo(function CategoryChips({
 
 export default function StoreScreen() {
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
+  const { colors: coresDoApp } = useTheme();
   const { user } = useAuth();
   const { id, productId } = useLocalSearchParams<{ id: string; productId?: string }>();
   const { data, loading, error, refetch } = useQuery(GET_STORE, { variables: { id } });
+
+  // KAN-13: desta linha para baixo, `colors` é o tema do app com as cores da
+  // LOJA por cima (quando ela escolheu alguma). Fazer a troca aqui, uma vez,
+  // vale mais do que espalhar `loja.primaryColor ??` pelas ~90 referências de
+  // cor desta tela — e garante que nenhuma fique para trás.
+  const colors = useMemo(
+    () => aplicarCoresDaLoja(coresDoApp, data?.store),
+    [coresDoApp, data?.store],
+  );
 
   // Follow system
   const { data: followData, refetch: refetchFollow } = useQuery(IS_FOLLOWING_STORE, {
@@ -159,6 +173,19 @@ export default function StoreScreen() {
   }, [storeQuery]);
 
   const store = data?.store;
+
+  // Estimativa do frete pela posição atual — a mesma conta do checkout.
+  const { location: posicao } = useLocation();
+  const { data: freteData } = useQuery(CALCULATE_DELIVERY_FEE, {
+    variables: {
+      storeId: store?.id,
+      customerLatitude: posicao?.latitude,
+      customerLongitude: posicao?.longitude,
+    },
+    skip: !store?.id || !posicao || !!store?.freeDelivery,
+    fetchPolicy: 'cache-first',
+  });
+  const freteGratisAcima = rotuloDoFreteGratisAcima(store);
   const isServiceStoreEarly = store?.storeType === 'SERVICES';
 
   // Perf (F5/F6): catalogo paginado — 100 por pagina, proxima pagina no scroll
@@ -259,6 +286,25 @@ export default function StoreScreen() {
     return built;
   }, [store?.categories, allProducts, allServices, isServiceStore, debouncedStoreQuery]);
 
+  // KAN-13: a loja escolhe como os produtos aparecem. GRADE so vale para
+  // PRODUTO — servico nao tem foto grande para mostrar, e o cartao dele ja
+  // carrega duracao, preco e botao de agendar.
+  const ehGrade = store?.productLayout === 'GRID' && !isServiceStore;
+
+  // Na grade, cada "item" da lista passa a ser uma LINHA com dois produtos.
+  // E assim porque SectionList nao tem numColumns — e porque manter o caminho
+  // de lista intocado era mais seguro do que generalizar o cartao atual, que
+  // carrega peso variavel, adicao rapida, zoom de foto e estado de
+  // indisponivel.
+  const secoesVisiveis = useMemo(() => {
+    if (!ehGrade) return sections;
+    return sections.map((sec) => {
+      const pares: any[][] = [];
+      for (let i = 0; i < sec.data.length; i += 2) pares.push(sec.data.slice(i, i + 2));
+      return { ...sec, data: pares };
+    });
+  }, [sections, ehGrade]);
+
   // Perf (F5/F6): proxima pagina de 100 quando o scroll chega perto do fim.
   const loadMoreProducts = useCallback(() => {
     if (!hasMoreProducts || allProducts.length === 0) return;
@@ -348,12 +394,13 @@ export default function StoreScreen() {
             <Text style={[styles.detailText, { color: colors.textLight }]}>{store.estimatedDeliveryMinutes} min</Text>
             <Text style={[styles.detailDot, { color: colors.gray }]}>•</Text>
             <Text style={[styles.detailText, { color: colors.textLight }]}>
-              {Number(store.deliveryFee) > 0 ? `R$ ${Number(store.deliveryFee).toFixed(2)}` : 'Entrega gratis'}
+              {rotuloDoFrete(store, freteData?.calculateDeliveryFee)}
+              {freteGratisAcima ? ` · ${freteGratisAcima}` : ''}
             </Text>
             {Number(store.minimumOrder) > 0 && (
               <>
                 <Text style={[styles.detailDot, { color: colors.gray }]}>•</Text>
-                <Text style={[styles.detailText, { color: colors.textLight }]}>Min R$ {Number(store.minimumOrder).toFixed(2)}</Text>
+                <Text style={[styles.detailText, { color: colors.textLight }]}>Min {formatarReais(store.minimumOrder)}</Text>
               </>
             )}
           </View>
@@ -422,8 +469,10 @@ export default function StoreScreen() {
       </View>
 
       <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.id}
+        sections={secoesVisiveis as any}
+        keyExtractor={(item: any) =>
+          Array.isArray(item) ? item.map((i: any) => i.id).join('|') : item.id
+        }
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
         keyboardShouldPersistTaps="handled"
         onEndReached={loadMoreProducts}
@@ -443,6 +492,84 @@ export default function StoreScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
         )}
         renderItem={({ item }) => {
+          // ─── KAN-13: linha da GRADE (dois produtos por linha) ───────────
+          if (ehGrade && Array.isArray(item)) {
+            return (
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                {item.map((produto: any) => {
+                  const preco = Number(produto.promotionalPrice || produto.price);
+                  return (
+                    <TouchableOpacity
+                      key={produto.id}
+                      style={[styles.cartaoGrade, { backgroundColor: colors.card }]}
+                      onPress={() => store.isOpen && openProductModal(produto)}
+                      disabled={!store.isOpen || !produto.isAvailable}
+                      activeOpacity={0.8}
+                    >
+                      {produto.imageUrl ? (
+                        <Image
+                          source={produto.imageUrl}
+                          style={styles.imagemGrade}
+                          cachePolicy={imageCachePolicy}
+                          recyclingKey={produto.id}
+                        />
+                      ) : (
+                        <View style={[styles.imagemGrade, { backgroundColor: colors.grayLight, alignItems: 'center', justifyContent: 'center' }]}>
+                          <Ionicons name="fast-food-outline" size={22} color={colors.gray} />
+                        </View>
+                      )}
+                      <Text style={[styles.productName, { color: colors.text }]} numberOfLines={2}>
+                        {produto.name}
+                      </Text>
+                      {produto.promotionalPrice ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Text style={[styles.priceOld, { color: colors.gray }]}>
+                            {formatarReais(produto.price)}
+                          </Text>
+                          <Text style={[styles.price, { color: colors.primary }]}>
+                            {formatarReais(preco)}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={[styles.price, { color: colors.primary }]}>
+                          {formatarReais(preco)}
+                          {produto.isVariableWeight ? '/kg' : ''}
+                        </Text>
+                      )}
+                      {!produto.isAvailable && (
+                        <Text style={{ fontSize: fonts.tiny, color: colors.danger }}>
+                          Indisponivel
+                        </Text>
+                      )}
+                      {store.isOpen && produto.isAvailable && !produto.isVariableWeight && (
+                        <TouchableOpacity
+                          style={[styles.addGrade, { backgroundColor: colors.primary }]}
+                          onPress={() => {
+                            addItem(
+                              {
+                                productId: produto.id,
+                                name: produto.name,
+                                price: produto.promotionalPrice ?? produto.price,
+                                imageUrl: produto.imageUrl,
+                                storeId: store.id,
+                                storeName: store.name,
+                              },
+                              1,
+                            );
+                          }}
+                        >
+                          <Ionicons name="add" size={16} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+                {/* linha ímpar: o espaço vazio mantém o alinhamento das colunas */}
+                {item.length === 1 && <View style={{ flex: 1 }} />}
+              </View>
+            );
+          }
+
           if (isServiceStore) {
             // Service card
             const servicePrice = item.price ? Number(item.price) : null;
@@ -457,7 +584,7 @@ export default function StoreScreen() {
                     {item.requiresQuote ? (
                       <Text style={[styles.price, { color: colors.warning }]}>Solicitar orcamento</Text>
                     ) : servicePrice ? (
-                      <Text style={[styles.price, { color: colors.primary }]}>R$ {servicePrice.toFixed(2)}</Text>
+                      <Text style={[styles.price, { color: colors.primary }]}>{formatarReais(servicePrice)}</Text>
                     ) : null}
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
@@ -518,14 +645,14 @@ export default function StoreScreen() {
               ) : null}
               <View style={styles.priceRow}>
                 {item.isVariableWeight ? (
-                  <Text style={[styles.price, { color: colors.primary }]}>R$ {itemPrice.toFixed(2)}/kg</Text>
+                  <Text style={[styles.price, { color: colors.primary }]}>{formatarReais(itemPrice)}/kg</Text>
                 ) : item.promotionalPrice ? (
                   <>
-                    <Text style={[styles.priceOld, { color: colors.gray }]}>R$ {Number(item.price).toFixed(2)}</Text>
-                    <Text style={[styles.price, { color: colors.primary }]}>R$ {itemPrice.toFixed(2)}</Text>
+                    <Text style={[styles.priceOld, { color: colors.gray }]}>{formatarReais(item.price)}</Text>
+                    <Text style={[styles.price, { color: colors.primary }]}>{formatarReais(itemPrice)}</Text>
                   </>
                 ) : (
-                  <Text style={[styles.price, { color: colors.primary }]}>R$ {itemPrice.toFixed(2)}</Text>
+                  <Text style={[styles.price, { color: colors.primary }]}>{formatarReais(itemPrice)}</Text>
                 )}
                 {!item.isVariableWeight && item.unit && <Text style={[styles.unit, { color: colors.textLight }]}>/ {item.unit}</Text>}
               </View>
@@ -540,10 +667,18 @@ export default function StoreScreen() {
                   <Ionicons name="fast-food-outline" size={18} color={colors.gray} />
                 </View>
               )}
-              {store.isOpen && item.isAvailable && !item.isVariableWeight && (
+              {/* Produto por peso também tem o "+": antes ele não aparecia e o
+                  card não parecia clicável. No peso o "+" abre o seletor de
+                  gramas (o mesmo do toque no card) — adicionar direto
+                  exigiria chutar um peso. */}
+              {store.isOpen && item.isAvailable && (
                 <TouchableOpacity
                   style={[styles.quickAddBtn, { backgroundColor: colors.primary }]}
                   onPress={() => {
+                    if (item.isVariableWeight) {
+                      openProductModal(item);
+                      return;
+                    }
                     addItem({ productId: item.id, name: item.name, price: item.promotionalPrice ?? item.price, imageUrl: item.imageUrl, storeId: store.id, storeName: store.name }, 1);
                   }}
                 >
@@ -608,14 +743,14 @@ export default function StoreScreen() {
                   ) : null}
                   <View style={styles.addModalPriceRow}>
                     {selectedProduct.isVariableWeight ? (
-                      <Text style={[styles.addModalUnit, { color: colors.textLight }]}>R$ {Number(selectedProduct.promotionalPrice || selectedProduct.price).toFixed(2)}/kg</Text>
+                      <Text style={[styles.addModalUnit, { color: colors.textLight }]}>{formatarReais(selectedProduct.promotionalPrice || selectedProduct.price)}/kg</Text>
                     ) : selectedProduct.promotionalPrice ? (
                       <>
-                        <Text style={[styles.addModalPriceOld, { color: colors.gray }]}>R$ {Number(selectedProduct.price).toFixed(2)}</Text>
-                        <Text style={[styles.addModalPrice, { color: colors.primary }]}>R$ {Number(selectedProduct.promotionalPrice).toFixed(2)}</Text>
+                        <Text style={[styles.addModalPriceOld, { color: colors.gray }]}>{formatarReais(selectedProduct.price)}</Text>
+                        <Text style={[styles.addModalPrice, { color: colors.primary }]}>{formatarReais(selectedProduct.promotionalPrice)}</Text>
                       </>
                     ) : (
-                      <Text style={[styles.addModalPrice, { color: colors.primary }]}>R$ {Number(selectedProduct.price).toFixed(2)}</Text>
+                      <Text style={[styles.addModalPrice, { color: colors.primary }]}>{formatarReais(selectedProduct.price)}</Text>
                     )}
                     {!selectedProduct.isVariableWeight && selectedProduct.unit && <Text style={[styles.addModalUnit, { color: colors.textLight }]}>/ {selectedProduct.unit}</Text>}
                   </View>
@@ -665,11 +800,14 @@ export default function StoreScreen() {
                   <Text style={styles.addModalButtonText}>Adicionar</Text>
                   {selectedProduct.isVariableWeight ? (
                     <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={styles.addModalButtonPrice}>R$ {((selectedPrice * weightGrams) / 1000).toFixed(2)}</Text>
-                      <Text style={[styles.addModalButtonPrice, { fontSize: 10, opacity: 0.85 }]}>(R$ {selectedPrice.toFixed(2)}/kg)</Text>
+                      {/* KAN-282 (item 6): o preco previsto no botao tem de ser
+                          o MESMO que o servidor vai cobrar, senao o cliente ve
+                          um valor ao adicionar e outro no carrinho. */}
+                      <Text style={styles.addModalButtonPrice}>{formatarReais(precoPorPeso(selectedPrice, weightGrams))}</Text>
+                      <Text style={[styles.addModalButtonPrice, { fontSize: 10, opacity: 0.85 }]}>({formatarReais(selectedPrice)}/kg)</Text>
                     </View>
                   ) : (
-                    <Text style={styles.addModalButtonPrice}>R$ {(selectedPrice * quantity).toFixed(2)}</Text>
+                    <Text style={styles.addModalButtonPrice}>{formatarReais((selectedPrice * quantity))}</Text>
                   )}
                 </TouchableOpacity>
               </>
@@ -765,6 +903,29 @@ const styles = StyleSheet.create({
   closedText: { fontSize: fonts.small, fontWeight: '600' },
   list: { padding: 12, paddingBottom: 100 },
   sectionTitle: { fontSize: fonts.large, fontWeight: 'bold', marginTop: 12, marginBottom: 12 },
+  // KAN-13 (grade)
+  cartaoGrade: {
+    flex: 1,
+    borderRadius: 10,
+    padding: 8,
+    gap: 4,
+    position: 'relative',
+  },
+  imagemGrade: {
+    width: '100%',
+    height: 110,
+    borderRadius: 8,
+  },
+  addGrade: {
+    position: 'absolute',
+    right: 8,
+    top: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   productCard: {
     borderRadius: 10,
     padding: 12,

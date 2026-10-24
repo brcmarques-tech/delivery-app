@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { devLog } from '../src/lib/devLog'; // KAN-223
 import { fetchWithTimeout } from '../src/lib/fetchWithTimeout'; // KAN-240
+import { totalDaLinha } from '../src/lib/precoPorPeso'; // KAN-282 item 6
 import {
   View,
   Text,
@@ -28,6 +29,8 @@ import { CREATE_ORDER, SAVE_CARD } from '../src/lib/graphql/mutations';
 import { CALCULATE_DELIVERY_FEE, GET_MY_ADDRESSES, GET_STORE, ESTIMATE_DELIVERY_TIME, LIST_MY_CARDS, GET_MINIMUM_ORDER_PLATFORM } from '../src/lib/graphql/queries';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../src/theme';
+import { formatarReais } from '../src/lib/dinheiro';
+import { textoDoEndereco } from '../src/lib/endereco';
 
 const PAGARME_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAGARME_PUBLIC_KEY || '';
 
@@ -128,12 +131,15 @@ export default function CheckoutScreen() {
     }
   }, [params.selectedItems]);
 
-  const subtotal = useMemo(() => checkoutItems.reduce((sum, item) => {
-    if (item.isVariableWeight) {
-      return sum + (item.price * (item.weightGrams || 0)) / 1000;
-    }
-    return sum + item.price * item.quantity;
-  }, 0), [checkoutItems]);
+  // KAN-282 (item 6): somava os valores CRUS enquanto o servidor arredonda cada
+  // item em centavos antes de somar. Com 2 itens de R$ 39,90/kg x 355 g a tela
+  // dizia R$ 28,33 e o pedido saia R$ 28,32 — e a reconciliacao do checkout so
+  // avisa acima de 1 centavo, entao a divergencia passava calada. Pior: as
+  // LINHAS da propria tela somavam 28,32 e o subtotal mostrava 28,33.
+  const subtotal = useMemo(
+    () => checkoutItems.reduce((sum, item) => sum + totalDaLinha(item), 0),
+    [checkoutItems],
+  );
 
   // C1: Double-tap prevention ref
   const submittingRef = useRef(false);
@@ -315,6 +321,33 @@ export default function CheckoutScreen() {
   const belowMinimum = effectiveMinimum > 0 && subtotal < effectiveMinimum;
 
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  // KAN-282 (ALTO): `coords` nao era invalidado quando o cliente editava o
+  // endereco a mao. Duas janelas reais: (a) durante o debounce de 1s do geocode
+  // o botao seguia habilitado com a coordenada do endereco ANTERIOR; (b) se o
+  // geocode do endereco novo falhasse, a coordenada velha ficava para sempre,
+  // sem aviso — e `handleCheckout` so re-geocodificava quando `coords` era null.
+  // Resultado: apagar o endereco de casa, digitar o do trabalho e tocar
+  // "Finalizar" dentro de ~1s criava o pedido com o TEXTO do trabalho e a
+  // COORDENADA de casa. O frete era calculado para casa e o entregador
+  // navegava para casa.
+  //
+  // O conserto nao e invalidar no onChangeText: qualquer caminho que mexa no
+  // texto (GPS, endereco salvo, endereco padrao) teria de lembrar de fazer isso.
+  // Em vez disso a coordenada passa a carregar O TEXTO QUE A ORIGINOU, e so vale
+  // enquanto os dois batem. Coordenada orfa deixa de existir por construcao.
+  const [enderecoDasCoords, setEnderecoDasCoords] = useState<string | null>(null);
+  const aplicarCoords = useCallback(
+    (c: { latitude: number; longitude: number } | null, enderecoDeOrigem: string | null) => {
+      setCoords(c);
+      setEnderecoDasCoords(c ? enderecoDeOrigem : null);
+    },
+    [],
+  );
+  // Derivado, nao estado: a checagem e SINCRONA. Com um efeito de invalidacao
+  // haveria um render em que o botao ainda estaria habilitado com a coordenada
+  // velha. Aqui nao existe esse quadro.
+  const coordsValidas =
+    coords && enderecoDasCoords !== null && enderecoDasCoords === address ? coords : null;
   const [locatingGps, setLocatingGps] = useState(false);
   const [showAddressPicker, setShowAddressPicker] = useState(false);
   const [addressLoaded, setAddressLoaded] = useState(false);
@@ -341,17 +374,17 @@ export default function CheckoutScreen() {
     if (addressLoaded || savedAddresses.length === 0) return;
     const defaultAddr = savedAddresses.find((a: any) => a.isDefault) || savedAddresses[0];
     if (defaultAddr) {
-      const parts = [defaultAddr.street, defaultAddr.number];
-      if (defaultAddr.complement) parts.push(defaultAddr.complement);
-      parts.push(defaultAddr.neighborhood);
-      parts.push(`${defaultAddr.city}/${defaultAddr.state}`);
-      setAddress(parts.join(', '));
+      const textoEndereco = textoDoEndereco(defaultAddr);
+      setAddress(textoEndereco);
 
       const hasValidCoords = defaultAddr.latitude && defaultAddr.longitude
         && Math.abs(defaultAddr.latitude) > 0.01 && Math.abs(defaultAddr.longitude) > 0.01;
 
       if (hasValidCoords) {
-        setCoords({ latitude: defaultAddr.latitude, longitude: defaultAddr.longitude });
+        aplicarCoords(
+          { latitude: defaultAddr.latitude, longitude: defaultAddr.longitude },
+          textoEndereco,
+        );
         if (storeId) {
           const vars = { storeId, customerLatitude: defaultAddr.latitude, customerLongitude: defaultAddr.longitude };
           calcFee({ variables: vars });
@@ -387,11 +420,19 @@ export default function CheckoutScreen() {
     }
   }, [pickupOnly]);
 
+  // Mesmas regras do createOrder na API:
+  //  - pagar na entrega só com entregador da PRÓPRIA loja ou retirada (o
+  //    entregador do app não cobra em dinheiro, e o repasse passa pela plataforma);
+  //  - loja sem conta de recebimento só aceita pagar na entrega.
+  // Antes, loja sem conta de recebimento oferecia "Na entrega" até com
+  // entregador do app: a pessoa escolhia e a API recusava no fim.
   const paymentOptions = ALL_PAYMENT_OPTIONS.filter((opt) => {
-    if (!ownerPaymentConnected) return opt.key === 'ON_DELIVERY';
     if (opt.requiresOwnDelivery && !storeHasOwnDelivery && !isPickup) return false;
+    if (!ownerPaymentConnected) return opt.key === 'ON_DELIVERY';
     return true;
   });
+  // Loja sem pagamento online e sem entregador próprio: só retirada.
+  const soRetirada = !isPickup && paymentOptions.length === 0;
 
   useEffect(() => {
     if (!paymentOptions.find((o) => o.key === paymentMethod)) {
@@ -399,13 +440,43 @@ export default function CheckoutScreen() {
     }
   }, [storeHasOwnDelivery, isPickup, ownerPaymentConnected]);
 
+  // Em que pé está a busca do endereço digitado. Antes não existia: sem
+  // endereço, procurando ou não encontrado, o botão dizia "Calculando
+  // entrega..." — e no "não encontrado" ficava assim para sempre, desabilitado,
+  // sem a pessoa saber que precisava corrigir o endereço.
+  const [buscaDoEndereco, setBuscaDoEndereco] = useState<'ociosa' | 'buscando' | 'nao_achou'>('ociosa');
+
+  // Coordenada que ja pertence ao texto atual (endereco salvo, confirmado no
+  // mapa, ou GPS). Lida por ref para o efeito abaixo nao depender dela.
+  const parDasCoordsRef = useRef<{ coords: typeof coords; texto: string | null }>({ coords: null, texto: null });
+  parDasCoordsRef.current = { coords, texto: enderecoDasCoords };
+
   // Geocode address
   useEffect(() => {
-    if (!address.trim() || !storeId) return;
+    if (!address.trim() || !storeId) {
+      setBuscaDoEndereco('ociosa');
+      return;
+    }
+    // Ja ha coordenada para ESTE texto: nao geocodificar por cima. O endereco
+    // salvo vem com o ponto que o cliente confirmou no mapa; o geocode do texto
+    // (Nominatim) cai em outro lugar e, chegando depois, o sobrescrevia — o
+    // mesmo endereco saia com frete R$ 0,98 num pedido e R$ 1,09 no seguinte, e
+    // o entregador era mandado para o ponto do geocode.
+    const par = parDasCoordsRef.current;
+    if (par.coords && par.texto === address) {
+      setBuscaDoEndereco('ociosa');
+      return;
+    }
+    setBuscaDoEndereco('buscando');
+    // KAN-282: o texto pelo qual estamos geocodificando, congelado aqui. Se o
+    // cliente digitar mais durante o await, o resultado que chegar fica
+    // emparelhado com o texto VELHO e `coordsValidas` o descarta sozinho — em
+    // vez de o resultado atrasado se passar pelo endereco novo.
+    const enderecoAlvo = address;
     const timer = setTimeout(async () => {
       let result: { latitude: number; longitude: number } | null = null;
       try {
-        const results = await Location.geocodeAsync(address);
+        const results = await Location.geocodeAsync(enderecoAlvo);
         if (results.length > 0) {
           const { latitude, longitude } = results[0];
           if (Math.abs(latitude) > 0.01 && Math.abs(longitude) > 0.01) {
@@ -413,16 +484,21 @@ export default function CheckoutScreen() {
           }
         }
       } catch {}
-      if (!result) result = await geocodeNominatim(address);
+      if (!result) result = await geocodeNominatim(enderecoAlvo);
+      setBuscaDoEndereco(result ? 'ociosa' : 'nao_achou');
       if (result) {
-        setCoords(result);
+        aplicarCoords(result, enderecoAlvo);
         const vars = { storeId, customerLatitude: result.latitude, customerLongitude: result.longitude };
         calcFee({ variables: vars });
         calcTime({ variables: vars });
       }
+      // Geocode falhou: nao ha o que aplicar. A coordenada antiga ja nao vale
+      // (o texto divergiu), entao o botao fica desabilitado e handleCheckout
+      // tenta de novo no toque, com a mensagem que ja existe. O que NAO acontece
+      // mais e o pedido sair com a coordenada do endereco anterior.
     }, 1000);
     return () => clearTimeout(timer);
-  }, [address, storeId]);
+  }, [address, storeId, aplicarCoords]);
 
   async function handleGetLocation() {
     setLocatingGps(true);
@@ -434,7 +510,13 @@ export default function CheckoutScreen() {
       }
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
       const { latitude, longitude } = current.coords;
-      setCoords({ latitude, longitude });
+      // KAN-282: aqui a coordenada e a fonte da verdade e o texto e derivado
+      // DELA pelo reverse geocode — o oposto do caminho da digitacao. Por isso o
+      // par so e fechado depois de saber o texto: com o texto novo quando o
+      // reverse responde, e com o texto atual quando ele falha (o pedido leva
+      // lat/lng de qualquer forma, e e por elas que o entregador navega). O que
+      // nao pode existir e um par meio-feito.
+      let textoDoGps: string | null = null;
       try {
         const results = await Location.reverseGeocodeAsync({ latitude, longitude });
         if (results.length > 0) {
@@ -442,9 +524,11 @@ export default function CheckoutScreen() {
           const city = r.city || r.subregion || '';
           const neighborhood = r.district && r.district !== city ? r.district : '';
           const parts = [r.street, r.streetNumber, neighborhood, city, r.region].filter(Boolean);
-          setAddress(parts.join(', '));
+          textoDoGps = parts.join(', ');
+          setAddress(textoDoGps);
         }
       } catch {}
+      aplicarCoords({ latitude, longitude }, textoDoGps ?? address);
       if (storeId) {
         const vars = { storeId, customerLatitude: latitude, customerLongitude: longitude };
         calcFee({ variables: vars });
@@ -518,14 +602,22 @@ export default function CheckoutScreen() {
         }
       }
 
-      let finalCoords = coords;
+      // KAN-282: parte de `coordsValidas`, nao de `coords`. Era exatamente aqui
+      // que a coordenada orfa vazava para o pedido: `coords` truthy pulava o
+      // re-geocode e seguia com a coordenada do endereco anterior.
+      let finalCoords = coordsValidas;
       if (!isPickup) {
         if (!finalCoords) {
           try {
             const results = await Location.geocodeAsync(address);
             if (results.length > 0) {
-              finalCoords = { latitude: results[0].latitude, longitude: results[0].longitude };
-              setCoords(finalCoords);
+              const { latitude, longitude } = results[0];
+              // Mesma guarda do (0,0) dos outros caminhos: o geocode devolve
+              // zero quando nao acha nada, e o objeto zerado e truthy.
+              if (Math.abs(latitude) > 0.01 && Math.abs(longitude) > 0.01) {
+                finalCoords = { latitude, longitude };
+                aplicarCoords(finalCoords, address);
+              }
             }
           } catch {}
         }
@@ -574,7 +666,7 @@ export default function CheckoutScreen() {
       // H1: Reconcile client-side price with server total
       const serverTotal = Number(order.total);
       if (Math.abs(serverTotal - finalTotal) > 0.01) {
-        alert('Valor atualizado', `O valor do pedido foi atualizado para R$ ${serverTotal.toFixed(2)}`);
+        alert('Valor atualizado', `O valor do pedido foi atualizado para ${formatarReais(serverTotal)}`);
       }
 
       // Remove purchased items from cart
@@ -607,9 +699,7 @@ export default function CheckoutScreen() {
       <View style={styles.itemInfo}>
         <Text style={[styles.itemName, { color: colors.text }]}>{item.name}</Text>
         <Text style={[styles.itemPrice, { color: colors.primary }]}>
-          {item.isVariableWeight
-            ? `R$ ${((item.price * (item.weightGrams || 0)) / 1000).toFixed(2)}`
-            : `R$ ${(item.price * item.quantity).toFixed(2)}`}
+          {formatarReais(totalDaLinha(item))}
         </Text>
       </View>
       <Text style={[styles.itemQty, { color: colors.textLight }]}>
@@ -700,17 +790,14 @@ export default function CheckoutScreen() {
                 {showAddressPicker && (
                   <View style={styles.addressPickerList}>
                     {savedAddresses.map((addr: any) => {
-                      const label = [addr.street, addr.number, addr.neighborhood, `${addr.city}/${addr.state}`].filter(Boolean).join(', ');
+                      const label = textoDoEndereco(addr);
                       return (
                         <TouchableOpacity
                           key={addr.id}
                           style={[styles.addressPickerItem, { backgroundColor: colors.background }]}
                           onPress={() => {
-                            const parts = [addr.street, addr.number];
-                            if (addr.complement) parts.push(addr.complement);
-                            parts.push(addr.neighborhood);
-                            parts.push(`${addr.city}/${addr.state}`);
-                            setAddress(parts.join(', '));
+                            const textoEndereco = textoDoEndereco(addr);
+                            setAddress(textoEndereco);
                             // BUGFIX: endereco salvo pode ter (0,0) — a tela de
                             // enderecos grava zero quando o geocode nao acha nada.
                             // Sem esta guarda o `coords` virava um objeto truthy,
@@ -722,14 +809,17 @@ export default function CheckoutScreen() {
                               Math.abs(Number(addr.latitude) || 0) > 0.01 &&
                               Math.abs(Number(addr.longitude) || 0) > 0.01;
                             if (temCoordValida) {
-                              setCoords({ latitude: addr.latitude, longitude: addr.longitude });
+                              aplicarCoords(
+                                { latitude: addr.latitude, longitude: addr.longitude },
+                                textoEndereco,
+                              );
                               if (storeId) {
                                 calcFee({ variables: { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude } });
                                 calcTime({ variables: { storeId, customerLatitude: addr.latitude, customerLongitude: addr.longitude } });
                               }
                             } else {
                               // Deixa o efeito de geocodificacao resolver pelo texto.
-                              setCoords(null);
+                              aplicarCoords(null, null);
                             }
                             setShowAddressPicker(false);
                           }}
@@ -763,6 +853,11 @@ export default function CheckoutScreen() {
                     multiline
                   />
                 </View>
+                {buscaDoEndereco === 'nao_achou' && !coordsValidas && (
+                  <Text style={{ color: colors.danger, fontSize: fonts.small, marginTop: 6 }}>
+                    Não encontramos esse endereço. Confira rua, número e cidade, ou use o GPS.
+                  </Text>
+                )}
               </View>
             )}
 
@@ -806,6 +901,11 @@ export default function CheckoutScreen() {
             {/* Payment */}
             <View style={[styles.section, { backgroundColor: colors.white }]}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Forma de pagamento</Text>
+              {soRetirada && (
+                <Text style={{ color: colors.textLight, fontSize: fonts.small, marginBottom: 8 }}>
+                  Esta loja ainda não aceita pagamento pelo app. Escolha "Retirar no local" e pague na loja.
+                </Text>
+              )}
               {paymentOptions.map((option) => (
                 <TouchableOpacity
                   key={option.key}
@@ -859,13 +959,13 @@ export default function CheckoutScreen() {
                 <View style={[styles.minimumOrderWarning, { backgroundColor: errorBg, borderColor: errorBorder }]}>
                   <Ionicons name="alert-circle" size={18} color={errorText} />
                   <Text style={[styles.minimumOrderText, { color: errorText }]}>
-                    Pedido minimo desta loja: R$ {effectiveMinimum.toFixed(2)}. Faltam R$ {(effectiveMinimum - subtotal).toFixed(2)}.
+                    Pedido minimo desta loja: {formatarReais(effectiveMinimum)}. Faltam {formatarReais((effectiveMinimum - subtotal))}.
                   </Text>
                 </View>
               )}
               <View style={styles.summaryRow}>
                 <Text style={[styles.summaryLabel, { color: colors.textLight }]}>Subtotal</Text>
-                <Text style={[styles.summaryValue, { color: colors.text }, belowMinimum && { color: errorText }]}>R$ {subtotal.toFixed(2)}</Text>
+                <Text style={[styles.summaryValue, { color: colors.text }, belowMinimum && { color: errorText }]}>{formatarReais(subtotal)}</Text>
               </View>
               <View style={styles.summaryRow}>
                 <Text style={[styles.summaryLabel, { color: colors.textLight }]}>{isPickup ? 'Retirada' : 'Taxa de entrega'}</Text>
@@ -876,7 +976,15 @@ export default function CheckoutScreen() {
                 ) : (
                   // M1: Show 'Gratis' for zero fee when calculation is done, 'Calculando...' only when not yet calculated
                   <Text style={[styles.summaryValue, { color: colors.text }]}>
-                    {feeCalculated ? (deliveryFee > 0 ? `R$ ${deliveryFee.toFixed(2)}` : 'Gratis') : 'Calculando...'}
+                    {/* O endereço vem antes da taxa: apagado o endereço, a taxa
+                        calculada para o anterior continuava aparecendo. */}
+                    {!coordsValidas && !address.trim()
+                      ? 'Informe o endereço'
+                      : !coordsValidas && buscaDoEndereco === 'nao_achou'
+                        ? '—'
+                        : feeCalculated
+                          ? (deliveryFee > 0 ? `${formatarReais(deliveryFee)}` : 'Gratis')
+                          : 'Calculando...'}
                   </Text>
                 )}
               </View>
@@ -884,7 +992,7 @@ export default function CheckoutScreen() {
               {!isPickup && storeData?.store?.freeDeliveryAbove && subtotal < Number(storeData.store.freeDeliveryAbove) && (
                 <View style={[styles.summaryRow, { marginTop: 4 }]}>
                   <Text style={{ fontSize: 10, color: colors.success, fontWeight: '600' }}>
-                    Faltam R$ {(Number(storeData.store.freeDeliveryAbove) - subtotal).toFixed(2)} para frete gratis!
+                    Faltam {formatarReais((Number(storeData.store.freeDeliveryAbove) - subtotal))} para frete gratis!
                   </Text>
                 </View>
               )}
@@ -899,7 +1007,7 @@ export default function CheckoutScreen() {
               )}
               <View style={[styles.summaryRow, styles.totalRow, { borderTopColor: colors.grayLight }]}>
                 <Text style={[styles.totalLabel, { color: colors.text }]}>Total</Text>
-                <Text style={[styles.totalValue, { color: colors.primary }]}>R$ {finalTotal.toFixed(2)}</Text>
+                <Text style={[styles.totalValue, { color: colors.primary }]}>{formatarReais(finalTotal)}</Text>
               </View>
             </View>
           </View>
@@ -913,18 +1021,26 @@ export default function CheckoutScreen() {
           O cliente confirmava um valor e o pedido era criado por outro — a
           conferencia so acontecia DEPOIS de o pedido ja existir. */}
       <TouchableOpacity
-        style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: colors.primary }, (loading || belowMinimum || (!isPickup && !coords) || (!isPickup && (feeLoading || !feeCalculated))) && styles.checkoutDisabled]}
+        style={[styles.checkoutButton, { bottom: insets.bottom + 16, backgroundColor: colors.primary }, (loading || soRetirada || belowMinimum || (!isPickup && !coordsValidas) || (!isPickup && (feeLoading || !feeCalculated))) && styles.checkoutDisabled]}
         onPress={() => handleCheckout()}
-        disabled={loading || belowMinimum || (!isPickup && !coords) || (!isPickup && (feeLoading || !feeCalculated))}
+        disabled={loading || soRetirada || belowMinimum || (!isPickup && !coordsValidas) || (!isPickup && (feeLoading || !feeCalculated))}
       >
         <Text style={styles.checkoutText}>
           {loading
             ? 'Finalizando...'
+            : soRetirada
+            ? 'Disponível só para retirada'
             : belowMinimum
-            ? `Pedido minimo: R$ ${effectiveMinimum.toFixed(2)}`
+            ? `Pedido minimo: ${formatarReais(effectiveMinimum)}`
+            : !isPickup && !coordsValidas && !address.trim()
+            ? 'Informe o endereço de entrega'
+            : !isPickup && !coordsValidas && buscaDoEndereco === 'buscando'
+            ? 'Localizando endereço...'
+            : !isPickup && !coordsValidas && buscaDoEndereco === 'nao_achou'
+            ? 'Endereço não encontrado'
             : !isPickup && (feeLoading || !feeCalculated)
             ? 'Calculando entrega...'
-            : `Finalizar pedido - R$ ${finalTotal.toFixed(2)}`}
+            : `Finalizar pedido - ${formatarReais(finalTotal)}`}
         </Text>
       </TouchableOpacity>
 

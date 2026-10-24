@@ -3,11 +3,13 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSecureItem, setSecureItem, deleteSecureItem } from '../lib/secureStorage';
 import { useApolloClient, useSubscription } from '@apollo/client';
-import { Alert, AppState } from 'react-native';
+import {  AppState } from 'react-native';
 import { router } from 'expo-router';
 import { LOGIN, REGISTER, GOOGLE_AUTH_APP, REGISTER_APP_WITH_GOOGLE, LOGOUT, UNREGISTER_PUSH_TOKEN } from '../lib/graphql/mutations';
 import { GET_ME } from '../lib/graphql/queries';
 import { SESSION_KICKED } from '../lib/graphql/subscriptions';
+import { alerta } from '../lib/alerta';
+import { anotarUsuario, registrarSessaoEncerrada, ehSessaoInvalida } from '../lib/saidaDaSessao';
 
 interface User {
   id: string;
@@ -93,6 +95,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(freshUser);
   }, []);
 
+  // Só sai da conta quando a API DIZ que a sessão não vale mais. Antes, todo
+  // erro deslogava — inclusive falta de internet: abrir o app sem sinal
+  // derrubava a pessoa para o login. Sem rede, a sessão guardada continua; a
+  // próxima chamada que funcionar revalida.
+  const tratarFalhaDoMeApp = useCallback(async (err: any) => {
+    if (!ehSessaoInvalida(err)) return;
+    registrarSessaoEncerrada();
+    await forceLogout();
+  }, [forceLogout]);
+
   const validateToken = useCallback(async () => {
     try {
       const { data } = await apolloClient.query({
@@ -104,17 +116,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         await forceLogout();
       }
-    } catch {
-      await forceLogout();
+    } catch (err) {
+      await tratarFalhaDoMeApp(err);
     }
-  }, [apolloClient, applyFreshUser, forceLogout]);
+  }, [apolloClient, applyFreshUser, forceLogout, tratarFalhaDoMeApp]);
 
   const loadStoredAuth = useCallback(async () => {
     const storedToken = await getSecureItem('token');
     const storedUser = await AsyncStorage.getItem('user');
     if (storedToken && storedUser) {
       setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      const usuarioSalvo = JSON.parse(storedUser);
+      setUser(usuarioSalvo);
+      anotarUsuario(usuarioSalvo?.id);
       try {
         const { data } = await apolloClient.query({
           query: GET_ME,
@@ -125,12 +139,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           await forceLogout();
         }
-      } catch {
-        await forceLogout();
+      } catch (err) {
+        await tratarFalhaDoMeApp(err);
       }
     }
     setLoading(false);
-  }, [apolloClient, applyFreshUser, forceLogout]);
+  }, [apolloClient, applyFreshUser, forceLogout, tratarFalhaDoMeApp]);
+
+  useEffect(() => { anotarUsuario(user?.id); }, [user?.id]);
 
   // Listen for session kicked via WebSocket
   useSubscription(SESSION_KICKED, {
@@ -139,8 +155,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     onData: () => {
       if (justLoggedInRef.current || kickedRef.current) return;
       kickedRef.current = true;
+      // O alerta abaixo já explica; o login só precisa saber para onde voltar.
+      registrarSessaoEncerrada({ jaAvisado: true });
       forceLogout().then(() => {
-        Alert.alert(
+        alerta(
           'Sessao encerrada',
           'Sua conta foi conectada em outro dispositivo. Voce foi desconectado.',
           [{ text: 'OK', onPress: () => { kickedRef.current = false; router.replace('/auth/login'); } }],
