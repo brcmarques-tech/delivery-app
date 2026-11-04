@@ -17,20 +17,24 @@ const LAN_HOST = process.env.EXPO_PUBLIC_API_HOST || 'localhost';
 
 export const API_HOST = Platform.OS === 'web' ? 'localhost' : LAN_HOST;
 
+// Porta da API local. Padrao 3000 (o compose do delivery-api); quem sobe a API
+// em outra porta (ex.: o bcm.ps1, que procura porta livre) informa pela env.
+const API_PORT = process.env.EXPO_PUBLIC_API_PORT || '3000';
+
 const PROD_HTTP = 'https://api.bcmtech.com.br';
 const PROD_WS = 'wss://api.bcmtech.com.br';
 
 /** Base HTTP da API (GraphQL, REST). */
 export const httpBaseUrl = (): string =>
-  __DEV__ ? `http://${API_HOST}:3000` : PROD_HTTP;
+  __DEV__ ? `http://${API_HOST}:${API_PORT}` : PROD_HTTP;
 
 /** Base WebSocket para o Apollo (graphql-ws). */
 export const wsBaseUrl = (): string =>
-  __DEV__ ? `ws://${API_HOST}:3000` : PROD_WS;
+  __DEV__ ? `ws://${API_HOST}:${API_PORT}` : PROD_WS;
 
 /**
  * Base para socket.io. Atencao: socket.io usa esquema http/https (ele mesmo
  * faz o upgrade para WebSocket), NAO ws://.
  */
 export const socketBaseUrl = (): string =>
-  __DEV__ ? `http://${API_HOST}:3000` : PROD_HTTP;
+  __DEV__ ? `http://${API_HOST}:${API_PORT}` : PROD_HTTP;

@@ -205,7 +205,7 @@ export default function AppointmentDetailScreen() {
             <View style={s.row}>
               <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
               <Text style={[s.rowText, { color: colors.textSecondary }]}>
-                {apt.scheduledDate} as {apt.scheduledTime} - {apt.endTime}
+                {apt.scheduledDate.split('-').reverse().join('/')} às {apt.scheduledTime} - {apt.endTime}
               </Text>
             </View>
           ) : null}

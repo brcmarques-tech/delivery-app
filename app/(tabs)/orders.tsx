@@ -47,7 +47,10 @@ const appointmentStatusLabels: Record<string, { label: string; colorKey: string 
 
 // Perf (F3): module scope — antes era recriada a cada render dentro do componente.
 function formatAppointmentDate(dateStr: string): string {
-  const d = new Date(dateStr);
+  // scheduledDate é "YYYY-MM-DD" do calendário local. new Date() lê esse formato
+  // como meia-noite UTC, e no BR (UTC-3) a data aparecia um dia ANTES.
+  const [y, m, dia] = dateStr.split('-').map(Number);
+  const d = new Date(y, m - 1, dia);
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
