@@ -30,6 +30,7 @@ import {
 } from '../../src/lib/graphql/mutations';
 import { alerta } from '../../src/lib/alerta';
 import { formatarReais } from '../../src/lib/dinheiro';
+import { SeletorDeHorario } from '../../src/components/SeletorDeHorario';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pendente',
@@ -317,30 +318,27 @@ export default function AppointmentDetailScreen() {
         {/* Accept quote form */}
         {showQuoteAccept && (
           <View style={[s.card, { backgroundColor: colors.card }]}>
-            <Text style={[s.sectionTitle, { color: colors.text }]}>Escolha data e horario</Text>
-            <TextInput
-              style={[s.input, { borderColor: colors.border, color: colors.text }]}
-              placeholder="Data (YYYY-MM-DD)"
-              placeholderTextColor={colors.textSecondary}
-              value={quoteDate}
-              onChangeText={setQuoteDate}
-            />
-            <TextInput
-              style={[s.input, { borderColor: colors.border, color: colors.text }]}
-              placeholder="Horario (HH:MM)"
-              placeholderTextColor={colors.textSecondary}
-              value={quoteTime}
-              onChangeText={setQuoteTime}
+            <Text style={[s.sectionTitle, { color: colors.text }]}>Escolha o dia e o horário</Text>
+            <SeletorDeHorario
+              storeId={apt.store?.id}
+              serviceId={apt.service?.id}
+              colors={colors}
+              data={quoteDate || null}
+              horario={quoteTime || null}
+              onEscolher={(d, h) => {
+                setQuoteDate(d || '');
+                setQuoteTime(h || '');
+              }}
             />
             <TouchableOpacity
               style={[s.actionBtn, { backgroundColor: '#10B981' }]}
               onPress={handleAcceptQuote}
-              disabled={accepting}
+              disabled={accepting || !quoteDate || !quoteTime}
             >
               {accepting ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={s.actionBtnText}>Confirmar horario</Text>
+                <Text style={s.actionBtnText}>Confirmar horário</Text>
               )}
             </TouchableOpacity>
           </View>

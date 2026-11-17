@@ -103,7 +103,14 @@ export default function EarningsScreen() {
       {paymentConnected ? (
         <EarningsDashboard colors={colors} refetchMe={refreshUser} />
       ) : (
-        <RecipientForm colors={colors} onSuccess={refreshUser} />
+        <RecipientForm
+          colors={colors}
+          onSuccess={refreshUser}
+          // O repasse semanal (frete dos pedidos PIX) é pago por fora do
+          // Pagar.me: o entregador precisa cadastrar a chave PIX mesmo sem ter
+          // conectado a conta de recebimento.
+          topo={user?.role === 'DELIVERER' ? <RepasseSemanal colors={colors} /> : null}
+        />
       )}
     </View>
   );
@@ -207,6 +214,8 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
 
   if (balanceError) {
     return (
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 40, flexGrow: 1 }}>
+      {ehEntregador && <RepasseSemanal colors={colors} />}
       <View style={styles.centered}>
         <Ionicons name="cloud-offline-outline" size={36} color={colors.textSecondary} />
         <Text style={{ color: colors.textSecondary, marginTop: 12, fontSize: 12, textAlign: 'center' }}>
@@ -217,6 +226,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
           <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 12 }}>Tentar novamente</Text>
         </TouchableOpacity>
       </View>
+      </ScrollView>
     );
   }
 
@@ -404,7 +414,7 @@ function EarningsDashboard({ colors, refetchMe }: { colors: any; refetchMe: () =
 }
 
 // ===== RECIPIENT FORM (2 steps: Personal + Bank) =====
-function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => void }) {
+function RecipientForm({ colors, onSuccess, topo }: { colors: any; onSuccess: () => void; topo?: React.ReactNode }) {
   const { isDark } = useTheme();
   const [registerRecipient, { loading }] = useMutation(REGISTER_RECIPIENT);
   const [step, setStep] = useState(0); // 0=personal+address, 1=bank
@@ -555,6 +565,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+        {topo}
 
         {/* Step indicator */}
         <View style={styles.steps}>
@@ -725,7 +736,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
               </View>
               <View style={{ width: 70 }}>
                 <Text style={labelStyle}>Digito</Text>
-                <TextInput style={inputStyle()} value={form.branchCheckDigit} onChangeText={(v) => set('branchCheckDigit', v.replace(/\D/g, ''))} placeholder="0" maxLength={1} keyboardType="numeric" placeholderTextColor={colors.textSecondary} />
+                <TextInput style={inputStyle()} value={form.branchCheckDigit} onChangeText={(v) => set('branchCheckDigit', v.replace(/[^0-9Xx]/g, '').toUpperCase())} placeholder="0" maxLength={1} autoCapitalize="characters" placeholderTextColor={colors.textSecondary} />
               </View>
             </View>
 
@@ -737,7 +748,7 @@ function RecipientForm({ colors, onSuccess }: { colors: any; onSuccess: () => vo
               </View>
               <View style={{ width: 70 }}>
                 <Text style={labelStyle}>Digito</Text>
-                <TextInput style={inputStyle('accountCheckDigit')} value={form.accountCheckDigit} onChangeText={(v) => set('accountCheckDigit', v.replace(/\D/g, ''))} placeholder="0" maxLength={1} keyboardType="numeric" placeholderTextColor={colors.textSecondary} />
+                <TextInput style={inputStyle('accountCheckDigit')} value={form.accountCheckDigit} onChangeText={(v) => set('accountCheckDigit', v.replace(/[^0-9Xx]/g, '').toUpperCase())} placeholder="0" maxLength={1} autoCapitalize="characters" placeholderTextColor={colors.textSecondary} />
                 <FieldError field="accountCheckDigit" />
               </View>
             </View>
