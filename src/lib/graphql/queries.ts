@@ -364,6 +364,18 @@ export const GET_PROMOTION = gql`
 `;
 
 
+// Cupom: o servidor confere validade, mínimo, uso por cliente e teto, e devolve
+// o desconto (o createOrder recalcula tudo de novo com o couponCode).
+export const VALIDATE_COUPON = gql`
+  query ValidarCupom($code: String!, $storeId: String!, $subtotal: Float!) {
+    validateCoupon(code: $code, storeId: $storeId, subtotal: $subtotal) {
+      valid
+      discount
+      message
+    }
+  }
+`;
+
 export const CALCULATE_DELIVERY_FEE = gql`
   query CalculateDeliveryFee($storeId: String!, $customerLatitude: Float!, $customerLongitude: Float!) {
     calculateDeliveryFee(storeId: $storeId, customerLatitude: $customerLatitude, customerLongitude: $customerLongitude)

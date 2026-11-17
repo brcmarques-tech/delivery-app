@@ -147,7 +147,7 @@ export default function CardsScreen() {
   }
 
   const handleDeleteCard = useCallback(async (cardId: string) => {
-    alert('Remover Cartao', 'Tem certeza que deseja remover este cartao?', [
+    alert('Remover cartão', 'Remover este cartão?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Remover',
@@ -157,7 +157,7 @@ export default function CardsScreen() {
             await deleteCardMut({ variables: { cardId } });
             refetch();
           } catch (err: any) {
-            const msg = err.message?.includes('network') ? 'Sem conexao com a internet.' : err.message || 'Nao foi possivel remover o cartao.';
+            const msg = err.message?.includes('network') ? 'Sem conexao com a internet.' : err.message || 'Não foi possível remover o cartão.';
             alert('Erro', msg);
           }
         },
@@ -172,7 +172,7 @@ export default function CardsScreen() {
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[styles.cardBrand, { color: themeColors.text }]}>
-          {(item.brand || 'Cartao').charAt(0).toUpperCase() + (item.brand || 'cartao').slice(1)} **** {item.lastFourDigits}
+          {(item.brand || 'Cartão').charAt(0).toUpperCase() + (item.brand || 'cartão').slice(1)} **** {item.lastFourDigits}
         </Text>
         {item.holderName && (
           <Text style={[styles.cardHolder, { color: themeColors.textSecondary }]}>{item.holderName}</Text>
@@ -202,33 +202,33 @@ export default function CardsScreen() {
     const digits = cardNumber.replace(/\D/g, '');
 
     if (digits.length < 13) {
-      e.cardNumber = 'Numero do cartao invalido';
+      e.cardNumber = 'Número do cartão inválido';
     } else if (!luhnCheck(digits)) {
-      e.cardNumber = 'Numero do cartao invalido. Verifique os digitos.';
+      e.cardNumber = 'Número do cartão inválido. Verifique os dígitos.';
     }
     if (!holderName.trim()) e.holderName = 'Informe o nome do titular';
     const expiryParts = expiry.split('/');
     if (expiryParts.length !== 2 || expiryParts[0].length !== 2 || expiryParts[1].length !== 2) {
-      e.expiry = 'Validade invalida';
+      e.expiry = 'Validade inválida';
     } else {
       const month = parseInt(expiryParts[0]);
       const year = parseInt('20' + expiryParts[1]);
-      if (month < 1 || month > 12) e.expiry = 'Mes invalido';
-      else if (isExpired(month, year)) e.expiry = 'Cartao vencido';
+      if (month < 1 || month > 12) e.expiry = 'Mês inválido';
+      else if (isExpired(month, year)) e.expiry = 'Cartão vencido';
     }
-    if (cvv.length < 3) e.cvv = 'CVV invalido';
+    if (cvv.length < 3) e.cvv = 'CVV inválido';
     if (zipCode.replace(/\D/g, '').length !== 8) e.zipCode = 'CEP invalido';
     if (!street.trim()) e.street = 'Informe a rua';
-    if (!streetNumber.trim()) e.streetNumber = 'Informe o numero';
+    if (!streetNumber.trim()) e.streetNumber = 'Informe o número';
     if (!neighborhood.trim()) e.neighborhood = 'Informe o bairro';
     if (!city.trim()) e.city = 'Informe a cidade';
-    if (!state.trim() || state.trim().length !== 2) e.state = 'UF invalido';
+    if (!state.trim() || state.trim().length !== 2) e.state = 'UF inválida';
 
     setErrors(e);
     if (Object.keys(e).length > 0) { submittingRef.current = false; return; }
 
     if (!PAGARME_PUBLIC_KEY) {
-      alert('Erro de Configuracao', 'Sistema de pagamento nao configurado. Entre em contato com o suporte.');
+      alert('Erro de Configuracao', 'Sistema de pagamento não configurado. Fale com o suporte.');
       submittingRef.current = false;
       return;
     }
@@ -262,15 +262,15 @@ export default function CardsScreen() {
       if (!tokenResponse.ok) {
         const errorData = await tokenResponse.json().catch(() => ({}));
         if (tokenResponse.status === 400) {
-          throw new Error('Dados do cartao invalidos. Verifique o numero, validade e CVV.');
+          throw new Error('Dados do cartão inválidos. Confira número, validade e CVV.');
         }
-        throw new Error(errorData.message || 'Erro ao processar cartao. Tente novamente.');
+        throw new Error(errorData.message || 'Erro ao processar o cartão. Tente de novo.');
       }
 
       const tokenData = await tokenResponse.json();
       const { errors } = await saveCardMut({ variables: { token: tokenData.id } });
       if (errors && errors.length > 0) {
-        throw new Error(errors[0].message || 'Erro ao salvar cartao no servidor');
+        throw new Error(errors[0].message || 'Erro ao salvar o cartão');
       }
       refetch();
 
@@ -287,9 +287,9 @@ export default function CardsScreen() {
       setErrors({});
       setShowForm(false);
 
-      alert('Cartao Salvo', 'Seu cartao foi adicionado com sucesso!');
+      alert('Cartão salvo', 'Seu cartão foi adicionado.');
     } catch (err: any) {
-      let msg = 'Nao foi possivel salvar o cartao. Tente novamente.';
+      let msg = 'Não foi possível salvar o cartão. Tente de novo.';
       if (err.message?.includes('network') || err.message?.includes('Network')) msg = 'Sem conexao com a internet. Verifique e tente novamente.';
       else if (err.message) msg = err.message;
       alert('Erro', msg);
@@ -308,7 +308,7 @@ export default function CardsScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <Ionicons name="arrow-back" size={18} color={themeColors.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: themeColors.text }]}>Meus Cartoes</Text>
+        <Text style={[styles.title, { color: themeColors.text }]}>Meus cartões</Text>
         <TouchableOpacity onPress={() => { setShowForm(!showForm); setErrors({}); }}>
           <Ionicons name={showForm ? 'close' : 'add-circle-outline'} size={18} color="#f97316" />
         </TouchableOpacity>
@@ -325,13 +325,13 @@ export default function CardsScreen() {
           <View style={[styles.formCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <Ionicons name="card" size={18} color="#f97316" />
-              <Text style={[styles.formTitle, { color: themeColors.text }]}>Novo Cartao</Text>
+              <Text style={[styles.formTitle, { color: themeColors.text }]}>Novo cartão</Text>
             </View>
 
             <View>
               <TextInput
                 style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.cardNumber ? '#ef4444' : themeColors.border }]}
-                placeholder="Numero do cartao"
+                placeholder="Número do cartão"
                 placeholderTextColor={themeColors.textSecondary}
                 keyboardType="numeric"
                 value={cardNumber}
@@ -389,7 +389,7 @@ export default function CardsScreen() {
             <View style={{ marginTop: 4 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                 <Ionicons name="home" size={18} color="#f97316" />
-                <Text style={[styles.formTitle, { color: themeColors.text }]}>Endereco de cobranca</Text>
+                <Text style={[styles.formTitle, { color: themeColors.text }]}>Endereço de cobrança</Text>
               </View>
 
               <View style={styles.formRow}>
@@ -440,7 +440,7 @@ export default function CardsScreen() {
                 <View style={{ flex: 1 }}>
                   <TextInput
                     style={[styles.input, { backgroundColor: themeColors.inputBg, color: themeColors.text, borderColor: errors.streetNumber ? '#ef4444' : themeColors.border }]}
-                    placeholder="Numero"
+                    placeholder="Número"
                     placeholderTextColor={themeColors.textSecondary}
                     value={streetNumber}
                     onChangeText={(t) => { setStreetNumber(t); clearErrors('streetNumber'); }}
@@ -481,7 +481,7 @@ export default function CardsScreen() {
               ) : (
                 <>
                   <Ionicons name="lock-closed" size={16} color="#fff" />
-                  <Text style={styles.saveButtonText}>Salvar cartao</Text>
+                  <Text style={styles.saveButtonText}>Salvar cartão</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -497,7 +497,7 @@ export default function CardsScreen() {
       {showForm ? null : loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#f97316" />
-          <Text style={{ color: themeColors.textSecondary, marginTop: 12, fontSize: 12 }}>Carregando cartoes...</Text>
+          <Text style={{ color: themeColors.textSecondary, marginTop: 12, fontSize: 12 }}>Carregando cartões...</Text>
         </View>
       ) : fetchError ? (
         <View style={styles.loadingContainer}>
@@ -526,13 +526,13 @@ export default function CardsScreen() {
                 <View style={[styles.emptyIcon, { backgroundColor: isDark ? '#431407' : '#fff7ed' }]}>
                   <Ionicons name="card-outline" size={26} color="#f97316" />
                 </View>
-                <Text style={[styles.emptyTitle, { color: themeColors.text }]}>Nenhum cartao salvo</Text>
+                <Text style={[styles.emptyTitle, { color: themeColors.text }]}>Nenhum cartão salvo</Text>
                 <Text style={[styles.emptySubtitle, { color: themeColors.textSecondary }]}>
                   Adicione um cartao para facilitar seus pagamentos
                 </Text>
                 <TouchableOpacity style={styles.addButton} onPress={() => setShowForm(true)}>
                   <Ionicons name="add" size={18} color="#fff" />
-                  <Text style={styles.addButtonText}>Adicionar cartao</Text>
+                  <Text style={styles.addButtonText}>Adicionar cartão</Text>
                 </TouchableOpacity>
               </View>
             ) : null

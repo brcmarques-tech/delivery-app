@@ -26,7 +26,7 @@ import { useCart } from '../src/contexts/CartContext';
 import { useAlert } from '../src/contexts/AlertContext';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { CREATE_ORDER, SAVE_CARD } from '../src/lib/graphql/mutations';
-import { CALCULATE_DELIVERY_FEE, GET_MY_ADDRESSES, GET_STORE, ESTIMATE_DELIVERY_TIME, LIST_MY_CARDS, GET_MINIMUM_ORDER_PLATFORM } from '../src/lib/graphql/queries';
+import { CALCULATE_DELIVERY_FEE, GET_MY_ADDRESSES, GET_STORE, ESTIMATE_DELIVERY_TIME, LIST_MY_CARDS, GET_MINIMUM_ORDER_PLATFORM, VALIDATE_COUPON } from '../src/lib/graphql/queries';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts } from '../src/theme';
 import { formatarReais } from '../src/lib/dinheiro';
@@ -50,7 +50,7 @@ function luhnCheck(number: string): boolean {
 function isExpired(month: number, year: number): boolean {
   // BUGFIX: `new Date(year, month, 0)` e o ULTIMO DIA do mes de validade as
   // 00:00 — a partir desse dia um cartao AINDA VALIDO era recusado como
-  // "Cartao vencido". O cartao vale ate o fim do mes: comparar com o primeiro
+  // "Cartão vencido". O cartao vale ate o fim do mes: comparar com o primeiro
   // instante do mes SEGUINTE.
   const now = new Date();
   return new Date(year, month, 1) <= now;
@@ -105,8 +105,8 @@ interface CheckoutItem {
 
 const ALL_PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string; description: string; requiresOwnDelivery?: boolean }[] = [
   { key: 'ON_DELIVERY', label: 'Na entrega', icon: 'cash-outline', description: 'Pague ao receber', requiresOwnDelivery: true },
-  { key: 'CREDIT_CARD', label: 'Cartao de Credito', icon: 'card-outline', description: 'Pague com cartao salvo ou novo' },
-  { key: 'PIX', label: 'PIX', icon: 'qr-code-outline', description: 'Pagamento instantaneo' },
+  { key: 'CREDIT_CARD', label: 'Cartão de crédito', icon: 'card-outline', description: 'Pague com cartão salvo ou novo' },
+  { key: 'PIX', label: 'PIX', icon: 'qr-code-outline', description: 'Pagamento instantâneo' },
 ];
 
 export default function CheckoutScreen() {
@@ -160,6 +160,10 @@ export default function CheckoutScreen() {
   // M3: Coupon code state
   const [couponCode, setCouponCode] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
+  // Cupom: antes o botão Aplicar só dizia "em breve" e o código nunca ia no
+  // pedido, embora a API já aplicasse cupom (E2E 17/11/2026).
+  const [descontoCupom, setDescontoCupom] = useState(0);
+  const [validarCupom, { loading: validandoCupom }] = useLazyQuery(VALIDATE_COUPON, { fetchPolicy: 'network-only' });
   // ─── Age Verification State ──────────────────────────────────────────
   const [showAgeModal, setShowAgeModal] = useState(false);
   const [ageVerified, setAgeVerified] = useState(false);
@@ -214,31 +218,31 @@ export default function CheckoutScreen() {
 
     const e: Record<string, string> = {};
     const digits = cardNumber.replace(/\D/g, '');
-    if (digits.length < 13) e.cardNumber = 'Numero do cartao invalido';
-    else if (!luhnCheck(digits)) e.cardNumber = 'Numero do cartao invalido. Verifique os digitos.';
+    if (digits.length < 13) e.cardNumber = 'Número do cartão inválido';
+    else if (!luhnCheck(digits)) e.cardNumber = 'Número do cartão inválido. Verifique os dígitos.';
     if (!holderName.trim()) e.holderName = 'Informe o nome do titular';
     const expiryParts = cardExpiry.split('/');
     if (expiryParts.length !== 2 || expiryParts[0].length !== 2 || expiryParts[1].length !== 2) {
-      e.expiry = 'Validade invalida';
+      e.expiry = 'Validade inválida';
     } else {
       const month = parseInt(expiryParts[0]);
       const year = parseInt('20' + expiryParts[1]);
-      if (month < 1 || month > 12) e.expiry = 'Mes invalido';
-      else if (isExpired(month, year)) e.expiry = 'Cartao vencido';
+      if (month < 1 || month > 12) e.expiry = 'Mês inválido';
+      else if (isExpired(month, year)) e.expiry = 'Cartão vencido';
     }
-    if (cvv.length < 3) e.cvv = 'CVV invalido';
+    if (cvv.length < 3) e.cvv = 'CVV inválido';
     if (zipCode.replace(/\D/g, '').length !== 8) e.zipCode = 'CEP invalido';
     if (!street.trim()) e.street = 'Informe a rua';
-    if (!streetNumber.trim()) e.streetNumber = 'Informe o numero';
+    if (!streetNumber.trim()) e.streetNumber = 'Informe o número';
     if (!neighborhood.trim()) e.neighborhood = 'Informe o bairro';
     if (!city.trim()) e.city = 'Informe a cidade';
-    if (!cardState.trim() || cardState.trim().length !== 2) e.state = 'UF invalido';
+    if (!cardState.trim() || cardState.trim().length !== 2) e.state = 'UF inválida';
 
     setCardErrors(e);
     if (Object.keys(e).length > 0) { cardSubmittingRef.current = false; return; }
 
     if (!PAGARME_PUBLIC_KEY) {
-      alert('Erro', 'Sistema de pagamento nao configurado.');
+      alert('Erro', 'Sistema de pagamento não configurado.');
       cardSubmittingRef.current = false;
       return;
     }
@@ -270,8 +274,8 @@ export default function CheckoutScreen() {
       );
 
       if (!tokenResponse.ok) {
-        if (tokenResponse.status === 400) throw new Error('Dados do cartao invalidos. Verifique o numero, validade e CVV.');
-        throw new Error('Erro ao processar cartao. Tente novamente.');
+        if (tokenResponse.status === 400) throw new Error('Dados do cartão inválidos. Confira número, validade e CVV.');
+        throw new Error('Erro ao processar o cartão. Tente de novo.');
       }
 
       const tokenData = await tokenResponse.json();
@@ -288,9 +292,9 @@ export default function CheckoutScreen() {
 
       resetCardForm();
       setShowCardModal(false);
-      alert('Cartao Salvo', 'Seu cartao foi adicionado! Finalize o pedido.');
+      alert('Cartão salvo', 'Seu cartão foi adicionado! Finalize o pedido.');
     } catch (err: any) {
-      let msg = 'Nao foi possivel salvar o cartao. Tente novamente.';
+      let msg = 'Não foi possível salvar o cartão. Tente de novo.';
       if (err.message?.includes('network') || err.message?.includes('Network')) msg = 'Sem conexao com a internet.';
       else if (err.message) msg = err.message;
       alert('Erro', msg);
@@ -411,7 +415,7 @@ export default function CheckoutScreen() {
     lojaFreteGratis || (limiteFreteGratis > 0 && subtotal >= limiteFreteGratis);
   const deliveryFee =
     isPickup || freteGratis ? 0 : (feeData?.calculateDeliveryFee ?? 0);
-  const finalTotal = subtotal + deliveryFee;
+  const finalTotal = Math.max(0, subtotal - (couponApplied ? descontoCupom : 0)) + deliveryFee;
 
   const pickupOnly = !ownerPaymentConnected && !storeHasOwnDelivery;
   useEffect(() => {
@@ -535,7 +539,7 @@ export default function CheckoutScreen() {
         calcTime({ variables: vars });
       }
     } catch (err: any) {
-      alert('Erro', err.message || 'Nao foi possivel obter a localizacao');
+      alert('Erro', err.message || 'Não foi possível obter a localização');
     } finally {
       setLocatingGps(false);
     }
@@ -573,7 +577,7 @@ export default function CheckoutScreen() {
       }
 
       if (!isPickup && !address.trim()) {
-        alert('Erro', 'Informe o endereco de entrega');
+        alert('Erro', 'Informe o endereço de entrega');
         return;
       }
 
@@ -622,7 +626,7 @@ export default function CheckoutScreen() {
           } catch {}
         }
         if (!finalCoords) {
-          alert('Erro', 'Nao foi possivel localizar o endereco. Tente usar o botao de GPS.');
+          alert('Erro', 'Não foi possível localizar o endereço. Tente o botão de GPS.');
           return;
         }
       }
@@ -649,6 +653,7 @@ export default function CheckoutScreen() {
                 }),
             notes,
             paymentMethod,
+            ...(couponApplied && couponCode.trim() ? { couponCode: couponCode.trim() } : {}),
             // BUGFIX: lia so `ageVerified` — que, quando o modal chama
             // handleCheckout({skipAgeCheck:true}), ainda e FALSE nesta closure.
             // O pedido era reenviado SEM a confirmacao, o backend recusava de
@@ -687,7 +692,7 @@ export default function CheckoutScreen() {
         setShowAgeModal(true);
         return;
       }
-      alert('Erro', msg || 'Nao foi possivel fazer o pedido');
+      alert('Erro', msg || 'Não foi possível fazer o pedido');
     } finally {
       setLoading(false);
       submittingRef.current = false;
@@ -783,7 +788,7 @@ export default function CheckoutScreen() {
                   <Text style={[styles.sectionTitle, { color: colors.text }]}>Local de entrega</Text>
                   {savedAddresses.length > 0 && (
                     <TouchableOpacity onPress={() => setShowAddressPicker(!showAddressPicker)}>
-                      <Text style={[styles.savedAddressesLink, { color: colors.primary }]}>{showAddressPicker ? 'Fechar' : 'Meus enderecos'}</Text>
+                      <Text style={[styles.savedAddressesLink, { color: colors.primary }]}>{showAddressPicker ? 'Fechar' : 'Meus endereços'}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -846,7 +851,7 @@ export default function CheckoutScreen() {
                   </TouchableOpacity>
                   <TextInput
                     style={[styles.addressInput, { backgroundColor: colors.background, color: colors.text }]}
-                    placeholder="Digite o endereco ou use o GPS"
+                    placeholder="Digite o endereço ou use o GPS"
                     placeholderTextColor={colors.gray}
                     value={address}
                     onChangeText={setAddress}
@@ -863,7 +868,7 @@ export default function CheckoutScreen() {
 
             <TextInput
               style={[styles.notesInput, { backgroundColor: colors.white, color: colors.text }]}
-              placeholder="Observacoes (opcional)"
+              placeholder="Observações (opcional)"
               placeholderTextColor={colors.gray}
               value={notes}
               onChangeText={setNotes}
@@ -876,24 +881,36 @@ export default function CheckoutScreen() {
               <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                 <TextInput
                   style={[styles.addressInput, { backgroundColor: colors.background, color: colors.text, flex: 1 }]}
-                  placeholder="Codigo do cupom"
+                  placeholder="Código do cupom"
                   placeholderTextColor={colors.gray}
                   value={couponCode}
-                  onChangeText={(t) => { setCouponCode(t.toUpperCase()); setCouponApplied(false); }}
+                  onChangeText={(t) => { setCouponCode(t.toUpperCase()); setCouponApplied(false); setDescontoCupom(0); }}
                   autoCapitalize="characters"
                 />
                 <TouchableOpacity
                   style={[styles.locationButton, { backgroundColor: colors.primary + '15', width: 'auto' as any, paddingHorizontal: 12 }]}
-                  onPress={() => {
-                    // TODO: Call validateCoupon query when available in the API
+                  disabled={validandoCupom}
+                  onPress={async () => {
                     if (!couponCode.trim()) {
-                      alert('Erro', 'Informe o codigo do cupom');
+                      alert('Cupom', 'Informe o código do cupom.');
                       return;
                     }
-                    alert('Em breve', 'Cupons de desconto estarao disponiveis em breve!');
+                    const { data, error } = await validarCupom({
+                      variables: { code: couponCode.trim(), storeId: params.storeId, subtotal },
+                    });
+                    if (error || !data?.validateCoupon?.valid) {
+                      setCouponApplied(false);
+                      setDescontoCupom(0);
+                      alert('Cupom', error?.graphQLErrors?.[0]?.message || error?.message || 'Cupom inválido.');
+                      return;
+                    }
+                    setDescontoCupom(Number(data.validateCoupon.discount) || 0);
+                    setCouponApplied(true);
                   }}
                 >
-                  <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 12 }}>Aplicar</Text>
+                  <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 12 }}>
+                    {validandoCupom ? '...' : couponApplied ? 'Aplicado' : 'Aplicar'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -923,7 +940,7 @@ export default function CheckoutScreen() {
 
               {paymentMethod === 'CREDIT_CARD' && (
                 <View style={styles.cardsSection}>
-                  <Text style={[styles.cardsTitle, { color: colors.textLight }]}>Cartoes salvos</Text>
+                  <Text style={[styles.cardsTitle, { color: colors.textLight }]}>Cartões salvos</Text>
                   {(cardsData?.myCards || []).map((card: any) => (
                     <TouchableOpacity
                       key={card.id}
@@ -943,10 +960,10 @@ export default function CheckoutScreen() {
                     onPress={() => { resetCardForm(); setShowCardModal(true); }}
                   >
                     <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
-                    <Text style={[styles.cardText, { color: colors.primary }]}>Adicionar novo cartao</Text>
+                    <Text style={[styles.cardText, { color: colors.primary }]}>Adicionar novo cartão</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.manageCardsLink} onPress={() => router.push('/cards')}>
-                    <Text style={[styles.manageCardsText, { color: colors.primary }]}>Gerenciar cartoes</Text>
+                    <Text style={[styles.manageCardsText, { color: colors.primary }]}>Gerenciar cartões</Text>
                     <Ionicons name="chevron-forward" size={16} color={colors.primary} />
                   </TouchableOpacity>
                 </View>
@@ -967,14 +984,20 @@ export default function CheckoutScreen() {
                 <Text style={[styles.summaryLabel, { color: colors.textLight }]}>Subtotal</Text>
                 <Text style={[styles.summaryValue, { color: colors.text }, belowMinimum && { color: errorText }]}>{formatarReais(subtotal)}</Text>
               </View>
+              {couponApplied && descontoCupom > 0 && (
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryLabel, { color: colors.textLight }]}>Cupom {couponCode.trim()}</Text>
+                  <Text style={[styles.summaryValue, { color: colors.success }]}>- {formatarReais(descontoCupom)}</Text>
+                </View>
+              )}
               <View style={styles.summaryRow}>
                 <Text style={[styles.summaryLabel, { color: colors.textLight }]}>{isPickup ? 'Retirada' : 'Taxa de entrega'}</Text>
                 {isPickup ? (
-                  <Text style={[styles.summaryValue, { color: colors.success }]}>Gratis</Text>
+                  <Text style={[styles.summaryValue, { color: colors.success }]}>Grátis</Text>
                 ) : feeLoading ? (
                   <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
-                  // M1: Show 'Gratis' for zero fee when calculation is done, 'Calculando...' only when not yet calculated
+                  // M1: Show 'Grátis' for zero fee when calculation is done, 'Calculando...' only when not yet calculated
                   <Text style={[styles.summaryValue, { color: colors.text }]}>
                     {/* O endereço vem antes da taxa: apagado o endereço, a taxa
                         calculada para o anterior continuava aparecendo. */}
@@ -983,7 +1006,7 @@ export default function CheckoutScreen() {
                       : !coordsValidas && buscaDoEndereco === 'nao_achou'
                         ? '—'
                         : feeCalculated
-                          ? (deliveryFee > 0 ? `${formatarReais(deliveryFee)}` : 'Gratis')
+                          ? (deliveryFee > 0 ? `${formatarReais(deliveryFee)}` : 'Grátis')
                           : 'Calculando...'}
                   </Text>
                 )}
@@ -1099,7 +1122,7 @@ export default function CheckoutScreen() {
               <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="card" size={18} color={colors.primary} />
-                  <Text style={[styles.modalTitle, { color: colors.text }]}>Novo Cartao</Text>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Novo cartão</Text>
                 </View>
                 <TouchableOpacity onPress={() => { resetCardForm(); setShowCardModal(false); }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                   <Ionicons name="close" size={18} color={colors.text} />
@@ -1110,7 +1133,7 @@ export default function CheckoutScreen() {
                 <View>
                   <TextInput
                     style={[styles.modalInput, { backgroundColor: colors.white, color: colors.text, borderColor: cardErrors.cardNumber ? '#ef4444' : colors.border }]}
-                    placeholder="Numero do cartao"
+                    placeholder="Número do cartão"
                     placeholderTextColor={colors.gray}
                     keyboardType="numeric"
                     value={cardNumber}
@@ -1167,7 +1190,7 @@ export default function CheckoutScreen() {
 
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                   <Ionicons name="home" size={18} color={colors.primary} />
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.text }}>Endereco de cobranca</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.text }}>Endereço de cobrança</Text>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -1216,7 +1239,7 @@ export default function CheckoutScreen() {
                   <View style={{ flex: 1 }}>
                     <TextInput
                       style={[styles.modalInput, { backgroundColor: colors.white, color: colors.text, borderColor: cardErrors.streetNumber ? '#ef4444' : colors.border }]}
-                      placeholder="Numero"
+                      placeholder="Número"
                       placeholderTextColor={colors.gray}
                       value={streetNumber}
                       onChangeText={(t) => { setStreetNumber(t); clearCardError('streetNumber'); }}
@@ -1254,7 +1277,7 @@ export default function CheckoutScreen() {
                   ) : (
                     <>
                       <Ionicons name="lock-closed" size={16} color="#fff" />
-                      <Text style={styles.modalSaveButtonText}>Salvar cartao e continuar</Text>
+                      <Text style={styles.modalSaveButtonText}>Salvar cartão e continuar</Text>
                     </>
                   )}
                 </TouchableOpacity>

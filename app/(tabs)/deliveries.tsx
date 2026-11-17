@@ -430,7 +430,7 @@ export default function DeliveriesScreen() {
   const toggleOnline = useCallback(async () => {
     if (togglingOnline) return;
     if (!paymentConnected) {
-      alert('Conta nao conectada', 'Conecte sua conta de pagamento para comecar a fazer entregas.');
+      alert('Conta não conectada', 'Conecte sua conta de pagamento para comecar a fazer entregas.');
       return;
     }
 
@@ -732,7 +732,7 @@ export default function DeliveriesScreen() {
     devLog(`[APP-ACCEPT] orderId=${orderId}, orderNumber=${orderNumber}`);
     if (!paymentConnected) {
       devLog(`[APP-ACCEPT] BLOCKED: payment not connected`);
-      alert('Conta nao conectada', 'Conecte sua conta de pagamento para aceitar entregas.');
+      alert('Conta não conectada', 'Conecte sua conta de pagamento para aceitar entregas.');
       return;
     }
     // Várias corridas só da MESMA loja e antes de sair dela (regra da API,
@@ -776,7 +776,7 @@ export default function DeliveriesScreen() {
                 address: addr,
               });
             } else {
-              alert('Sucesso', 'Entrega aceita! Va ate a loja para coletar.');
+              alert('Sucesso', 'Entrega aceita! Vá até a loja para coletar.');
             }
           } catch (e: any) {
             console.error(`[APP-ACCEPT] FAILED:`, e?.message);
@@ -839,7 +839,7 @@ export default function DeliveriesScreen() {
       return;
     }
 
-    alert('Confirmar coleta', 'Voce ja retirou o pedido na loja?', [
+    alert('Confirmar coleta', 'Você já retirou o pedido na loja?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Sim, coletei',
@@ -864,7 +864,7 @@ export default function DeliveriesScreen() {
             }
           } catch (e: any) {
             console.error(`[APP-PICKUP] FAILED:`, e?.message);
-            alert('Erro', 'Nao foi possivel confirmar a coleta.');
+            alert('Erro', 'Não foi possível confirmar a coleta.');
           } finally {
             setActionLoading(null);
           }
@@ -900,7 +900,7 @@ export default function DeliveriesScreen() {
             refetchAvailable();
           } catch (e: any) {
             console.error(`[APP-DELIVERY] FAILED:`, e?.message);
-            alert('Erro', 'Nao foi possivel confirmar a entrega.');
+            alert('Erro', 'Não foi possível confirmar a entrega.');
           } finally {
             setActionLoading(null);
           }
@@ -1367,7 +1367,7 @@ export default function DeliveriesScreen() {
         <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} onPress={() => setAcceptedStore(null)}>
           <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden', maxHeight: '80%' }}>
             <View style={{ padding: 16, alignItems: 'center' }}>
-              <Text style={{ fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text }}>Va ate a loja!</Text>
+              <Text style={{ fontSize: fonts.xlarge, fontWeight: 'bold', color: colors.text }}>Vá até a loja!</Text>
               <Text style={{ fontSize: fonts.regular, color: colors.textLight, marginTop: 4 }}>{acceptedStore?.name}</Text>
               <Text style={{ fontSize: fonts.small, color: colors.textLight, marginTop: 2, textAlign: 'center' }}>{acceptedStore?.address}</Text>
             </View>
@@ -1617,7 +1617,7 @@ export default function DeliveriesScreen() {
                 ) : (
                   <>
                     <Ionicons name="bicycle-outline" size={64} color={colors.grayLight} />
-                    <Text style={[styles.emptyText, { color: colors.textLight }]}>Nenhuma entrega disponivel</Text>
+                    <Text style={[styles.emptyText, { color: colors.textLight }]}>Nenhuma entrega disponível</Text>
                     <Text style={[styles.emptySubtext, { color: colors.gray }]}>
                       Voce esta online! Novos pedidos aparecerao aqui quando estiverem prontos.
                     </Text>
@@ -1643,7 +1643,7 @@ export default function DeliveriesScreen() {
                 <Ionicons name="document-text-outline" size={64} color={colors.grayLight} />
                 <Text style={[styles.emptyText, { color: colors.textLight }]}>Nenhuma entrega ainda</Text>
                 <Text style={[styles.emptySubtext, { color: colors.gray }]}>
-                  Aceite entregas na aba "Disponiveis"
+                  Aceite entregas na aba "Disponíveis"
                 </Text>
               </View>
             ) : null

@@ -239,7 +239,7 @@ export default function OrderDetailScreen() {
         ? 'Confirme que recebeu o seu pedido.'
         : order?.status === 'DELIVERED'
           ? 'Ao confirmar, o pagamento é liberado para a loja.'
-          : 'Ao confirmar, o pagamento sera liberado ao entregador.',
+          : 'Ao confirmar, o pagamento será liberado.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -818,7 +818,7 @@ export default function OrderDetailScreen() {
       </View>
 
       <View style={[styles.section, { backgroundColor: colors.card }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Endereco</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Endereço</Text>
         <Text style={[styles.address, { color: colors.textLight }]}>{order.deliveryAddress}</Text>
       </View>
 
@@ -912,7 +912,7 @@ export default function OrderDetailScreen() {
             >
               <Ionicons name={pixCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color="#FFFFFF" />
               <Text style={styles.pixCopyButtonText}>
-                {pixCopied ? 'Codigo copiado!' : 'Copiar codigo PIX'}
+                {pixCopied ? 'Código copiado!' : 'Copiar código PIX'}
               </Text>
             </TouchableOpacity>
 
