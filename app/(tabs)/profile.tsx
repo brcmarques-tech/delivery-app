@@ -328,6 +328,11 @@ export default function ProfileScreen() {
         <Ionicons name="log-out-outline" size={18} color={colors.danger} />
         <Text style={styles.logoutText}>Sair da conta</Text>
       </AnimatedPressable>
+
+      {/* KAN-326 / LGPD (e exigência da Google Play): o titular exclui a própria conta. */}
+      <TouchableOpacity onPress={() => router.push('/excluir-conta')} style={{ alignItems: 'center', paddingVertical: 12 }}>
+        <Text style={{ fontSize: fonts.small, color: colors.textSecondary, textDecorationLine: 'underline' }}>Excluir minha conta</Text>
+      </TouchableOpacity>
     </ScrollView>
 
       <Modal visible={showAvatarPicker} transparent animationType="fade" onRequestClose={() => setShowAvatarPicker(false)}>
